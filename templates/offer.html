@@ -612,7 +612,7 @@
 
     function convertToOrder(offer_id) {
         if (confirm(`确定要将报价 ${offer_id} 转为销售订单吗？`)) {
-            fetch('/api/offer/convert_to_order', {
+            fetch('/api/offer/batch_to_order', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ids: [offer_id] })
