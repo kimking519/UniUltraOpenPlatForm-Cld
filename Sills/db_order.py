@@ -252,7 +252,7 @@ def batch_convert_from_offer(offer_ids, cli_id=None):
                 INSERT INTO uni_order (
                     order_id, order_no, order_date, cli_id, offer_id, inquiry_mpn, inquiry_brand,
                     price_rmb, price_kwr, price_usd, cost_price_rmb, is_finished, is_paid, paid_amount, return_status, remark, is_transferred
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '未转')
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """
                 params = (
                     order_id, order_no, datetime.now().strftime("%Y-%m-%d"), final_cli_id, offer_data['offer_id'],
