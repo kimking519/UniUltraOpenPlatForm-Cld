@@ -155,8 +155,12 @@
                     {{ row.remark }}
                 </td>
                 <td>
-                    <button class="btn" style="color: red; padding: 2px 8px;"
-                        onclick="deleteOrder('{{ row.order_id }}')">删除</button>
+                    <div style="display: flex; gap: 0.3rem;">
+                        <button class="btn" style="color: #3b82f6; padding: 2px 8px;"
+                            onclick="convertToBuy('{{ row.order_id }}')">转采购</button>
+                        <button class="btn" style="color: red; padding: 2px 8px;"
+                            onclick="deleteOrder('{{ row.order_id }}')">删除</button>
+                    </div>
                 </td>
             </tr>
             {% endfor %}
@@ -555,6 +559,24 @@
         const res = await resp.json();
         if (res.success) alert('成功转为采购记录');
         else alert(res.message);
+    }
+
+    // 单条转采购记录
+    async function convertToBuy(orderId) {
+        if (!confirm('确定将该订单转为采购记录吗？')) return;
+
+        const resp = await fetch('/api/order/batch_to_buy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: [orderId] })
+        });
+        const res = await resp.json();
+        if (res.success) {
+            alert('成功转为采购记录');
+            window.location.href = '/buy';
+        } else {
+            alert(res.message);
+        }
     }
 </script>
 {% endblock %}
