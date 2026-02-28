@@ -66,8 +66,8 @@
         <thead>
             <tr>
                 <th><input type="checkbox" id="select_all" onclick="toggleSelectAll(this.checked)"></th>
-                <th>采购编号</th>
                 <th>日期</th>
+                <th>采购编号</th>
                 <th>对应销售单</th>
                 <th>客户 ID</th>
                 <th>客户名称</th>
@@ -89,8 +89,8 @@
             {% for item in items %}
             <tr data-id="{{ item.buy_id }}">
                 <td><input type="checkbox" class="row-checkbox" value="{{ item.buy_id }}"></td>
-                <td>{{ item.buy_id }}</td>
                 <td>{{ item.buy_date }}</td>
+                <td>{{ item.buy_id }}</td>
                 <td ondblclick="editField(this, '{{ item.buy_id }}', 'order_id')">{{ item.order_no }}</td>
                 <td>{{ item.cli_id }}</td>
                 <td>{{ item.cli_name }}</td>
@@ -111,9 +111,9 @@
                 <td ondblclick="editField(this, '{{ item.buy_id }}', 'buy_brand')"
                     style="cursor: pointer; color: var(--primary);">{{ item.buy_brand }}</td>
                 <td ondblclick="editField(this, '{{ item.buy_id }}', 'buy_price_rmb')"
-                    style="cursor: pointer; color: var(--primary); font-weight: 600;">{{ item.buy_price_rmb }}</td>
+                    style="cursor: pointer; color: var(--primary); font-weight: 600;">{{ "%.2f"|format(item.buy_price_rmb or 0) }}</td>
                 <td ondblclick="editField(this, '{{ item.buy_id }}', 'sales_price_rmb')"
-                    style="cursor: pointer; color: var(--primary); font-weight: 600;">{{ item.sales_price_rmb }}</td>
+                    style="cursor: pointer; color: var(--primary); font-weight: 600;">{{ "%.2f"|format(item.sales_price_rmb or 0) }}</td>
                 <td><span style="color:var(--primary);">{{ item.price_kwr }}</span></td>
                 <td><span style="color:var(--primary);">{{ item.price_usd }}</span></td>
                 <td ondblclick="editField(this, '{{ item.buy_id }}', 'buy_qty')"
