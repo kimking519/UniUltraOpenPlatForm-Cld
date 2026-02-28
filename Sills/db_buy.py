@@ -79,10 +79,7 @@ def get_buy_list(page=1, page_size=10, search_kw="", order_id="", start_date="",
 def add_buy(data, conn=None):
     try:
         buy_id = data.get('buy_id')
-        if not buy_id:
-            hex_str = str(uuid.uuid4().hex)
-            buy_id = "PU" + datetime.now().strftime("%Y%m%d%H%M%S") + hex_str[:4]
-        
+
         # Validation Logic
         must_close = False
         if conn is None:
@@ -90,6 +87,19 @@ def add_buy(data, conn=None):
             must_close = True
 
         try:
+            if not buy_id:
+                # 生成递增的5位数采购编号
+                last_buy = conn.execute("SELECT buy_id FROM uni_buy WHERE buy_id LIKE 'c%' ORDER BY buy_id DESC LIMIT 1").fetchone()
+                if last_buy:
+                    try:
+                        last_num = int(last_buy['buy_id'][1:])  # 去掉前缀c，获取数字部分
+                        new_num = last_num + 1
+                    except:
+                        new_num = 1
+                else:
+                    new_num = 1
+                buy_id = f"c{new_num:05d}"  # 格式化为5位数，例如 c00001
+
             # Check uniqueness
             existing = conn.execute("SELECT buy_id FROM uni_buy WHERE buy_id = ?", (buy_id,)).fetchone()
             if existing:

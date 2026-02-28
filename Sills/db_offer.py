@@ -95,14 +95,12 @@ def get_offer_list(page=1, page_size=10, search_kw="", start_date="", end_date="
 
 def add_offer(data, emp_id, conn=None):
     try:
-        hex_str = str(uuid.uuid4().hex)
-        offer_id = "O" + datetime.now().strftime("%Y%m%d%H%M%S") + hex_str[:4]
         offer_date = datetime.now().strftime("%Y-%m-%d")
 
         quote_id = data.get('quote_id')
         if quote_id and str(quote_id).strip() == "":
             quote_id = None
-            
+
         vendor_id = data.get('vendor_id')
         if vendor_id and str(vendor_id).strip() == "":
             vendor_id = None
@@ -114,6 +112,18 @@ def add_offer(data, emp_id, conn=None):
             must_close = True
 
         try:
+            # 生成递增的5位数报价编号
+            last_offer = conn.execute("SELECT offer_id FROM uni_offer WHERE offer_id LIKE 'b%' ORDER BY offer_id DESC LIMIT 1").fetchone()
+            if last_offer:
+                try:
+                    last_num = int(last_offer['offer_id'][1:])  # 去掉前缀b，获取数字部分
+                    new_num = last_num + 1
+                except:
+                    new_num = 1
+            else:
+                new_num = 1
+            offer_id = f"b{new_num:05d}"  # 格式化为5位数，例如 b00001
+
             # 1. Emp Check
             emp = conn.execute("SELECT emp_id FROM uni_emp WHERE emp_id = ?", (emp_id,)).fetchone()
             if not emp:

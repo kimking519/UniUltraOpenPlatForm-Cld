@@ -3,30 +3,19 @@ import uuid
 from datetime import datetime
 from Sills.base import get_db_connection, get_exchange_rates
 
-def generate_order_no(cli_name=""):
-    """生成格式为 UNI-客户名称-YYYYMMDDHH 的订单编号"""
-    now = datetime.now()
-    today_str = now.strftime("%Y%m%d%H")
-    prefix = f"UNI-{cli_name}-{today_str}"
-
+def generate_order_no():
+    """生成格式为 d + 5位递增数字的订单编号"""
     with get_db_connection() as conn:
-        row = conn.execute("SELECT order_no FROM uni_order WHERE order_no LIKE ? ORDER BY order_no DESC LIMIT 1", (f"{prefix}%",)).fetchone()
-
-        if not row:
-            return prefix
-
-        last_no = row['order_no']
-        try:
-            if last_no == prefix:
-                return f"{prefix}-01"
-            elif '-' in last_no and last_no.split('-')[-1].isdigit():
-                parts = last_no.split('-')
-                seq = int(parts[-1]) + 1
-                return "-".join(parts[:-1]) + f"-{seq:02d}"
-            else:
-                return f"{prefix}-01"
-        except:
-            return f"{prefix}-01"
+        last_order = conn.execute("SELECT order_no FROM uni_order WHERE order_no LIKE 'd%' ORDER BY order_no DESC LIMIT 1").fetchone()
+        if last_order:
+            try:
+                last_num = int(last_order['order_no'][1:])  # 去掉前缀d，获取数字部分
+                new_num = last_num + 1
+            except:
+                new_num = 1
+        else:
+            new_num = 1
+        return f"d{new_num:05d}"  # 格式化为5位数，例如 d00001
 
 def get_order_list(page=1, page_size=10, search_kw="", cli_id="", start_date="", end_date="", is_finished="", is_transferred=""):
     offset = (page - 1) * page_size
@@ -99,9 +88,6 @@ def get_order_list(page=1, page_size=10, search_kw="", cli_id="", start_date="",
 def add_order(data, conn=None):
     try:
         order_id = data.get('order_id')
-        if not order_id:
-            hex_str = str(uuid.uuid4().hex)
-            order_id = "SO" + datetime.now().strftime("%Y%m%d%H%M%S") + hex_str[:4]
 
         must_close = False
         if conn is None:
@@ -109,6 +95,19 @@ def add_order(data, conn=None):
             must_close = True
 
         try:
+            if not order_id:
+                # 生成递增的5位数销售订单编号
+                last_order = conn.execute("SELECT order_id FROM uni_order WHERE order_id LIKE 'd%' ORDER BY order_id DESC LIMIT 1").fetchone()
+                if last_order:
+                    try:
+                        last_num = int(last_order['order_id'][1:])  # 去掉前缀d，获取数字部分
+                        new_num = last_num + 1
+                    except:
+                        new_num = 1
+                else:
+                    new_num = 1
+                order_id = f"d{new_num:05d}"  # 格式化为5位数，例如 d00001
+
             existing = conn.execute("SELECT order_id FROM uni_order WHERE order_id = ?", (order_id,)).fetchone()
             if existing:
                 return False, f"订单编号 {order_id} 已存在"
@@ -133,7 +132,7 @@ def add_order(data, conn=None):
 
             order_date = data.get('order_date') or datetime.now().strftime("%Y-%m-%d")
             paid_amount = float(data.get('paid_amount') or 0.0)
-            order_no = data.get('order_no') or generate_order_no(cli_name)
+            order_no = data.get('order_no') or order_id  # order_no 使用与 order_id 相同的值
 
             sql = """
             INSERT INTO uni_order (
@@ -199,9 +198,18 @@ def batch_import_order(text, cli_id):
                     if not offer_id and not inquiry_mpn:
                         continue
 
-                    hex_str = str(uuid.uuid4().hex)
-                    order_id = "SO" + datetime.now().strftime("%Y%m%d%H%M%S") + hex_str[:4]
-                    order_no = generate_order_no(cli_name)
+                    # 生成递增的5位数销售订单编号
+                    last_order = conn.execute("SELECT order_id FROM uni_order WHERE order_id LIKE 'd%' ORDER BY order_id DESC LIMIT 1").fetchone()
+                    if last_order:
+                        try:
+                            last_num = int(last_order['order_id'][1:])
+                            new_num = last_num + 1
+                        except:
+                            new_num = 1
+                    else:
+                        new_num = 1
+                    order_id = f"d{new_num:05d}"
+                    order_no = order_id  # order_no 使用与 order_id 相同的值
                     order_date = datetime.now().strftime("%Y-%m-%d")
 
                     insert_data.append((
@@ -254,9 +262,18 @@ def batch_convert_from_offer(offer_ids, cli_id=None):
                     errors.append(f"{offer_data['offer_id']}: 无法确定客户 ID")
                     continue
 
-                hex_str = str(uuid.uuid4().hex)
-                order_id = "SO" + datetime.now().strftime("%Y%m%d%H%M%S") + hex_str[:4]
-                order_no = generate_order_no(offer_data.get('cli_name', ''))
+                # 生成递增的5位数销售订单编号
+                last_order = conn.execute("SELECT order_id FROM uni_order WHERE order_id LIKE 'd%' ORDER BY order_id DESC LIMIT 1").fetchone()
+                if last_order:
+                    try:
+                        last_num = int(last_order['order_id'][1:])
+                        new_num = last_num + 1
+                    except:
+                        new_num = 1
+                else:
+                    new_num = 1
+                order_id = f"d{new_num:05d}"
+                order_no = order_id  # order_no 使用与 order_id 相同的值
 
                 sql = """
                 INSERT INTO uni_order (
