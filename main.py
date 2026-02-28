@@ -540,27 +540,43 @@ async def quote_export_offer_csv(request: Request, current_user: dict = Depends(
     ids = data.get("ids", [])
     if not ids:
         return {"success": False, "message": "未选择任何记录进行导出"}
-        
+
     from Sills.base import get_db_connection
     placeholders = ','.join(['?'] * len(ids))
     with get_db_connection() as conn:
-        quotes = conn.execute(f"SELECT * FROM uni_quote WHERE quote_id IN ({placeholders})", ids).fetchall()
-        
+        quotes = conn.execute(f"""
+            SELECT q.*, c.cli_name
+            FROM uni_quote q
+            LEFT JOIN uni_cli c ON q.cli_id = c.cli_id
+            WHERE q.quote_id IN ({placeholders})
+        """, ids).fetchall()
+
     import io, csv
     output = io.StringIO()
-    # Excel will render utf-8-sig properly
     output.write('\ufeff')
     writer = csv.writer(output)
-    writer.writerow(['需求编号','询价型号','报价型号','询价品牌','报价品牌','询价数量','实际数量','报价数量','成本价','报价','平台','供应商编号','货期','交期','报价语句','备注'])
-    
+    # 字段顺序与页面显示一致
+    writer.writerow(['需求日期','需求编号','客户名称','询价型号','报价型号','询价品牌','需求数量','目标价','成本价','批号','交期','状态','已转','备注'])
+
     for q in quotes:
         q_dict = dict(q)
         writer.writerow([
-            q_dict.get('quote_id', ''), q_dict.get('inquiry_mpn', ''), q_dict.get('quoted_mpn', ''),
-            q_dict.get('inquiry_brand', ''), '', q_dict.get('inquiry_qty', 0), '', '',
-            q_dict.get('cost_price_rmb', 0.0), '', '', '', '', '', '', q_dict.get('remark', '')
+            q_dict.get('quote_date', ''),
+            q_dict.get('quote_id', ''),
+            q_dict.get('cli_name', ''),
+            q_dict.get('inquiry_mpn', ''),
+            q_dict.get('quoted_mpn', ''),
+            q_dict.get('inquiry_brand', ''),
+            q_dict.get('inquiry_qty', 0),
+            q_dict.get('target_price_rmb', 0.0),
+            q_dict.get('cost_price_rmb', 0.0),
+            q_dict.get('date_code', ''),
+            q_dict.get('delivery_date', ''),
+            q_dict.get('status', ''),
+            q_dict.get('is_transferred', ''),
+            q_dict.get('remark', '')
         ])
-        
+
     return {"success": True, "csv_content": output.getvalue()}
 
 # ---------------- Offer Module ----------------

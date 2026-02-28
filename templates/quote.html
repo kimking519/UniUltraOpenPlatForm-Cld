@@ -73,8 +73,8 @@
                     <th style="width: 40px; min-width: 40px; text-align: center;"><input type="checkbox" id="selectAll"
                             onclick="toggleAll(this)"></th>
                     {% endif %}
-                    <th style="min-width: 140px;">需求编号</th>
                     <th style="min-width: 100px;">需求日期</th>
+                    <th style="min-width: 140px;">需求编号</th>
                     <th style="min-width: 120px;">客户名称</th>
                     <th style="min-width: 150px;">询价型号</th>
                     <th style="min-width: 150px;">报价型号</th>
@@ -100,8 +100,8 @@
                     <td style="text-align: center;"><input type="checkbox" class="row-checkbox"
                             value="{{ row.quote_id }}"></td>
                     {% endif %}
-                    <td>{{ row.quote_id }}</td>
                     <td>{{ row.quote_date }}</td>
+                    <td>{{ row.quote_id }}</td>
 
                     {% if current_user.rule == '3' or current_user.rule == '0' %}
                     <td ondblclick="makeEditableSelect(this, '{{ row.quote_id }}', 'cli_id', '{{ row.cli_id }}')">
