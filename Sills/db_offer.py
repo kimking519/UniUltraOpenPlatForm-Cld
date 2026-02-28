@@ -66,15 +66,23 @@ def get_offer_list(page=1, page_size=10, search_kw="", start_date="", end_date="
             remark = r.get('remark') or ""
             r['remark'] = remark.replace(' | ', '\n').replace('|', '\n')
 
-            try:
-                offer_price = float(r.get('offer_price_rmb') or 0.0)
-                if krw_val > 10: r['price_kwr'] = round(offer_price * krw_val, 1)
-                else: r['price_kwr'] = round(offer_price / krw_val, 1) if krw_val else 0.0
+            # 只在数据库中没有值时才计算汇率，不覆盖已保存的值
+            # 如果已有 price_kwr/price_usd，说明是用户手动输入的，保持不变
+            if not r.get('price_kwr') or float(r.get('price_kwr') or 0) == 0:
+                try:
+                    offer_price = float(r.get('offer_price_rmb') or 0.0)
+                    if krw_val > 10: r['price_kwr'] = round(offer_price * krw_val, 1)
+                    else: r['price_kwr'] = round(offer_price / krw_val, 1) if krw_val else 0.0
+                except:
+                    pass
 
-                if usd_val > 10: r['price_usd'] = round(offer_price * usd_val, 2)
-                else: r['price_usd'] = round(offer_price / usd_val, 2) if usd_val else 0.0
-            except:
-                pass
+            if not r.get('price_usd') or float(r.get('price_usd') or 0) == 0:
+                try:
+                    offer_price = float(r.get('offer_price_rmb') or 0.0)
+                    if usd_val > 10: r['price_usd'] = round(offer_price * usd_val, 2)
+                    else: r['price_usd'] = round(offer_price / usd_val, 2) if usd_val else 0.0
+                except:
+                    pass
 
         return results, total
 
