@@ -77,6 +77,11 @@
                 <th>报价(USD)</th>
                 <th>成本(RMB)</th>
                 <th>利润</th>
+                <th>需求数量(pcs)</th>
+                <th>报价数量(pcs)</th>
+                <th>供应商</th>
+                <th>批号(DC)</th>
+                <th>货期</th>
                 <th>退货状态</th>
                 <th>完结</th>
                 <th>付款</th>
@@ -108,6 +113,16 @@
                 <td onclick="editField('{{ row.order_id }}', 'cost_price_rmb', '{{ row.cost_price_rmb }}')"
                     style="cursor: pointer; color: var(--primary);">{{ row.cost_price_rmb }}</td>
                 <td><span style="color: green;">{{ row.profit }}</span></td>
+                <td ondblclick="editOfferField('{{ row.offer_id }}', 'inquiry_qty', '{{ row.inquiry_qty or 0 }}', 'number')"
+                    style="cursor: pointer;">{{ row.inquiry_qty or '' }}</td>
+                <td ondblclick="editOfferField('{{ row.offer_id }}', 'quoted_qty', '{{ row.quoted_qty or 0 }}', 'number')"
+                    style="cursor: pointer;">{{ row.quoted_qty or '' }}</td>
+                <td ondblclick="editOfferVendor('{{ row.offer_id }}', '{{ row.vendor_id or '' }}')"
+                    style="cursor: pointer;">{{ row.vendor_name or '' }}</td>
+                <td ondblclick="editOfferField('{{ row.offer_id }}', 'date_code', '{{ row.date_code or '' }}')"
+                    style="cursor: pointer;">{{ row.date_code or '' }}</td>
+                <td ondblclick="editOfferField('{{ row.offer_id }}', 'delivery_date', '{{ row.delivery_date or '' }}')"
+                    style="cursor: pointer;">{{ row.delivery_date or '' }}</td>
                 <td>
                     <select onchange="updateRowField('{{ row.order_id }}', 'return_status', this.value)"
                         style="padding: 2px;">
@@ -441,6 +456,80 @@
         formData.append('value', newVal);
 
         const resp = await fetch('/api/order/update', { method: 'POST', body: formData });
+        const res = await resp.json();
+        if (res.success) window.location.reload();
+        else alert(res.message);
+    }
+
+    // 编辑报价字段（需求数量、报价数量、批号、货期）
+    async function editOfferField(offerId, field, currentVal, inputType = 'text') {
+        if (!offerId) {
+            alert('该订单无关联报价，无法编辑');
+            return;
+        }
+        const newVal = prompt(`修改 ${field}:`, currentVal);
+        if (newVal === null || newVal === currentVal) return;
+
+        const formData = new FormData();
+        formData.append('offer_id', offerId);
+        formData.append('field', field);
+        formData.append('value', newVal);
+
+        const resp = await fetch('/api/offer/update', { method: 'POST', body: formData });
+        const res = await resp.json();
+        if (res.success) window.location.reload();
+        else alert(res.message);
+    }
+
+    // 编辑供应商（下拉选择）
+    async function editOfferVendor(offerId, currentVendorId) {
+        if (!offerId) {
+            alert('该订单无关联报价，无法编辑');
+            return;
+        }
+        const vendorOptions = `
+            <option value="">-- 选择供应商 --</option>
+            {% for v in vendor_list %}
+            <option value="{{ v.vendor_id }}">{{ v.vendor_name }}</option>
+            {% endfor %}
+        `;
+        const select = document.createElement('select');
+        select.innerHTML = vendorOptions;
+        select.value = currentVendorId;
+        select.style.padding = '4px';
+
+        const result = await new Promise((resolve) => {
+            const dialog = document.createElement('div');
+            dialog.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;z-index:9999;';
+            const box = document.createElement('div');
+            box.style.cssText = 'background:white;padding:20px;border-radius:8px;';
+            box.innerHTML = '<label>选择供应商：</label><br><br>';
+            box.appendChild(select);
+            const btnGroup = document.createElement('div');
+            btnGroup.style.cssText = 'margin-top:15px;display:flex;gap:10px;justify-content:flex-end;';
+            const okBtn = document.createElement('button');
+            okBtn.textContent = '确定';
+            okBtn.className = 'btn btn-primary';
+            okBtn.onclick = () => { document.body.removeChild(dialog); resolve(select.value); };
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = '取消';
+            cancelBtn.className = 'btn';
+            cancelBtn.onclick = () => { document.body.removeChild(dialog); resolve(null); };
+            btnGroup.appendChild(okBtn);
+            btnGroup.appendChild(cancelBtn);
+            box.appendChild(btnGroup);
+            dialog.appendChild(box);
+            document.body.appendChild(dialog);
+        });
+
+        if (result === null || result === currentVendorId) return;
+
+        const formData = new FormData();
+        formData.append('offer_id', offerId);
+        formData.append('field', 'vendor_id');
+        formData.append('value', result);
+
+        const resp = await fetch('/api/offer/update', { method: 'POST', body: formData });
         const res = await resp.json();
         if (res.success) window.location.reload();
         else alert(res.message);

@@ -34,6 +34,8 @@ def get_order_list(page=1, page_size=10, search_kw="", cli_id="", start_date="",
     FROM uni_order o
     JOIN uni_cli c ON o.cli_id = c.cli_id
     LEFT JOIN uni_offer off ON o.offer_id = off.offer_id
+    LEFT JOIN uni_vendor v ON off.vendor_id = v.vendor_id
+    LEFT JOIN uni_quote q ON off.quote_id = q.quote_id
     WHERE (o.inquiry_mpn LIKE ? OR o.order_id LIKE ? OR c.cli_name LIKE ?)
     """
     params = [f"%{search_kw}%", f"%{search_kw}%", f"%{search_kw}%"]
@@ -55,7 +57,11 @@ def get_order_list(page=1, page_size=10, search_kw="", cli_id="", start_date="",
         params.append(is_transferred)
 
     count_sql = "SELECT COUNT(*) " + query
-    data_sql = "SELECT o.*, c.cli_name, c.margin_rate, off.quoted_mpn, off.offer_price_rmb, off.cost_price_rmb AS source_cost, off.quoted_qty " + query + " ORDER BY o.order_date DESC, o.created_at DESC LIMIT ? OFFSET ?"
+    data_sql = """SELECT o.*, c.cli_name, c.margin_rate,
+        off.quoted_mpn, off.offer_price_rmb, off.cost_price_rmb AS source_cost,
+        off.inquiry_qty, off.quoted_qty, off.date_code, off.delivery_date,
+        v.vendor_name
+        """ + query + " ORDER BY o.order_date DESC, o.created_at DESC LIMIT ? OFFSET ?"
     params_with_limit = params + [page_size, offset]
 
     with get_db_connection() as conn:

@@ -1008,12 +1008,16 @@ async def order_page(request: Request, current_user: dict = Depends(login_requir
     results, total = get_order_list(page=page, page_size=page_size, search_kw=search, cli_id=cli_id, start_date=start_date, end_date=end_date, is_finished=is_finished, is_transferred=is_transferred)
     total_pages = (total + page_size - 1) // page_size
     from Sills.db_cli import get_cli_list
+    from Sills.base import get_paginated_list
     cli_list, _ = get_cli_list(page=1, page_size=1000)
+    vendor_data = get_paginated_list('uni_vendor', page=1, page_size=1000)
+    vendor_list = vendor_data['items']
     return templates.TemplateResponse("order.html", {
         "request": request, "active_page": "order", "current_user": current_user,
         "items": results, "total": total, "page": page, "page_size": page_size,
-        "total_pages": total_pages, "search": search, "cli_id": cli_id, 
+        "total_pages": total_pages, "search": search, "cli_id": cli_id,
         "start_date": start_date, "end_date": end_date, "cli_list": cli_list,
+        "vendor_list": vendor_list,
         "is_finished": is_finished,
         "is_transferred": request.query_params.get("is_transferred", "")
     })
