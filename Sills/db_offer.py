@@ -3,7 +3,7 @@ import uuid
 import csv
 import io
 from datetime import datetime
-from Sills.base import get_db_connection
+from Sills.base import get_db_connection, get_exchange_rates
 
 def get_offer_list(page=1, page_size=10, search_kw="", start_date="", end_date="", cli_id="", is_transferred=""):
     offset = (page - 1) * page_size
@@ -49,35 +49,28 @@ def get_offer_list(page=1, page_size=10, search_kw="", start_date="", end_date="
     """
     
     count_query = f"SELECT COUNT(*) {base_query}"
-    
+
     with get_db_connection() as conn:
         total = conn.execute(count_query, params).fetchone()[0]
         items = conn.execute(query, params + [page_size, offset]).fetchall()
-        
+
         results = []
         for row in items:
             d = dict(row)
             results.append({k: ("" if v is None else v) for k, v in d.items()})
 
-        try:
-            rate_krw_row = conn.execute("SELECT exchange_rate FROM uni_daily WHERE currency_code=2 ORDER BY record_date DESC LIMIT 1").fetchone()
-            rate_usd_row = conn.execute("SELECT exchange_rate FROM uni_daily WHERE currency_code=1 ORDER BY record_date DESC LIMIT 1").fetchone()
-            krw_val = float(rate_krw_row[0]) if rate_krw_row else 180.0
-            usd_val = float(rate_usd_row[0]) if rate_usd_row else 7.0
-        except:
-            krw_val, usd_val = 180.0, 7.0
+        # 使用缓存的汇率
+        krw_val, usd_val = get_exchange_rates()
 
         for r in results:
-            # 备注处理：将 | 替换为换行符用于前端 pre-line 显示
             remark = r.get('remark') or ""
             r['remark'] = remark.replace(' | ', '\n').replace('|', '\n')
-                
-            # 动态重新计算汇率（保持实时性）
+
             try:
                 offer_price = float(r.get('offer_price_rmb') or 0.0)
                 if krw_val > 10: r['price_kwr'] = round(offer_price * krw_val, 1)
                 else: r['price_kwr'] = round(offer_price / krw_val, 1) if krw_val else 0.0
-                
+
                 if usd_val > 10: r['price_usd'] = round(offer_price * usd_val, 2)
                 else: r['price_usd'] = round(offer_price / usd_val, 2) if usd_val else 0.0
             except:
@@ -164,11 +157,9 @@ def add_offer(data, emp_id, conn=None):
             if cost_price > 0:
                 offer_price = cost_price * (1 + margin / 100.0)
 
-            rate_krw = conn.execute("SELECT exchange_rate FROM uni_daily WHERE currency_code=2 ORDER BY record_date DESC LIMIT 1").fetchone()
-            rate_usd = conn.execute("SELECT exchange_rate FROM uni_daily WHERE currency_code=1 ORDER BY record_date DESC LIMIT 1").fetchone()
-            krw_val = float(rate_krw[0]) if rate_krw else 180.0
-            usd_val = float(rate_usd[0]) if rate_usd else 7.0
-            
+            # 使用缓存的汇率
+            krw_val, usd_val = get_exchange_rates()
+
             if krw_val > 10: price_kwr = round(offer_price * krw_val, 1)
             else: price_kwr = round(offer_price / krw_val, 1) if krw_val else 0.0
 

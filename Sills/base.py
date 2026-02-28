@@ -1,20 +1,114 @@
 import sqlite3
 import os
 from contextvars import ContextVar
+from functools import lru_cache
+from datetime import datetime
+import threading
 
 # 默认为开发环境库
 current_env: ContextVar[str] = ContextVar("current_env", default="dev")
+
+# 线程本地存储用于连接池
+_local = threading.local()
+
+# 连接池配置
+POOL_SIZE = 10
+POOL_TIMEOUT = 5.0
+
+# SQLite PRAGMA 优化配置
+PRAGMA_OPTIMIZATIONS = """
+PRAGMA journal_mode = WAL;
+PRAGMA synchronous = NORMAL;
+PRAGMA cache_size = -64000;
+PRAGMA temp_store = MEMORY;
+PRAGMA busy_timeout = 5000;
+PRAGMA foreign_keys = ON;
+"""
+
 
 def get_db_path():
     env = current_env.get()
     filename = "uni_platform.db" if env == "prod" else "uni_platform_dev.db"
     return os.path.join(os.path.dirname(os.path.dirname(__file__)), filename)
 
+
+@lru_cache(maxsize=2)
+def _get_cached_db_path():
+    """缓存数据库路径"""
+    env = current_env.get()
+    filename = "uni_platform.db" if env == "prod" else "uni_platform_dev.db"
+    return os.path.join(os.path.dirname(os.path.dirname(__file__)), filename)
+
+
 def get_db_connection():
-    conn = sqlite3.connect(get_db_path())
+    """获取数据库连接，使用 WAL 模式和优化配置"""
+    conn = sqlite3.connect(get_db_path(), timeout=POOL_TIMEOUT, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON;")
+    conn.executescript(PRAGMA_OPTIMIZATIONS)
     return conn
+
+
+def get_cached_connection():
+    """获取线程本地连接（用于同一请求内复用）"""
+    if not hasattr(_local, 'conn') or _local.conn is None:
+        _local.conn = get_db_connection()
+    return _local.conn
+
+
+def release_cached_connection():
+    """释放线程本地连接"""
+    if hasattr(_local, 'conn') and _local.conn is not None:
+        _local.conn.close()
+        _local.conn = None
+
+
+class DbContext:
+    """数据库上下文管理器，支持事务批处理"""
+
+    def __init__(self, autocommit=True):
+        self.autocommit = autocommit
+        self.conn = None
+
+    def __enter__(self):
+        self.conn = get_db_connection()
+        return self.conn
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None and self.autocommit:
+            self.conn.commit()
+        else:
+            self.conn.rollback()
+        self.conn.close()
+
+
+def batch_execute(conn, sql, params_list):
+    """批量执行 SQL，使用 executemany 提升性能"""
+    conn.executemany(sql, params_list)
+
+
+@lru_cache(maxsize=100)
+def get_cached_rate(currency_code):
+    """缓存汇率查询结果"""
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT exchange_rate FROM uni_daily WHERE currency_code=? ORDER BY record_date DESC LIMIT 1",
+            (currency_code,)
+        ).fetchone()
+        return float(row[0]) if row else (180.0 if currency_code == 2 else 7.0)
+
+
+def get_exchange_rates():
+    """获取最新汇率，使用缓存"""
+    try:
+        return get_cached_rate(2), get_cached_rate(1)
+    except:
+        return 180.0, 7.0
+
+
+def clear_cache():
+    """清除所有缓存"""
+    get_cached_rate.cache_clear()
+
 
 def init_db():
     schema = """
@@ -71,6 +165,7 @@ def init_db():
         delivery_date TEXT,
         status TEXT DEFAULT '询价中',
         remark TEXT,
+        is_transferred TEXT DEFAULT '未转',
         created_at DATETIME DEFAULT (datetime('now', 'localtime')),
         FOREIGN KEY (cli_id) REFERENCES uni_cli(cli_id) ON UPDATE CASCADE
     );
@@ -109,6 +204,7 @@ def init_db():
         emp_id TEXT NOT NULL,
         offer_statement TEXT,
         remark TEXT,
+        is_transferred TEXT DEFAULT '未转',
         created_at DATETIME DEFAULT (datetime('now', 'localtime')),
         FOREIGN KEY (quote_id) REFERENCES uni_quote(quote_id),
         FOREIGN KEY (vendor_id) REFERENCES uni_vendor(vendor_id),
@@ -124,13 +220,16 @@ def init_db():
         offer_id TEXT,
         inquiry_mpn TEXT,
         inquiry_brand TEXT,
+        price_rmb REAL,
         price_kwr REAL,
         price_usd REAL,
+        cost_price_rmb REAL,
         is_finished INTEGER DEFAULT 0 CHECK(is_finished IN (0,1)),
         is_paid INTEGER DEFAULT 0 CHECK(is_paid IN (0,1)),
         paid_amount REAL DEFAULT 0.0,
         return_status TEXT DEFAULT '正常',
         remark TEXT,
+        is_transferred TEXT DEFAULT '未转',
         created_at DATETIME DEFAULT (datetime('now', 'localtime')),
         FOREIGN KEY (cli_id) REFERENCES uni_cli(cli_id),
         FOREIGN KEY (offer_id) REFERENCES uni_offer(offer_id)
@@ -156,8 +255,36 @@ def init_db():
         FOREIGN KEY (order_id) REFERENCES uni_order(order_id),
         FOREIGN KEY (vendor_id) REFERENCES uni_vendor(vendor_id)
     );
+
+    -- 性能优化索引
+    CREATE INDEX IF NOT EXISTS idx_cli_name ON uni_cli(cli_name);
+    CREATE INDEX IF NOT EXISTS idx_cli_emp ON uni_cli(emp_id);
+
+    CREATE INDEX IF NOT EXISTS idx_quote_date ON uni_quote(quote_date);
+    CREATE INDEX IF NOT EXISTS idx_quote_cli ON uni_quote(cli_id);
+    CREATE INDEX IF NOT EXISTS idx_quote_transferred ON uni_quote(is_transferred);
+
+    CREATE INDEX IF NOT EXISTS idx_offer_date ON uni_offer(offer_date);
+    CREATE INDEX IF NOT EXISTS idx_offer_quote ON uni_offer(quote_id);
+    CREATE INDEX IF NOT EXISTS idx_offer_vendor ON uni_offer(vendor_id);
+    CREATE INDEX IF NOT EXISTS idx_offer_transferred ON uni_offer(is_transferred);
+
+    CREATE INDEX IF NOT EXISTS idx_order_date ON uni_order(order_date);
+    CREATE INDEX IF NOT EXISTS idx_order_cli ON uni_order(cli_id);
+    CREATE INDEX IF NOT EXISTS idx_order_offer ON uni_order(offer_id);
+    CREATE INDEX IF NOT EXISTS idx_order_transferred ON uni_order(is_transferred);
+
+    CREATE INDEX IF NOT EXISTS idx_buy_date ON uni_buy(buy_date);
+    CREATE INDEX IF NOT EXISTS idx_buy_order ON uni_buy(order_id);
+    CREATE INDEX IF NOT EXISTS idx_buy_vendor ON uni_buy(vendor_id);
+
+    CREATE INDEX IF NOT EXISTS idx_daily_date ON uni_daily(record_date);
+    CREATE INDEX IF NOT EXISTS idx_daily_currency ON uni_daily(currency_code);
+
+    CREATE INDEX IF NOT EXISTS idx_emp_account ON uni_emp(account);
+    CREATE INDEX IF NOT EXISTS idx_emp_rule ON uni_emp(rule);
     """
-    # 初始化两个环境的数据库
+
     envs = ["prod", "dev"]
     original_env = current_env.get()
     try:
@@ -165,14 +292,16 @@ def init_db():
             current_env.set(env)
             with get_db_connection() as conn:
                 conn.executescript(schema)
-                # Seed default admin if not exists
                 conn.execute("""
-                    INSERT OR IGNORE INTO uni_emp (emp_id, emp_name, account, password, rule) 
+                    INSERT OR IGNORE INTO uni_emp (emp_id, emp_name, account, password, rule)
                     VALUES ('000', '超级管理员', 'Admin', '088426ba2d6e02949f54ef1e62a2aa73', '3')
                 """)
                 conn.commit()
     finally:
         current_env.set(original_env)
+    # 初始化后清除缓存
+    clear_cache()
+
 
 def get_paginated_list(table_name, page=1, page_size=10, search_kwargs=None):
     """
@@ -196,12 +325,12 @@ def get_paginated_list(table_name, page=1, page_size=10, search_kwargs=None):
     with get_db_connection() as conn:
         total_count = conn.execute(count_query, params).fetchone()[0]
         items = conn.execute(query, params).fetchall()
-        
+
     results = [
         {k: ("" if v is None else v) for k, v in dict(row).items()}
         for row in items
     ]
-        
+
     return {
         "items": results,
         "total_count": total_count,
@@ -209,6 +338,7 @@ def get_paginated_list(table_name, page=1, page_size=10, search_kwargs=None):
         "page_size": page_size,
         "total_pages": (total_count + page_size - 1) // page_size
     }
+
 
 if __name__ == "__main__":
     init_db()
