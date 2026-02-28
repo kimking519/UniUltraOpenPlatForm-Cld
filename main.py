@@ -1228,7 +1228,7 @@ async def api_buy_update_node(buy_id: str = Form(...), field: str = Form(...), v
 async def api_buy_update(buy_id: str = Form(...), field: str = Form(...), value: str = Form(...), current_user: dict = Depends(login_required)):
     if current_user['rule'] not in ['3', '0']:
         return {"success": False, "message": "无权限"}
-    allowed_fields = ['order_id', 'vendor_id', 'buy_mpn', 'buy_brand', 'buy_price_rmb', 'buy_qty', 'sales_price_rmb', 'remark']
+    allowed_fields = ['order_id', 'vendor_id', 'buy_mpn', 'buy_brand', 'buy_price_rmb', 'buy_qty', 'sales_price_rmb', 'remark', 'price_kwr', 'price_usd']
     if field not in allowed_fields:
         return {"success": False, "message": f"非法字段: {field}"}
     from Sills.db_buy import update_buy
@@ -1258,19 +1258,62 @@ async def buy_export_csv(request: Request, current_user: dict = Depends(login_re
     placeholders = ','.join(['?'] * len(ids))
     with get_db_connection() as conn:
         buys = conn.execute(f"""
-            SELECT b.*, v.vendor_name, ord.order_no 
-            FROM uni_buy b 
-            LEFT JOIN uni_vendor v ON b.vendor_id = v.vendor_id 
+            SELECT b.*, v.vendor_name, v.address as vendor_address, ord.order_no,
+                   c.cli_id, c.cli_name, off.date_code, off.delivery_date
+            FROM uni_buy b
+            LEFT JOIN uni_vendor v ON b.vendor_id = v.vendor_id
             LEFT JOIN uni_order ord ON b.order_id = ord.order_id
+            LEFT JOIN uni_cli c ON ord.cli_id = c.cli_id
+            LEFT JOIN uni_offer off ON ord.offer_id = off.offer_id
             WHERE b.buy_id IN ({placeholders})
         """, ids).fetchall()
+
+    krw_rate, usd_rate = get_exchange_rates()
+
     import io, csv
     output = io.StringIO(); output.write('\ufeff')
     writer = csv.writer(output)
-    writer.writerow(['采购编号','日期','销售订单号','供应商','型号','品牌','单价','数量','总额','是否货源','是否下单','是否入库','是否发货','备注'])
+    # 与页面显示字段一致
+    writer.writerow(['日期','采购编号','对应销售单','客户ID','客户名称','供应商','供应商地址','型号','品牌','批号(DC)','货期','采购单价(RMB)','销售报价(RMB)','采购单价(KWR)','采购单价(USD)','数量','总额(RMB)','货源确认','下单确认','入库确认','发货确认','备注'])
+
     for r in buys:
         d = dict(r)
-        writer.writerow([d['buy_id'], d['buy_date'], d['order_no'] or '', d['vendor_name'], d['buy_mpn'], d['buy_brand'], d['buy_price_rmb'], d['buy_qty'], d['total_amount'], d['is_source_confirmed'], d['is_ordered'], d['is_instock'], d['is_shipped'], d['remark']])
+        buy_price = float(d.get('buy_price_rmb') or 0)
+
+        # KWR/USD 计算
+        price_kwr = d.get('price_kwr')
+        price_usd = d.get('price_usd')
+        if not price_kwr or float(price_kwr or 0) == 0:
+            if krw_rate > 10: price_kwr = round(buy_price * krw_rate, 1)
+            else: price_kwr = round(buy_price / krw_rate, 1) if krw_rate else 0
+        if not price_usd or float(price_usd or 0) == 0:
+            if usd_rate > 10: price_usd = round(buy_price * usd_rate, 2)
+            else: price_usd = round(buy_price / usd_rate, 2) if usd_rate else 0
+
+        writer.writerow([
+            d.get('buy_date', ''),
+            d.get('buy_id', ''),
+            d.get('order_no') or '',
+            d.get('cli_id') or '',
+            d.get('cli_name') or '',
+            d.get('vendor_name') or '',
+            d.get('vendor_address') or '',
+            d.get('buy_mpn') or '',
+            d.get('buy_brand') or '',
+            d.get('date_code') or '',
+            d.get('delivery_date') or '',
+            f"{buy_price:.2f}",
+            f"{float(d.get('sales_price_rmb') or 0):.2f}",
+            price_kwr,
+            price_usd,
+            d.get('buy_qty') or 0,
+            d.get('total_amount') or 0,
+            '是' if d.get('is_source_confirmed') == 1 else '否',
+            '是' if d.get('is_ordered') == 1 else '否',
+            '是' if d.get('is_instock') == 1 else '否',
+            '是' if d.get('is_shipped') == 1 else '否',
+            d.get('remark') or ''
+        ])
     return {"success": True, "csv_content": output.getvalue()}
 # --- New Workflow API endpoints ---
 

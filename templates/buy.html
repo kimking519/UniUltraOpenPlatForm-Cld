@@ -75,10 +75,12 @@
                 <th>供应商地址</th>
                 <th>型号</th>
                 <th>品牌</th>
+                <th>批号(DC)</th>
+                <th>货期</th>
                 <th>采购单价(RMB)</th>
                 <th>销售报价(RMB)</th>
                 <th>采购单价(KWR)</th>
-                <th>报价(USD)</th>
+                <th>采购单价(USD)</th>
                 <th>数量</th>
                 <th>总额 (RMB)</th>
                 <th>业务流程节点</th>
@@ -110,12 +112,16 @@
                     style="cursor: pointer; color: var(--primary);">{{ item.buy_mpn }}</td>
                 <td ondblclick="editField(this, '{{ item.buy_id }}', 'buy_brand')"
                     style="cursor: pointer; color: var(--primary);">{{ item.buy_brand }}</td>
+                <td>{{ item.date_code or '' }}</td>
+                <td>{{ item.delivery_date or '' }}</td>
                 <td ondblclick="editField(this, '{{ item.buy_id }}', 'buy_price_rmb')"
                     style="cursor: pointer; color: var(--primary); font-weight: 600;">{{ "%.2f"|format(item.buy_price_rmb or 0) }}</td>
                 <td ondblclick="editField(this, '{{ item.buy_id }}', 'sales_price_rmb')"
                     style="cursor: pointer; color: var(--primary); font-weight: 600;">{{ "%.2f"|format(item.sales_price_rmb or 0) }}</td>
-                <td><span style="color:var(--primary);">{{ item.price_kwr }}</span></td>
-                <td><span style="color:var(--primary);">{{ item.price_usd }}</span></td>
+                <td ondblclick="editBuyPrice(this, '{{ item.buy_id }}', 'price_kwr', 'KWR', {{ item.price_kwr or 0 }}, {{ item.buy_price_rmb or 0 }})"
+                    style="cursor: pointer;"><span style="color:var(--primary);">{{ item.price_kwr }}</span></td>
+                <td ondblclick="editBuyPrice(this, '{{ item.buy_id }}', 'price_usd', 'USD', {{ item.price_usd or 0 }}, {{ item.buy_price_rmb or 0 }})"
+                    style="cursor: pointer;"><span style="color:var(--primary);">{{ item.price_usd }}</span></td>
                 <td ondblclick="editField(this, '{{ item.buy_id }}', 'buy_qty')"
                     style="cursor: pointer; color: var(--primary); font-weight: 600;">{{ item.buy_qty }}</td>
                 <td style="font-weight: 700;">{{ item.total_amount }}</td>
@@ -398,6 +404,95 @@
         const res = await resp.json();
         if (res.success) window.location.reload();
         else alert(res.message);
+    }
+
+    // 编辑采购单价(KWR/USD)，同时更新采购单价(RMB)
+    async function editBuyPrice(td, buyId, field, currency, currentValue, currentRmb) {
+        if (td.querySelector('input')) return;
+
+        // 获取最新汇率
+        let exchangeRate = currency === 'KWR' ? 180.0 : 7.0;
+        try {
+            const res = await fetch('/api/exchange/rates');
+            const rateData = await res.json();
+            if (rateData.success) {
+                exchangeRate = currency === 'KWR' ? rateData.krw : rateData.usd;
+            }
+        } catch (e) {
+            console.error('Failed to get exchange rate:', e);
+        }
+
+        const originalValue = currentValue;
+        td.innerHTML = `<input type="number" step="0.01" value="${originalValue}" style="width: 100%; min-width: 60px; padding: 4px; box-sizing: border-box;">`;
+        const input = td.querySelector('input');
+        input.focus();
+
+        const savePrice = async (newValue) => {
+            if (newValue === originalValue) {
+                td.innerHTML = `<span style="color:var(--primary);">${originalValue}</span>`;
+                return;
+            }
+
+            // 保存 KWR/USD
+            const formData = new FormData();
+            formData.append('buy_id', buyId);
+            formData.append('field', field);
+            formData.append('value', newValue);
+
+            try {
+                const res = await fetch('/api/buy/update', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    // 计算新的 RMB 价格
+                    const newPrice = parseFloat(newValue);
+                    let newRmb = 0;
+                    if (currency === 'KWR') {
+                        // KRW 汇率 > 10，表示 1 RMB = ? KRW
+                        newRmb = newPrice / exchangeRate;
+                    } else {
+                        // USD 汇率 < 10，表示 1 USD = ? RMB (直接乘)
+                        // USD 汇率 > 10，表示 1 RMB = ? USD (除以)
+                        if (exchangeRate > 10) {
+                            newRmb = newPrice / exchangeRate;
+                        } else {
+                            newRmb = newPrice * exchangeRate;
+                        }
+                    }
+
+                    // 更新采购单价(RMB)
+                    const rmbFormData = new FormData();
+                    rmbFormData.append('buy_id', buyId);
+                    rmbFormData.append('field', 'buy_price_rmb');
+                    rmbFormData.append('value', newRmb.toFixed(2));
+
+                    await fetch('/api/buy/update', {
+                        method: 'POST',
+                        body: rmbFormData
+                    });
+
+                    td.innerHTML = `<span style="color:var(--primary);">${newValue}</span>`;
+                    window.location.reload();
+                } else {
+                    alert('更新失败: ' + data.message);
+                    td.innerHTML = `<span style="color:var(--primary);">${originalValue}</span>`;
+                }
+            } catch (e) {
+                alert('请求失败: ' + e.message);
+                td.innerHTML = `<span style="color:var(--primary);">${originalValue}</span>`;
+            }
+        };
+
+        input.onblur = () => savePrice(input.value);
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') input.blur();
+            if (e.key === 'Escape') {
+                td.innerHTML = `<span style="color:var(--primary);">${originalValue}</span>`;
+            }
+        };
     }
 
     async function updateRowField(buyId, field, value) {

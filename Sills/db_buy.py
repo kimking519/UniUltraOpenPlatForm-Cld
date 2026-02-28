@@ -1,7 +1,7 @@
 import sqlite3
 import uuid
 from datetime import datetime
-from Sills.base import get_db_connection
+from Sills.base import get_db_connection, get_exchange_rates
 
 def get_buy_list(page=1, page_size=10, search_kw="", order_id="", start_date="", end_date="", cli_id="", is_shipped=""):
     offset = (page - 1) * page_size
@@ -33,7 +33,8 @@ def get_buy_list(page=1, page_size=10, search_kw="", order_id="", start_date="",
         params.append(int(is_shipped))
         
     query = f"""
-    SELECT b.*, ord.order_no, v.vendor_name, v.address as vendor_address, c.cli_id, c.cli_name, c.margin_rate, off.offer_price_rmb
+    SELECT b.*, ord.order_no, v.vendor_name, v.address as vendor_address, c.cli_id, c.cli_name, c.margin_rate, off.offer_price_rmb,
+           off.inquiry_qty, off.date_code, off.delivery_date
     {base_query}
     ORDER BY b.created_at DESC
     LIMIT ? OFFSET ?
@@ -44,33 +45,35 @@ def get_buy_list(page=1, page_size=10, search_kw="", order_id="", start_date="",
     with get_db_connection() as conn:
         total = conn.execute(count_query, params).fetchone()[0]
         items = conn.execute(query, params + [page_size, offset]).fetchall()
-        
+
         results = []
         for row in items:
             d = dict(row)
             results.append({k: ("" if v is None else v) for k, v in d.items()})
-            
-        try:
-            rate_krw = conn.execute("SELECT exchange_rate FROM uni_daily WHERE currency_code=2 ORDER BY record_date DESC LIMIT 1").fetchone()
-            rate_usd = conn.execute("SELECT exchange_rate FROM uni_daily WHERE currency_code=1 ORDER BY record_date DESC LIMIT 1").fetchone()
-            krw_val = float(rate_krw[0]) if rate_krw else 180.0
-            usd_val = float(rate_usd[0]) if rate_usd else 7.0
-            
-            for r in results:
-                price = r.get('offer_price_rmb') or 0.0
-                margin = float(r.get('margin_rate') or 0.0)
-                final_price = float(price) * (1 + margin / 100.0)
-                
-                if krw_val > 10: r['price_kwr'] = round(final_price * krw_val, 2)
-                else: r['price_kwr'] = round(final_price / krw_val, 2) if krw_val else 0.0
-                    
-                if usd_val > 10: r['price_usd'] = round(final_price * usd_val, 2)
-                else: r['price_usd'] = round(final_price / usd_val, 2) if usd_val else 0.0
-        except Exception as e:
-            for r in results:
-                r['price_kwr'] = 0.0
-                r['price_usd'] = 0.0
-            
+
+        # 使用缓存的汇率
+        krw_val, usd_val = get_exchange_rates()
+
+        for r in results:
+            # 采购单价(RMB)作为计算基础
+            buy_price = float(r.get('buy_price_rmb') or 0)
+
+            # 采购单价(KWR) - 只在数据库没有值时才计算
+            if not r.get('price_kwr') or float(r.get('price_kwr') or 0) == 0:
+                try:
+                    if krw_val > 10: r['price_kwr'] = round(buy_price * krw_val, 1)
+                    else: r['price_kwr'] = round(buy_price / krw_val, 1) if krw_val else 0.0
+                except:
+                    r['price_kwr'] = 0.0
+
+            # 采购单价(USD) - 只在数据库没有值时才计算
+            if not r.get('price_usd') or float(r.get('price_usd') or 0) == 0:
+                try:
+                    if usd_val > 10: r['price_usd'] = round(buy_price * usd_val, 2)
+                    else: r['price_usd'] = round(buy_price / usd_val, 2) if usd_val else 0.0
+                except:
+                    r['price_usd'] = 0.0
+
         return results, total
 
 def add_buy(data, conn=None):
