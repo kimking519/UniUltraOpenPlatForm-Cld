@@ -704,7 +704,16 @@
 
             const data = await response.json();
             if (data.success) {
-                // 下载 CSV 文件
+                // 1. 复制到剪贴板
+                if (data.clipboard) {
+                    try {
+                        await navigator.clipboard.writeText(data.clipboard);
+                    } catch (err) {
+                        console.error('Failed to copy text: ', err);
+                    }
+                }
+
+                // 2. 下载 CSV 文件
                 if (data.csv_content) {
                     const blob = new Blob(['\ufeff' + data.csv_content], { type: 'text/csv;charset=utf-8;' });
                     const url = window.URL.createObjectURL(blob);
@@ -717,7 +726,7 @@
                     window.URL.revokeObjectURL(url);
                 }
 
-                alert("导出成功！");
+                alert("导出成功，报价内容已复制到剪贴板，CSV 文件已下载。可直接粘贴使用！");
             } else {
                 alert('导出失败: ' + data.message);
             }

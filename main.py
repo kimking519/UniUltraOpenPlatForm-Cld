@@ -965,9 +965,37 @@ async def offer_export_csv(request: Request, current_user: dict = Depends(login_
 
     csv_content = '\n'.join(csv_lines)
 
+    # 生成剪贴板内容（报价模板格式）
+    clipboard_sections = []
+    for row_data in rows:
+        r = dict(row_data)
+        offer_price_rmb = float(r.get('offer_price_rmb') or 0)
+        quoted_qty = int(r.get('quoted_qty') or 0)
+
+        # KWR 价格
+        pkwr = r.get('price_kwr')
+        if not pkwr or float(pkwr) == 0:
+            if krw_rate > 10:
+                pkwr = round(offer_price_rmb * krw_rate, 1)
+            else:
+                pkwr = round(offer_price_rmb / krw_rate, 1) if krw_rate else 0
+
+        clipboard_sections.append(f"""================
+Model：{r.get('quoted_mpn') or r.get('inquiry_mpn')}
+Brand：{r.get('quoted_brand') or r.get('inquiry_brand')}
+Amount(pcs)：{r.get('quoted_qty')}
+Price(KRW)：{pkwr}
+DC：{r.get('date_code')}
+LeadTime：{r.get('delivery_date')}
+Remark: {r.get('remark')}
+================ """)
+
+    clipboard_content = "\n\n".join(clipboard_sections)
+
     return {
         "success": True,
         "csv_content": csv_content,
+        "clipboard": clipboard_content,
         "filename": f"报价卡片_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
     }
 
