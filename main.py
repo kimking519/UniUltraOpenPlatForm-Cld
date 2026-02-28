@@ -367,7 +367,7 @@ async def order_update_api(order_id: str = Form(...), field: str = Form(...), va
     if current_user['rule'] not in ['3', '0']:
         return {"success": False, "message": "无修改权限"}
         
-    allowed_fields = ['order_no', 'order_date', 'inquiry_mpn', 'inquiry_brand', 'price_rmb', 'price_kwr', 'price_usd', 'cost_price_rmb', 'paid_amount', 'return_status', 'remark']
+    allowed_fields = ['order_no', 'order_date', 'inquiry_mpn', 'inquiry_brand', 'price_rmb', 'price_kwr', 'price_usd', 'cost_price_rmb', 'paid_amount', 'return_status', 'remark', 'is_transferred']
     if field not in allowed_fields:
         return {"success": False, "message": f"非法字段: {field}"}
         
