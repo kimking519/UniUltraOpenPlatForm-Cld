@@ -1161,10 +1161,8 @@ async def order_export_csv(request: Request, current_user: dict = Depends(login_
 
 @app.get("/buy", response_class=HTMLResponse)
 async def buy_page(request: Request, current_user: dict = Depends(login_required), page: int = 1, page_size: int = 20, search: str = "", order_id: str = "", start_date: str = "", end_date: str = "", cli_id: str = "", is_shipped: str = ""):
-    if not start_date:
-        start_date = datetime.now().strftime("%Y-%m-%d")
-    if not is_shipped and not search:
-        is_shipped = "0"
+    # 日期默认不选择，保持为空
+    # is_shipped 为空表示"全部状态"，不做强制设置
     results, total = get_buy_list(page=page, page_size=page_size, search_kw=search, order_id=order_id, start_date=start_date, end_date=end_date, cli_id=cli_id, is_shipped=is_shipped)
     total_pages = (total + page_size - 1) // page_size
     with get_db_connection() as conn:
