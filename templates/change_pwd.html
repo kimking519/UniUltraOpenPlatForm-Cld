@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>修改默认密码 - UniUltra</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+    <style>
+        body {
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        }
+
+        .login-card {
+            width: 400px;
+            padding: 3rem;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.5);
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .error-msg {
+            color: #ef4444;
+            text-align: center;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .info-msg {
+            color: var(--secondary);
+            font-size: 0.9rem;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-card fade-in">
+        <div class="login-header">
+            <h2 style="color: var(--primary);">安全验证</h2>
+            <p style="color: var(--secondary);">首次登录请修改默认密码</p>
+        </div>
+        <form action="/change_password" method="post">
+            <div class="info-msg">当前账号：<strong>{{ current_user.account }}</strong></div>
+            <div class="input-group">
+                <label>新密码</label>
+                <input type="password" name="new_password" placeholder="请输入新密码" required>
+            </div>
+            <div class="input-group">
+                <label>确认新密码</label>
+                <input type="password" name="confirm_password" placeholder="请再次输入新密码" required>
+            </div>
+            <button type="submit" class="btn btn-primary login-btn">确认修改并进入系统</button>
+            {% if request.query_params.get('error') %}
+            <div class="error-msg">{{ request.query_params.get('error') }}</div>
+            {% endif %}
+        </form>
+    </div>
+</body>
+
+</html>

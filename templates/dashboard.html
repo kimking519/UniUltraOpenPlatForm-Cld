@@ -1,0 +1,25 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<h1 style="margin-bottom: 2rem;">总控制台 (Dashboard)</h1>
+
+<div class="dash-grid">
+    <div class="card">
+        <div class="card-title">今日新增客户</div>
+        <div class="card-value">{{ stats.cli_count }}</div>
+    </div>
+    <div class="card">
+        <div class="card-title">注册员工总数</div>
+        <div class="card-value">{{ stats.emp_count }}</div>
+    </div>
+    <div class="card" style="border-left: 4px solid var(--accent);">
+        <div class="card-title">本月销售总额 (RMB)</div>
+        <div class="card-value">¥{{ stats.order_sum | round(2) }}</div>
+    </div>
+</div>
+
+<div class="card">
+    <h2 style="margin-bottom: 1rem;">最近动态</h2>
+    <p style="color: var(--secondary);">欢迎来到 UniUltra 开放平台。当前系统已初始化，您可以开始配置第一个模块：动态参数。</p>
+</div>
+{% endblock %}

@@ -1,0 +1,91 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="settings-container">
+    <div class="header-actions" style="margin-bottom: 2rem;">
+        <h2 style="font-size: 1.5rem; font-weight: 700;">系统设置</h2>
+    </div>
+
+    <div class="settings-card">
+        <div class="settings-section">
+            <div class="section-title">
+                <svg style="width: 24px; height: 24px; color: var(--primary);" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                </svg>
+                <span>数据备份</span>
+            </div>
+            <p style="color: var(--secondary); margin-bottom: 1rem; font-size: 0.9rem;">
+                点击下方按钮将备份所有数据库文件 (.db) 到系统预设目录。备份将按当前日期创建，如果当日备份已存在，则会覆盖。
+            </p>
+
+            <div style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem;">当前备份根目录：</div>
+            <div class="path-box">
+                {{ backup_path }}
+            </div>
+
+            <button id="btn-backup" class="btn btn-primary"
+                style="display: flex; align-items: center; justify-content: center; min-width: 140px;">
+                <span id="btn-text">立即执行备份</span>
+            </button>
+
+            <div id="backup-status"></div>
+        </div>
+
+        <hr class="dropdown-divider" style="margin: 2rem 0;">
+
+        <div class="settings-section">
+            <div class="section-title">
+                <svg style="width: 24px; height: 24px; color: var(--secondary);" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>关于系统</span>
+            </div>
+            <div style="font-size: 0.9rem; color: var(--secondary);">
+                <p>UniUltra 开放平台 V1.0</p>
+                <p style="margin-top: 0.5rem;">由 Antigravity 强力驱动</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('btn-backup').addEventListener('click', async function () {
+        const btn = this;
+        const btnText = document.getElementById('btn-text');
+        const statusDiv = document.getElementById('backup-status');
+
+        // UI state: Loading
+        btn.disabled = true;
+        const originalText = btnText.innerText;
+        btnText.innerHTML = '<span class="loading-spinner"></span>正在测试中...';
+        statusDiv.className = '';
+        statusDiv.style.display = 'none';
+
+        try {
+            const response = await fetch('/api/backup', {
+                method: 'POST'
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                statusDiv.className = 'success';
+                statusDiv.innerText = result.message;
+            } else {
+                statusDiv.className = 'error';
+                statusDiv.innerText = result.message;
+            }
+        } catch (error) {
+            statusDiv.className = 'error';
+            statusDiv.innerText = '请求失败，请稍后重试。';
+        } finally {
+            btn.disabled = false;
+            btnText.innerText = originalText;
+            statusDiv.style.display = 'block';
+        }
+    });
+</script>
+{% endblock %}

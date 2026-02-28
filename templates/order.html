@@ -1,0 +1,474 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="header-action"
+    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <h1>6. 销售订单管理</h1>
+    <div style="display: flex; gap: 0.8rem; align-items: center; margin-left: auto;">
+        <button class="btn btn-primary" onclick="toggleModal('addModal')" style="font-size: 0.85rem;">+ 新增订单</button>
+        <button class="btn btn-primary" onclick="toggleModal('importModal')"
+            style="background: var(--light); color: var(--text); border: 1px solid var(--border); font-size: 0.85rem;">+
+            批量导入</button>
+        <button class="btn btn-primary" onclick="batchConvertToBuy()"
+            style="background: #3b82f6; color: white; border: 1px solid #3b82f6; font-size: 0.85rem;">转为采购记录</button>
+        <button class="btn btn-primary" onclick="batchExport()"
+            style="background: #10b981; color: white; border: 1px solid #10b981; font-size: 0.85rem;">批量导出 CSV</button>
+        <button class="btn btn-primary" onclick="batchDelete()"
+            style="background: #ef4444; color: white; border: 1px solid #ef4444; font-size: 0.85rem;">批量删除</button>
+    </div>
+</div>
+
+<div class="filter-bar card"
+    style="margin-top: 1rem; margin-bottom: 1rem; display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+    <div>
+        <label>客户</label>
+        <select id="filter_cli" onchange="applyFilter()" style="padding: 0.4rem;">
+            <option value="">全部客户</option>
+            {% for c in cli_list %}
+            <option value="{{ c.cli_id }}" {% if cli_id==c.cli_id %}selected{% endif %}>{{ c.cli_name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label>完结状态</label>
+        <select id="filter_finished" onchange="applyFilter()" style="padding: 0.4rem;">
+            <option value="">全部状态</option>
+            <option value="0" {% if is_finished=='0' %}selected{% endif %}>未完结</option>
+            <option value="1" {% if is_finished=='1' %}selected{% endif %}>已完结</option>
+        </select>
+    </div>
+    <div>
+        <label>已转</label>
+        <select id="filter_transferred" onchange="applyFilter()" style="padding: 0.4rem;">
+            <option value="">全部</option>
+            <option value="未转" {% if is_transferred=='未转' %}selected{% endif %}>未转</option>
+            <option value="已转" {% if is_transferred=='已转' %}selected{% endif %}>已转</option>
+        </select>
+    </div>
+    <div>
+        <label>日期从</label>
+        <input type="date" id="start_date" value="{{ start_date }}" style="padding: 0.4rem;">
+    </div>
+    <div>
+        <label>日期至</label>
+        <input type="date" id="end_date" value="{{ end_date }}" style="padding: 0.4rem;">
+    </div>
+    <div>
+        <label>搜索</label>
+        <input type="text" id="search_input" value="{{ search }}" placeholder="订单号/型号/客户..." style="padding: 0.4rem;">
+    </div>
+    <button class="btn btn-primary" onclick="applyFilter()">查询</button>
+</div>
+
+<!-- 删除中间重复的按钮栏 -->
+
+<div class="table-container">
+    <table style="font-size: 0.85rem;">
+        <thead>
+            <tr>
+                <th><input type="checkbox" id="select_all" onclick="toggleSelectAll(this.checked)"></th>
+                <th>订单编号</th>
+                <th>订单日期</th>
+                <th>客户</th>
+                <th>报价编号</th>
+                <th>报价型号</th>
+                <th>品牌</th>
+                <th>报价(RMB)</th>
+                <th>报价(KWR)</th>
+                <th>报价(USD)</th>
+                <th>成本(RMB)</th>
+                <th>利润</th>
+                <th>退货状态</th>
+                <th>完结</th>
+                <th>付款</th>
+                <th>已付金额</th>
+                <th>已转</th>
+                <th>备注</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in items %}
+            <tr data-id="{{ row.order_id }}">
+                <td><input type="checkbox" class="row-checkbox" value="{{ row.order_id }}"></td>
+                <td onclick="editField('{{ row.order_id }}', 'order_no', '{{ row.order_no or row.order_id }}')"
+                    style="cursor: pointer; color: var(--primary);">{{ row.order_no or row.order_id }}</td>
+                <td>{{ row.order_date }}</td>
+                <td>{{ row.cli_name }}</td>
+                <td>{{ row.offer_id }}</td>
+                <td onclick="editField('{{ row.order_id }}', 'inquiry_mpn', '{{ row.inquiry_mpn }}')"
+                    style="cursor: pointer; color: var(--primary);">{{ row.inquiry_mpn }}</td>
+                <td onclick="editField('{{ row.order_id }}', 'inquiry_brand', '{{ row.inquiry_brand }}')"
+                    style="cursor: pointer; color: var(--primary);">{{ row.inquiry_brand }}</td>
+                <td onclick="editField('{{ row.order_id }}', 'price_rmb', '{{ row.price_rmb }}')"
+                    style="cursor: pointer; color: var(--primary);">{{ row.price_rmb }}</td>
+                <td onclick="editField('{{ row.order_id }}', 'price_kwr', '{{ row.price_kwr }}')"
+                    style="cursor: pointer; color: var(--primary);">{{ row.price_kwr }}</td>
+                <td onclick="editField('{{ row.order_id }}', 'price_usd', '{{ row.price_usd }}')"
+                    style="cursor: pointer; color: var(--primary);">{{ row.price_usd }}</td>
+                <td onclick="editField('{{ row.order_id }}', 'cost_price_rmb', '{{ row.cost_price_rmb }}')"
+                    style="cursor: pointer; color: var(--primary);">{{ row.cost_price_rmb }}</td>
+                <td><span style="color: green;">{{ row.profit }}</span></td>
+                <td>
+                    <select onchange="updateRowField('{{ row.order_id }}', 'return_status', this.value)"
+                        style="padding: 2px;">
+                        <option value="正常" {% if row.return_status=='正常' %}selected{% endif %}>正常</option>
+                        <option value="已退货" {% if row.return_status=='已退货' %}selected{% endif %}>已退货</option>
+                    </select>
+                </td>
+                <td>
+                    <label class="switch">
+                        <input type="checkbox" {% if row.is_finished==1 %}checked{% endif %}
+                            onchange="toggleStatus('{{ row.order_id }}', 'is_finished', this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </td>
+                <td>
+                    <label class="switch">
+                        <input type="checkbox" {% if row.is_paid==1 %}checked{% endif %}
+                            onchange="toggleStatus('{{ row.order_id }}', 'is_paid', this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </td>
+                <td onclick="editField('{{ row.order_id }}', 'paid_amount', '{{ row.paid_amount }}')"
+                    style="cursor: pointer; color: var(--primary);">
+                    {{ row.paid_amount }}
+                </td>
+                <td ondblclick="makeTransferredEditable(this, '{{ row.order_id }}', '{{ row.is_transferred }}')">
+                    <span
+                        class="badge {% if row.is_transferred == '已转' %}badge-success{% else %}badge-warning{% endif %}">
+                        {{ row.is_transferred }}
+                    </span>
+                </td>
+                <td onclick="editField('{{ row.order_id }}', 'remark', '{{ row.remark }}')" style="cursor: pointer;">
+                    {{ row.remark }}
+                </td>
+                <td>
+                    <button class="btn" style="color: red; padding: 2px 8px;"
+                        onclick="deleteOrder('{{ row.order_id }}')">删除</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="pagination" style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: center;">
+    {% if page is defined and page > 1 %}
+    <a href="/order?page={{ page-1 }}&search={{ search }}&cli_id={{ cli_id }}&start_date={{ start_date }}&end_date={{ end_date }}&is_finished={{ is_finished }}"
+        class="btn">上一页</a>
+    {% endif %}
+    <span>第 {{ page if page is defined else 1 }} / {{ total_pages if total_pages is defined else 1 }} 页 (共 {{ total if
+        total is defined else 0 }} 条)</span>
+    {% if page is defined and total_pages is defined and page < total_pages %} <a
+        href="/order?page={{ page+1 }}&search={{ search }}&cli_id={{ cli_id }}&start_date={{ start_date }}&end_date={{ end_date }}&is_finished={{ is_finished }}"
+        class="btn">下一页</a>
+        {% endif %}
+</div>
+
+<!-- Add Modal -->
+<div id="addModal" class="modal-overlay" style="display:none;">
+    <div class="card" style="width: 500px;">
+        <h3>新增销售订单</h3>
+        <form action="/order/add" method="post"
+            style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+            <div style="grid-column: span 2;">
+                <label>客户</label><br>
+                <select name="cli_id" required style="width: 100%; padding: 0.5rem;">
+                    {% for c in cli_list %}
+                    <option value="{{ c.cli_id }}">{{ c.cli_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label>订单编号 (可选)</label><br>
+                <input type="text" name="order_id" placeholder="自动生成" style="width: 100%; padding: 0.5rem;">
+            </div>
+            <div>
+                <label>报价编号 (可选)</label><br>
+                <input type="text" name="offer_id" style="width: 100%; padding: 0.5rem;">
+            </div>
+            <div>
+                <label>报价型号</label><br>
+                <input type="text" name="inquiry_mpn" style="width: 100%; padding: 0.5rem;">
+            </div>
+            <div>
+                <label>品牌</label><br>
+                <input type="text" name="inquiry_brand" style="width: 100%; padding: 0.5rem;">
+            </div>
+            <div>
+                <label>已付金额</label><br>
+                <input type="number" step="0.01" name="paid_amount" value="0.0" style="width: 100%; padding: 0.5rem;">
+            </div>
+            <div style="grid-column: span 2;">
+                <label>备注</label><br>
+                <textarea name="remark" style="width: 100%; padding: 0.5rem;"></textarea>
+            </div>
+            <div style="grid-column: span 2; display: flex; gap: 1rem; margin-top: 1rem;">
+                <button type="submit" class="btn btn-primary">提交</button>
+                <button type="button" class="btn" onclick="toggleModal('addModal')">取消</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div id="importModal" class="modal-overlay" style="display:none;">
+    <div class="card" style="width: 600px;">
+        <h3>批量导入订单 (支持报价 CSV 内容)</h3>
+        <form action="/order/import" method="post" enctype="multipart/form-data"
+            style="margin-top: 1rem; display: flex; flex-direction: column; gap: 1rem;">
+            <div>
+                <label>选择所属客户</label><br>
+                <select name="cli_id" required style="width: 100%; padding: 0.5rem;">
+                    {% for c in cli_list %}
+                    <option value="{{ c.cli_id }}">{{ c.cli_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="padding: 1rem; border: 1px dashed var(--border); border-radius: 8px; background: #f8fafc;">
+                <p style="font-size: 0.9rem; margin-bottom: 0.5rem; font-weight: bold;">方式一：上传 CSV 文件</p>
+                <input type="file" name="csv_file" accept=".csv">
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <p style="font-size: 0.9rem; font-weight: bold;">方式二：手输/粘贴文本 (包含表头)</p>
+                <textarea name="batch_text" placeholder="报价编号,日期,需求编号,询价型号,报价型号,询价品牌,报价品牌..."
+                    style="width: 100%; height: 150px; padding: 0.5rem;"></textarea>
+            </div>
+
+            <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                <button type="submit" class="btn btn-primary">开始导入</button>
+                <button type="button" class="btn" onclick="toggleModal('importModal')">取消</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+</style>
+
+<script>
+    async function batchToBuy() {
+        const selected = Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => cb.value);
+        if (selected.length === 0) {
+            alert('请先选择要转换的销售订单');
+            return;
+        }
+
+        if (!confirm(`确定要把选中的 ${selected.length} 条销售订单转为采购记录吗？`)) return;
+
+        try {
+            const response = await fetch('/api/order/batch_to_buy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: selected })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                alert(data.message);
+                window.location.href = '/buy';
+            } else {
+                alert('转换失败: ' + data.message);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('请求失败，请稍后重试');
+        }
+    }
+
+    function toggleModal(id) {
+        const modal = document.getElementById(id);
+        modal.style.display = modal.style.display === 'none' ? 'flex' : 'none';
+    }
+
+    function showAddModal() { toggleModal('addModal'); }
+    function showImportModal() { toggleModal('importModal'); }
+
+    function applyFilter() {
+        const cli = document.getElementById('filter_cli').value;
+        const search = document.getElementById('search_input').value;
+        const start = document.getElementById('start_date').value;
+        const end = document.getElementById('end_date').value;
+        const finished = document.getElementById('filter_finished').value;
+        const transferred = document.getElementById('filter_transferred').value;
+        window.location.href = `/order?cli_id=${cli}&search=${search}&start_date=${start}&end_date=${end}&is_finished=${finished}&is_transferred=${transferred}`;
+    }
+
+    function makeTransferredEditable(element, id, currentValue) {
+        if (element.querySelector('select')) return;
+
+        const select = document.createElement('select');
+        select.style.width = '100%';
+        select.style.padding = '2px';
+
+        const options = ['未转', '已转'];
+        options.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = opt;
+            option.text = opt;
+            if (opt === currentValue) option.selected = true;
+            select.appendChild(option);
+        });
+
+        const span = element.querySelector('span');
+        element.innerHTML = '';
+        element.appendChild(select);
+        select.focus();
+
+        const updateValue = () => {
+            const newValue = select.value;
+            if (newValue === currentValue) {
+                element.innerHTML = '';
+                element.appendChild(span);
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('order_id', id);
+            formData.append('field', 'is_transferred');
+            formData.append('value', newValue);
+
+            fetch('/api/order/update', {
+                method: 'POST',
+                body: formData
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        span.textContent = newValue;
+                        span.className = `badge ${newValue === '已转' ? 'badge-success' : 'badge-warning'}`;
+                        element.innerHTML = '';
+                        element.appendChild(span);
+                    } else {
+                        alert('更新失败: ' + data.message);
+                        element.innerHTML = '';
+                        element.appendChild(span);
+                    }
+                });
+        };
+
+        select.onblur = updateValue;
+        select.onchange = updateValue;
+    }
+
+    function toggleSelectAll(checked) {
+        document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = checked);
+    }
+
+    function getSelectedIds() {
+        return Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => cb.value);
+    }
+
+    async function batchDelete() {
+        const ids = getSelectedIds();
+        if (ids.length === 0) return alert('请选择要删除的记录');
+        if (!confirm(`确定删除选中的 ${ids.length} 个订单吗？`)) return;
+
+        const resp = await fetch('/api/order/batch_delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids })
+        });
+        const res = await resp.json();
+        if (res.success) window.location.reload();
+        else alert(res.message);
+    }
+
+    async function batchExport() {
+        const ids = getSelectedIds();
+        if (ids.length === 0) return alert('请选择要导出的记录');
+
+        const resp = await fetch('/api/order/export_csv', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids })
+        });
+        const res = await resp.json();
+        if (res.success) {
+            const blob = new Blob([res.csv_content], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute("download", `order_export_${new Date().getTime()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } else alert(res.message);
+    }
+
+    async function updateRowField(orderId, field, value) {
+        const formData = new FormData();
+        formData.append('order_id', orderId);
+        formData.append('field', field);
+        formData.append('value', value);
+
+        const resp = await fetch('/api/order/update', { method: 'POST', body: formData });
+        const res = await resp.json();
+        if (!res.success) alert(res.message);
+    }
+
+    async function toggleStatus(orderId, field, value) {
+        const formData = new FormData();
+        formData.append('order_id', orderId);
+        formData.append('field', field);
+        formData.append('value', value ? 1 : 0);
+
+        const resp = await fetch('/api/order/update_status', { method: 'POST', body: formData });
+        const res = await resp.json();
+        if (!res.success) alert(res.message);
+    }
+
+    async function editField(orderId, field, currentVal) {
+        const newVal = prompt(`修改 ${field}:`, currentVal);
+        if (newVal === null || newVal === currentVal) return;
+
+        const formData = new FormData();
+        formData.append('order_id', orderId);
+        formData.append('field', field);
+        formData.append('value', newVal);
+
+        const resp = await fetch('/api/order/update', { method: 'POST', body: formData });
+        const res = await resp.json();
+        if (res.success) window.location.reload();
+        else alert(res.message);
+    }
+
+    async function deleteOrder(orderId) {
+        if (!confirm('确定删除订单 ' + orderId + ' 吗？')) return;
+        const formData = new FormData();
+        formData.append('order_id', orderId);
+        const resp = await fetch('/api/order/delete', { method: 'POST', body: formData });
+        const res = await resp.json();
+        if (res.success) window.location.reload();
+        else alert(res.message);
+    }
+
+    async function batchConvertToBuy() {
+        const ids = getSelectedIds();
+        if (ids.length === 0) return alert('请选择要转采购的记录');
+        if (!confirm(`确定将选中的 ${ids.length} 个订单转为采购记录吗？`)) return;
+
+        const resp = await fetch('/api/order/batch_to_buy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids })
+        });
+        const res = await resp.json();
+        if (res.success) alert('成功转为采购记录');
+        else alert(res.message);
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UniUltra 开放平台</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}?v=1.2">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+</head>
+
+<body>
+    <div class="sidebar">
+        <div class="sidebar-header">UniUltra</div>
+        <nav class="sidebar-menu">
+            <a href="/" class="menu-item {% if active_page == 'dashboard' %}active{% endif %}">总控制台</a>
+            <a href="/quote" class="menu-item {% if active_page == 'quote' %}active{% endif %}">需求管理</a>
+
+            <a href="/offer" class="menu-item {% if active_page == 'offer' %}active{% endif %}">报价订单</a>
+            <a href="/order" class="menu-item {% if active_page == 'order' %}active{% endif %}">销售订单</a>
+            <a href="/buy" class="menu-item {% if active_page == 'buy' %}active{% endif %}">采购管理</a>
+
+            <div class="menu-group">
+                <a href="#"
+                    class="menu-item group-title {% if active_page in ['daily', 'emp', 'cli', 'vendor'] %}active{% endif %}"
+                    onclick="toggleSubmenu('config-menu', event)">
+                    <span style="flex: 1;">配置</span>
+                    <svg class="chevron-icon {% if active_page in ['daily', 'emp', 'cli', 'vendor'] %}rotated{% endif %}"
+                        style="transition: transform 0.3s;" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd"
+                            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                            clip-rule="evenodd" />
+                    </svg>
+                </a>
+                <div id="config-menu"
+                    class="submenu {% if active_page in ['daily', 'emp', 'cli', 'vendor'] %}open{% endif %}">
+                    <a href="/daily"
+                        class="menu-item submenu-item {% if active_page == 'daily' %}active{% endif %}">动态参数</a>
+                    <a href="/emp"
+                        class="menu-item submenu-item {% if active_page == 'emp' %}active{% endif %}">员工管理</a>
+                    <a href="/cli" class="menu-item submenu-item {% if active_page == 'cli' %}active{% endif %}">客户表</a>
+                    <a href="/vendor"
+                        class="menu-item submenu-item {% if active_page == 'vendor' %}active{% endif %}">供应商表</a>
+                </div>
+            </div>
+        </nav>
+    </div>
+
+    <div class="main-content">
+        <header class="navbar">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <div id="env-switcher"
+                    style="display: flex; background: var(--light); padding: 2px; border-radius: 6px; border: 1px solid var(--border);">
+                    <button onclick="setEnv('dev')" id="btn-env-dev"
+                        style="padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; transition: 0.3s;">开发环境</button>
+                    <button onclick="setEnv('prod')" id="btn-env-prod"
+                        style="padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; transition: 0.3s;">正式环境</button>
+                </div>
+            </div>
+            <div class="user-dropdown">
+                <button class="dropdown-trigger">
+                    <span>管理员 (Admin)</span>
+                    <svg class="chevron-icon" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd"
+                            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                            clip-rule="evenodd" />
+                    </svg>
+                </button>
+                <div class="dropdown-menu">
+                    <a href="/settings" class="dropdown-item">
+                        <svg class="item-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span>设置</span>
+                    </a>
+                    <hr class="dropdown-divider">
+                    <a href="/logout" class="dropdown-item logout">
+                        <svg class="item-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                        <span>退出</span>
+                    </a>
+                </div>
+            </div>
+        </header>
+        <main class="container fade-in">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            let alertMsg = [];
+
+            if (params.has('import_success')) {
+                const count = parseInt(params.get('import_success'), 10);
+                if (count > 0) alertMsg.push(`批量导入成功: ${count} 条`);
+            }
+            if (params.has('errors')) {
+                const count = parseInt(params.get('errors'), 10);
+                if (count > 0) alertMsg.push(`导入失败: ${count} 条`);
+            }
+            if (params.has('msg')) {
+                const prefix = params.get('success') === '1' ? '操作成功: ' : '操作失败: ';
+                alertMsg.push(prefix + params.get('msg'));
+            }
+
+            if (alertMsg.length > 0) {
+                alert(alertMsg.join('\n'));
+                // Clean the URL of these parameters so a refresh doesn't trigger the alert again
+                const newUrl = window.location.pathname +
+                    window.location.search.replace(/[?&](import_success|errors|msg|success)=[^&]+/g, '')
+                        .replace(/^&/, '?').replace(/\?$/, '');
+                window.history.replaceState({}, document.title, newUrl || window.location.pathname);
+            }
+        });
+    </script>
+    <script>
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
+
+        function setEnv(env) {
+            document.cookie = `app_env=${env}; path=/; max-age=31536000`; // 1 year
+            window.location.reload();
+        }
+
+        function updateEnvUI() {
+            const env = getCookie('app_env') || 'dev';
+            const btnDev = document.getElementById('btn-env-dev');
+            const btnProd = document.getElementById('btn-env-prod');
+
+            if (env === 'prod') {
+                btnProd.style.background = 'white';
+                btnProd.style.color = '#ef4444'; // 正式环境现实红色
+                btnProd.style.fontWeight = 'bold';
+                btnProd.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+
+                btnDev.style.background = 'transparent';
+                btnDev.style.color = 'var(--secondary)';
+            } else {
+                btnDev.style.background = 'white';
+                btnDev.style.color = 'var(--primary)';
+                btnDev.style.fontWeight = 'bold';
+                btnDev.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+
+                btnProd.style.background = 'transparent';
+                btnProd.style.color = 'var(--secondary)';
+            }
+        }
+
+        // Initialize on load
+        updateEnvUI();
+
+        function toggleSubmenu(id, event) {
+            event.preventDefault();
+            const submenu = document.getElementById(id);
+            const icon = event.currentTarget.querySelector('.chevron-icon');
+            if (submenu.classList.contains('open')) {
+                submenu.classList.remove('open');
+                if (icon) icon.classList.remove('rotated');
+            } else {
+                submenu.classList.add('open');
+                if (icon) icon.classList.add('rotated');
+            }
+        }
+    </script>
+</body>
+
+</html>
