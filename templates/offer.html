@@ -121,9 +121,9 @@
                             row.cost_price_rmb }}</span></td>
                     <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'offer_price_rmb', 'number')"><span>{{
                             row.offer_price_rmb }}</span></td>
-                    <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'price_kwr', 'number')"><span
+                    <td ondblclick="makeEditablePrice(this, '{{ row.offer_id }}', 'price_kwr', 'KWR', {{ row.price_kwr or 0 }}, {{ row.offer_price_rmb or 0 }})"><span
                             style="color:var(--primary);">{{ row.price_kwr }}</span></td>
-                    <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'price_usd', 'number')"><span
+                    <td ondblclick="makeEditablePrice(this, '{{ row.offer_id }}', 'price_usd', 'USD', {{ row.price_usd or 0 }}, {{ row.offer_price_rmb or 0 }})"><span
                             style="color:var(--primary);">{{ row.price_usd }}</span></td>
                     <td><span style="color:#10b981; font-weight:500;">{{ row.profit }}</span></td>
                     <td><span style="color:#10b981; font-weight:bold;">{{ row.total_profit }}</span></td>
@@ -428,6 +428,94 @@
         input.onkeydown = (e) => {
             if (e.key === 'Enter') input.blur();
             if (e.key === 'Escape') td.innerHTML = `<span>${originalValue}</span>`;
+        };
+    }
+
+    // 编辑价格字段（KWR/USD），完成后自动计算 RMB
+    async function makeEditablePrice(td, offer_id, field, currency, currentValue, currentRmb) {
+        if (td.querySelector('input')) return;
+
+        // 获取最新汇率
+        let rate = currency === 'KWR' ? 180.0 : 7.0;
+        try {
+            const res = await fetch('/api/exchange/rates');
+            const data = await res.json();
+            if (data.success) {
+                rate = currency === 'KWR' ? data.krw : data.usd;
+            }
+        } catch (e) {
+            console.error('Failed to get exchange rate:', e);
+        }
+
+        const originalValue = currentValue;
+        td.innerHTML = `<input type="number" step="0.01" value="${originalValue}" style="width: 100%; min-width: 60px; padding: 4px; box-sizing: border-box;">`;
+        const input = td.querySelector('input');
+        input.focus();
+
+        const savePrice = async (newValue) => {
+            if (newValue === originalValue) {
+                td.innerHTML = `<span style="color:var(--primary);">${originalValue}</span>`;
+                return;
+            }
+
+            // 保存 KWR/USD
+            const formData = new FormData();
+            formData.append('offer_id', offer_id);
+            formData.append('field', field);
+            formData.append('value', newValue);
+
+            try {
+                const res = await fetch('/api/offer/update', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    // 计算新的 RMB 价格
+                    const newPrice = parseFloat(newValue);
+                    let newRmb = 0;
+                    if (currency === 'KWR') {
+                        // KWR 转 RMB: KWR / rate
+                        newRmb = rate > 10 ? newPrice / rate : newPrice * rate;
+                    } else {
+                        // USD 转 RMB: USD / rate
+                        newRmb = rate > 10 ? newPrice / rate : newPrice * rate;
+                    }
+                    newRmb = Math.round(newRmb * 100) / 100;
+
+                    // 更新 RMB 价格
+                    const rmbFormData = new FormData();
+                    rmbFormData.append('offer_id', offer_id);
+                    rmbFormData.append('field', 'offer_price_rmb');
+                    rmbFormData.append('value', newRmb.toFixed(2));
+
+                    await fetch('/api/offer/update', {
+                        method: 'POST',
+                        body: rmbFormData
+                    });
+
+                    td.innerHTML = `<span style="color:var(--primary);">${newValue}</span>`;
+
+                    // 刷新页面显示最新数据
+                    setTimeout(() => window.location.reload(), 500);
+                } else {
+                    alert('更新失败：' + data.message);
+                    td.innerHTML = `<span style="color:var(--primary);">${originalValue}</span>`;
+                }
+            } catch (e) {
+                console.error('Error:', e);
+                alert('请求失败，请稍后重试');
+                td.innerHTML = `<span style="color:var(--primary);">${originalValue}</span>`;
+            }
+        };
+
+        input.onblur = () => savePrice(input.value);
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') input.blur();
+            if (e.key === 'Escape') {
+                td.innerHTML = `<span style="color:var(--primary);">${originalValue}</span>`;
+            }
         };
     }
 

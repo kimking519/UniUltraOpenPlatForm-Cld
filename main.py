@@ -713,6 +713,13 @@ async def offer_import_csv(csv_file: UploadFile = File(...), current_user: dict 
         err_msg = "&msg=" + urllib.parse.quote(errors[0])
     return RedirectResponse(url=f"/offer?import_success={success_count}&errors={len(errors)}{err_msg}", status_code=303)
 
+@app.get("/api/exchange/rates")
+async def get_exchange_rates_api(current_user: dict = Depends(login_required)):
+    """获取最新汇率（KRW 和 USD）"""
+    from Sills.base import get_exchange_rates
+    krw, usd = get_exchange_rates()
+    return {"success": True, "krw": krw, "usd": usd}
+
 @app.post("/api/offer/update")
 async def offer_update_api(offer_id: str = Form(...), field: str = Form(...), value: str = Form(...), current_user: dict = Depends(login_required)):
     if current_user['rule'] not in ['3', '0']:
