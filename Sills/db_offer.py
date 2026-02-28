@@ -66,6 +66,13 @@ def get_offer_list(page=1, page_size=10, search_kw="", start_date="", end_date="
             remark = r.get('remark') or ""
             r['remark'] = remark.replace(' | ', '\n').replace('|', '\n')
 
+            # 报价(RMB)保留2位小数
+            try:
+                offer_price = float(r.get('offer_price_rmb') or 0.0)
+                r['offer_price_rmb'] = round(offer_price, 2)
+            except:
+                r['offer_price_rmb'] = 0.0
+
             # 只在数据库中没有值时才计算汇率，不覆盖已保存的值
             # 如果已有 price_kwr/price_usd，说明是用户手动输入的，保持不变
             if not r.get('price_kwr') or float(r.get('price_kwr') or 0) == 0:
@@ -275,7 +282,7 @@ def batch_import_offer_text(text, emp_id):
 
     for i, parts in enumerate(rows[start_idx:], start=start_idx + 1):
         if not parts or len(parts) < 1: continue
-        
+
         try:
             data = {
                 "quote_id": parts[0] if len(parts) > 0 and parts[0].strip() else None,
@@ -288,12 +295,11 @@ def batch_import_offer_text(text, emp_id):
                 "quoted_qty": 0,
                 "cost_price_rmb": 0.0,
                 "offer_price_rmb": 0.0,
-                "platform": parts[10] if len(parts) > 10 else "",
-                "vendor_id": parts[11] if len(parts) > 11 and parts[11].strip() else None,
-                "date_code": parts[12] if len(parts) > 12 else "",
-                "delivery_date": parts[13] if len(parts) > 13 else "",
-                "offer_statement": parts[14] if len(parts) > 14 else "",
-                "remark": parts[15] if len(parts) > 15 else ""
+                "vendor_id": parts[10] if len(parts) > 10 and parts[10].strip() else None,
+                "date_code": parts[11] if len(parts) > 11 else "",
+                "delivery_date": parts[12] if len(parts) > 12 else "",
+                "offer_statement": parts[13] if len(parts) > 13 else "",
+                "remark": parts[14] if len(parts) > 14 else ""
             }
             
             # Numeric values logic

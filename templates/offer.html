@@ -8,7 +8,7 @@
         <button class="btn btn-primary" onclick="batchToOrder()"
             style="background: #6366f1; color: white; border: 1px solid #6366f1;">批量转销售订单</button>
         <button class="btn btn-primary" onclick="exportSelectedOffers()"
-            style="background: #10b981; color: white; border: 1px solid #10b981;">导出 Excel 报价卡片</button>
+            style="background: #10b981; color: white; border: 1px solid #10b981;">导出 CSV 报价卡片</button>
         <button class="btn btn-primary" onclick="toggleModal('importModal')"
             style="background: var(--light); color: var(--text); border: 1px solid var(--border);">+ 批量导入</button>
         <button class="btn btn-primary" onclick="toggleModal('addModal')">+ 新增报价</button>
@@ -79,7 +79,6 @@
                     <th style="min-width: 80px;">报价(USD)</th>
                     <th style="min-width: 80px;">利润</th>
                     <th style="min-width: 80px;">总利润</th>
-                    <th style="min-width: 80px;">平台</th>
                     <th style="min-width: 120px;">供应商</th>
                     <th style="min-width: 80px;">批号(DC)</th>
                     <th style="min-width: 150px;">交期(LT)</th>
@@ -118,17 +117,15 @@
                     <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'quoted_qty', 'number')"><span>{{
                             row.quoted_qty }}</span></td>
                     <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'cost_price_rmb', 'number')"><span>{{
-                            row.cost_price_rmb }}</span></td>
+                            "%.2f"|format(row.cost_price_rmb or 0) }}</span></td>
                     <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'offer_price_rmb', 'number')"><span>{{
-                            row.offer_price_rmb }}</span></td>
+                            "%.2f"|format(row.offer_price_rmb or 0) }}</span></td>
                     <td ondblclick="makeEditablePrice(this, '{{ row.offer_id }}', 'price_kwr', 'KWR', {{ row.price_kwr or 0 }}, {{ row.offer_price_rmb or 0 }})"><span
                             style="color:var(--primary);">{{ row.price_kwr }}</span></td>
                     <td ondblclick="makeEditablePrice(this, '{{ row.offer_id }}', 'price_usd', 'USD', {{ row.price_usd or 0 }}, {{ row.offer_price_rmb or 0 }})"><span
                             style="color:var(--primary);">{{ row.price_usd }}</span></td>
                     <td><span style="color:#10b981; font-weight:500;">{{ row.profit }}</span></td>
                     <td><span style="color:#10b981; font-weight:bold;">{{ row.total_profit }}</span></td>
-                    <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'platform')"><span>{{ row.platform
-                            }}</span></td>
 
                     {% if current_user.rule == '3' or current_user.rule == '0' %}
                     <td
@@ -169,7 +166,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="21" style="text-align: center; color: var(--secondary); padding: 2rem;">暂无报价记录，请添加新报价。
+                    <td colspan="20" style="text-align: center; color: var(--secondary); padding: 2rem;">暂无报价记录，请添加新报价。
                     </td>
                 </tr>
                 {% endfor %}
@@ -282,11 +279,6 @@
 
             <div style="display: flex; gap: 1rem;">
                 <div style="flex: 1;">
-                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">平台</label>
-                    <input type="text" name="platform"
-                        style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px;">
-                </div>
-                <div style="flex: 1;">
                     <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">供应商</label>
                     <select name="vendor_id"
                         style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px;">
@@ -354,7 +346,7 @@
         <div style="padding: 1rem; border: 1px solid var(--border); border-radius: 4px;">
             <p style="margin-top: 0; margin-bottom: 0.5rem; font-weight: 500;">方式二：粘贴文本导入</p>
             <p style="font-size: 0.85rem; color: var(--secondary); margin-bottom: 1rem;">
-                格式要求与模板一致：<br>需求编号,询价型号,报价型号,询价品牌,报价品牌,询价数量,实际数量,报价数量,成本价,报价,平台,供应商编号,货期,交期,报价语句,备注<br>
+                格式要求与模板一致：<br>需求编号,询价型号,报价型号,询价品牌,报价品牌,询价数量,实际数量,报价数量,成本价,报价,供应商编号,货期,交期,报价语句,备注<br>
                 (注: 需求和供应商编号请先确认存在系统中，比如: Q20250101,STM..,..)
             </p>
             <form action="/offer/import" method="post">
@@ -704,7 +696,7 @@
         }
 
         try {
-            const response = await fetch('/api/offer/export_excel', {
+            const response = await fetch('/api/offer/export_csv', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ids: selected })
@@ -712,35 +704,20 @@
 
             const data = await response.json();
             if (data.success) {
-                // 1. Copy to clipboard
-                if (data.clipboard) {
-                    try {
-                        await navigator.clipboard.writeText(data.clipboard);
-                    } catch (err) {
-                        console.error('Failed to copy text: ', err);
-                    }
-                }
-
-                // 2. Download Excel
-                if (data.excel_b64) {
-                    const byteCharacters = atob(data.excel_b64);
-                    const byteNumbers = new Array(byteCharacters.length);
-                    for (let i = 0; i < byteCharacters.length; i++) {
-                        byteNumbers[i] = byteCharacters.charCodeAt(i);
-                    }
-                    const byteArray = new Uint8Array(byteNumbers);
-                    const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                // 下载 CSV 文件
+                if (data.csv_content) {
+                    const blob = new Blob(['\ufeff' + data.csv_content], { type: 'text/csv;charset=utf-8;' });
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = data.filename || 'batch_offers.xlsx';
+                    a.download = data.filename || '报价卡片.csv';
                     document.body.appendChild(a);
                     a.click();
                     a.remove();
                     window.URL.revokeObjectURL(url);
                 }
 
-                alert("导出成功，内容已自动复制到剪贴板，Excel 文件已导出。您可直接(Ctrl+V)粘贴模板内容！");
+                alert("导出成功！");
             } else {
                 alert('导出失败: ' + data.message);
             }

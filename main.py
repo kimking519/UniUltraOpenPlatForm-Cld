@@ -725,9 +725,9 @@ async def offer_update_api(offer_id: str = Form(...), field: str = Form(...), va
     if current_user['rule'] not in ['3', '0']:
         return {"success": False, "message": "无修改权限"}
         
-    allowed_fields = ['quote_id', 'inquiry_mpn', 'quoted_mpn', 'inquiry_brand', 'quoted_brand', 
-                      'inquiry_qty', 'actual_qty', 'quoted_qty', 'cost_price_rmb', 'offer_price_rmb', 
-                      'price_kwr', 'price_usd', 'platform', 'vendor_id', 'date_code', 'delivery_date', 'offer_statement', 'is_transferred', 'remark']
+    allowed_fields = ['quote_id', 'inquiry_mpn', 'quoted_mpn', 'inquiry_brand', 'quoted_brand',
+                      'inquiry_qty', 'actual_qty', 'quoted_qty', 'cost_price_rmb', 'offer_price_rmb',
+                      'price_kwr', 'price_usd', 'vendor_id', 'date_code', 'delivery_date', 'offer_statement', 'is_transferred', 'remark']
     if field not in allowed_fields:
         return {"success": False, "message": f"非法字段: {field}"}
         
@@ -877,77 +877,98 @@ Remark: {r['remark']}
     except Exception as e:
         return {"success": False, "message": f"邮件发送失败: {str(e)}"}
 
-@app.post("/api/offer/export_excel")
-async def offer_export_excel(request: Request, current_user: dict = Depends(login_required)):
+@app.post("/api/offer/export_csv")
+async def offer_export_csv(request: Request, current_user: dict = Depends(login_required)):
     data = await request.json()
     ids = data.get("ids", [])
     if not ids:
         return {"success": False, "message": "未选择任何记录进行导出"}
-        
-    from Sills.base import get_db_connection
+
+    from Sills.base import get_db_connection, get_exchange_rates
     placeholders = ','.join(['?'] * len(ids))
     with get_db_connection() as conn:
-        # Get KRW rate for calculation
-        try:
-            rate_row = conn.execute("SELECT exchange_rate FROM uni_daily WHERE currency_code=2 ORDER BY record_date DESC LIMIT 1").fetchone()
-            krw_rate = float(rate_row[0]) if rate_row else 180.0
-        except: krw_rate = 180.0
-
         query = f"""
-            SELECT o.*, v.vendor_name, c.cli_name 
+            SELECT o.*, v.vendor_name, e.emp_name, c.cli_name
             FROM uni_offer o
             LEFT JOIN uni_vendor v ON o.vendor_id = v.vendor_id
+            LEFT JOIN uni_emp e ON o.emp_id = e.emp_id
             LEFT JOIN uni_quote q ON o.quote_id = q.quote_id
             LEFT JOIN uni_cli c ON q.cli_id = c.cli_id
             WHERE o.offer_id IN ({placeholders})
         """
         rows = conn.execute(query, ids).fetchall()
-        
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Batch Offers"
-    headers = ['Model', 'Brand', 'QTY(pcs)', 'Price(KWR)', 'DC', 'L/T', 'Remark']
-    ws.append(headers)
-    
-    email_body_sections = []
-    
+
+    # 获取汇率
+    krw_rate, usd_rate = get_exchange_rates()
+
+    # CSV 头部 - 与页面展示一致
+    headers = ['日期', '报价编号', '客户名称', '需求编号', '询价型号', '报价型号', '需求品牌', '报价品牌',
+               '需求数量(pcs)', '报价数量(pcs)', '成本价', '报价(RMB)', '报价(KWR)', '报价(USD)',
+               '利润', '总利润', '供应商', '批号(DC)', '交期(LT)', '负责人', '已转', '备注']
+
+    csv_lines = [','.join(headers)]
+
     for row_data in rows:
         r = dict(row_data)
-        # Handle KRW price if missing
-        pkwr = r.get('price_kwr')
-        if not pkwr:
-            try: pkwr = round(float(r['offer_price_rmb'] or 0) * krw_rate, 1)
-            except: pkwr = 0.0
-            
-        # Format for Excel
-        ws.append([
-            r['quoted_mpn'] or r['inquiry_mpn'], r['quoted_brand'] or r['inquiry_brand'],
-            r['quoted_qty'], pkwr, r['date_code'], r['delivery_date'], r['remark']
-        ])
-        
-        # Format for Email Body (Template requested)
-        email_body_sections.append(f"""================
-Model：{r['quoted_mpn'] or r['inquiry_mpn']}
-Brand：{r['quoted_brand'] or r['inquiry_brand']}
-Amount(pcs)：{r['quoted_qty']}
-Price(KRW)：{pkwr}
-DC:{r['date_code']}
-LeadTime：{r['delivery_date']}
-Remark: {r['remark']}
-================ """ )
 
-    full_body_for_clipboard = "\n\n".join(email_body_sections)
-    
-    excel_file = io.BytesIO()
-    wb.save(excel_file)
-    excel_file.seek(0)
-    
-    excel_b64 = base64.b64encode(excel_file.getvalue()).decode('utf-8')
+        # 计算价格
+        offer_price_rmb = float(r.get('offer_price_rmb') or 0)
+        cost_price_rmb = float(r.get('cost_price_rmb') or 0)
+        quoted_qty = int(r.get('quoted_qty') or 0)
+
+        # KWR 价格
+        pkwr = r.get('price_kwr')
+        if not pkwr or float(pkwr) == 0:
+            if krw_rate > 10:
+                pkwr = round(offer_price_rmb * krw_rate, 1)
+            else:
+                pkwr = round(offer_price_rmb / krw_rate, 1) if krw_rate else 0
+
+        # USD 价格
+        pusd = r.get('price_usd')
+        if not pusd or float(pusd) == 0:
+            if usd_rate > 10:
+                pusd = round(offer_price_rmb * usd_rate, 2)
+            else:
+                pusd = round(offer_price_rmb / usd_rate, 2) if usd_rate else 0
+
+        # 利润计算
+        profit = round(offer_price_rmb - cost_price_rmb, 3)
+        total_profit = int(round(profit * quoted_qty, 0))
+
+        # 构建CSV行
+        line = [
+            r.get('offer_date', ''),
+            r.get('offer_id', ''),
+            r.get('cli_name', ''),
+            r.get('quote_id', ''),
+            r.get('inquiry_mpn', ''),
+            r.get('quoted_mpn', ''),
+            r.get('inquiry_brand', ''),
+            r.get('quoted_brand', ''),
+            r.get('inquiry_qty', 0),
+            r.get('quoted_qty', 0),
+            f"{cost_price_rmb:.2f}",
+            f"{offer_price_rmb:.2f}",
+            pkwr,
+            pusd,
+            profit,
+            total_profit,
+            r.get('vendor_name', ''),
+            r.get('date_code', ''),
+            r.get('delivery_date', ''),
+            r.get('emp_name', ''),
+            r.get('is_transferred', '未转'),
+            (r.get('remark') or '').replace('\n', ' ').replace(',', '，')
+        ]
+        csv_lines.append(','.join([str(v) for v in line]))
+
+    csv_content = '\n'.join(csv_lines)
+
     return {
-        "success": True, 
-        "clipboard": full_body_for_clipboard,
-        "excel_b64": excel_b64,
-        "filename": f"batch_offers_{datetime.now().strftime('%Y%m%d%H%M%S')}.xlsx"
+        "success": True,
+        "csv_content": csv_content,
+        "filename": f"报价卡片_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
     }
 
 @app.get("/order", response_class=HTMLResponse)
