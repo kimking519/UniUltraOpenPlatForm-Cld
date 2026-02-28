@@ -83,11 +83,14 @@ def get_order_list(page=1, page_size=10, search_kw="", cli_id="", start_date="",
             r['profit'] = round(price - cost, 3)
             r['total_profit'] = int(round(r['profit'] * qty, 0))
 
+            # 只在数据库中没有值时才计算汇率，不覆盖已保存的值
             try:
-                if krw_val > 10: r['price_kwr'] = round(price * krw_val, 1)
-                else: r['price_kwr'] = round(price / krw_val, 1) if krw_val else 0.0
-                if usd_val > 10: r['price_usd'] = round(price * usd_val, 2)
-                else: r['price_usd'] = round(price / usd_val, 2) if usd_val else 0.0
+                if not r.get('price_kwr') or float(r.get('price_kwr') or 0) == 0:
+                    if krw_val > 10: r['price_kwr'] = round(price * krw_val, 1)
+                    else: r['price_kwr'] = round(price / krw_val, 1) if krw_val else 0.0
+                if not r.get('price_usd') or float(r.get('price_usd') or 0) == 0:
+                    if usd_val > 10: r['price_usd'] = round(price * usd_val, 2)
+                    else: r['price_usd'] = round(price / usd_val, 2) if usd_val else 0.0
             except:
                 pass
 

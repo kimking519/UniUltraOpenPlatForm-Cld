@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
-from Sills.base import init_db, get_db_connection, current_env
+from Sills.base import init_db, get_db_connection, current_env, get_exchange_rates
 from Sills.db_daily import get_daily_list, add_daily, update_daily
 from Sills.db_emp import get_emp_list, add_employee, batch_import_text, verify_login, change_password, update_employee, delete_employee
 from Sills.db_vendor import add_vendor, batch_import_vendor_text, update_vendor, delete_vendor
@@ -1098,21 +1098,65 @@ async def order_export_csv(request: Request, current_user: dict = Depends(login_
     placeholders = ','.join(['?'] * len(ids))
     with get_db_connection() as conn:
         orders = conn.execute(f"""
-            SELECT ord.*, c.cli_name, 
-                   COALESCE(ord.inquiry_mpn, o.inquiry_mpn) as final_mpn,
-                   COALESCE(ord.inquiry_brand, o.inquiry_brand) as final_brand
-            FROM uni_order ord 
-            LEFT JOIN uni_cli c ON ord.cli_id = c.cli_id 
-            LEFT JOIN uni_offer o ON ord.offer_id = o.offer_id
+            SELECT ord.*, c.cli_name,
+                   off.inquiry_qty, off.quoted_qty, off.date_code, off.delivery_date,
+                   v.vendor_name
+            FROM uni_order ord
+            LEFT JOIN uni_cli c ON ord.cli_id = c.cli_id
+            LEFT JOIN uni_offer off ON ord.offer_id = off.offer_id
+            LEFT JOIN uni_vendor v ON off.vendor_id = v.vendor_id
             WHERE ord.order_id IN ({placeholders})
         """, ids).fetchall()
+
+    krw_rate, usd_rate = get_exchange_rates()
+
     import io, csv
     output = io.StringIO(); output.write('\ufeff')
     writer = csv.writer(output)
-    writer.writerow(['订单编号','日期','客户','报价编号','型号','品牌','完结状态','付款状态','已付金额','备注'])
+    # 与页面显示字段一致
+    writer.writerow(['订单日期','订单编号','客户','报价编号','报价型号','品牌','报价(RMB)','报价(KWR)','报价(USD)','成本(RMB)','利润','需求数量(pcs)','报价数量(pcs)','供应商','批号(DC)','货期','退货状态','完结','付款','已付金额','已转','备注'])
+
     for r in orders:
         d = dict(r)
-        writer.writerow([d['order_id'], d['order_date'], d['cli_name'], d['offer_id'] or '', d['final_mpn'] or '', d['final_brand'] or '', d['is_finished'], d['is_paid'], d['paid_amount'], d['remark']])
+        price_rmb = float(d.get('price_rmb') or 0)
+        cost_rmb = float(d.get('cost_price_rmb') or 0)
+        qty = int(d.get('quoted_qty') or 0)
+        profit = round(price_rmb - cost_rmb, 3)
+
+        # KWR/USD 计算
+        price_kwr = d.get('price_kwr')
+        price_usd = d.get('price_usd')
+        if not price_kwr:
+            if krw_rate > 10: price_kwr = round(price_rmb * krw_rate, 1)
+            else: price_kwr = round(price_rmb / krw_rate, 1) if krw_rate else 0
+        if not price_usd:
+            if usd_rate > 10: price_usd = round(price_rmb * usd_rate, 2)
+            else: price_usd = round(price_rmb / usd_rate, 2) if usd_rate else 0
+
+        writer.writerow([
+            d.get('order_date', ''),
+            d.get('order_no') or d.get('order_id', ''),
+            d.get('cli_name', ''),
+            d.get('offer_id') or '',
+            d.get('inquiry_mpn') or '',
+            d.get('inquiry_brand') or '',
+            f"{price_rmb:.2f}",
+            price_kwr,
+            price_usd,
+            f"{cost_rmb:.2f}",
+            profit,
+            d.get('inquiry_qty') or '',
+            d.get('quoted_qty') or '',
+            d.get('vendor_name') or '',
+            d.get('date_code') or '',
+            d.get('delivery_date') or '',
+            d.get('return_status', '正常'),
+            '已完结' if d.get('is_finished') == 1 else '未完结',
+            '已付款' if d.get('is_paid') == 1 else '未付款',
+            d.get('paid_amount', 0),
+            d.get('is_transferred', '未转'),
+            d.get('remark') or ''
+        ])
     return {"success": True, "csv_content": output.getvalue()}
 
 @app.get("/buy", response_class=HTMLResponse)

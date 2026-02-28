@@ -408,21 +408,28 @@
         const ids = getSelectedIds();
         if (ids.length === 0) return alert('请选择要导出的记录');
 
-        const resp = await fetch('/api/order/export_csv', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ids })
-        });
-        const res = await resp.json();
-        if (res.success) {
-            const blob = new Blob([res.csv_content], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.setAttribute("download", `order_export_${new Date().getTime()}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } else alert(res.message);
+        try {
+            const resp = await fetch('/api/order/export_csv', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids })
+            });
+            const res = await resp.json();
+            if (res.success) {
+                const blob = new Blob([res.csv_content], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.setAttribute("download", `order_export_${new Date().getTime()}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } else {
+                alert(res.message);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('导出失败：' + error.message);
+        }
     }
 
     async function updateRowField(orderId, field, value) {
