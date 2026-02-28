@@ -266,7 +266,7 @@ def batch_convert_from_offer(offer_ids, cli_id=None):
                     offer_data['quoted_mpn'] or offer_data['inquiry_mpn'],
                     offer_data['quoted_brand'] or offer_data['inquiry_brand'],
                     offer_data['offer_price_rmb'], offer_data['price_kwr'], offer_data['price_usd'],
-                    offer_data['cost_price_rmb'], 0, 0, 0.0, '正常', offer_data.get('remark', ''), '已转'
+                    offer_data['cost_price_rmb'], 0, 0, 0.0, '正常', offer_data.get('remark', ''), '未转'
                 )
                 conn.execute(sql, params)
                 conn.execute("UPDATE uni_offer SET is_transferred = '已转' WHERE offer_id = ?", (offer_data['offer_id'],))

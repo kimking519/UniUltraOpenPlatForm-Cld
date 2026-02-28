@@ -557,8 +557,12 @@
             body: JSON.stringify({ ids })
         });
         const res = await resp.json();
-        if (res.success) alert('成功转为采购记录');
-        else alert(res.message);
+        if (res.success) {
+            alert(res.message);
+            window.location.reload();
+        } else {
+            alert(res.message);
+        }
     }
 
     // 单条转采购记录
@@ -572,8 +576,8 @@
         });
         const res = await resp.json();
         if (res.success) {
-            alert('成功转为采购记录');
-            window.location.href = '/buy';
+            alert(res.message);
+            window.location.reload();
         } else {
             alert(res.message);
         }
