@@ -566,9 +566,7 @@ async def quote_export_offer_csv(request: Request, current_user: dict = Depends(
 # ---------------- Offer Module ----------------
 @app.get("/offer", response_class=HTMLResponse)
 async def offer_page(request: Request, current_user: dict = Depends(login_required), page: int = 1, page_size: int = 20, search: str = "", start_date: str = "", end_date: str = "", cli_id: str = "", is_transferred: str = ""):
-    if not start_date:
-        start_date = datetime.now().strftime("%Y-%m-%d")
-    results, total = get_offer_list(page=page, page_size=page_size, search_kw=search, start_date=start_date, end_date=end_date, cli_id=cli_id, is_transferred=is_transferred)
+    results, total = get_offer_list(page=page, page_size=page_size, search_kw=search, start_date=start_date, end_date=end_date, cli_id=cli_id, is_transferred=is_transferred if is_transferred else "未转")
     total_pages = (total + page_size - 1) // page_size
     from Sills.base import get_paginated_list
     vendor_data = get_paginated_list('uni_vendor', page=1, page_size=1000)
@@ -588,7 +586,7 @@ async def offer_page(request: Request, current_user: dict = Depends(login_requir
         "start_date": start_date,
         "end_date": end_date,
         "cli_id": cli_id,
-        "is_transferred": request.query_params.get("is_transferred", ""),
+        "is_transferred": request.query_params.get("is_transferred", "未转"),
         "vendor_list": vendor_list,
         "cli_list": cli_list
     })

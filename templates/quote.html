@@ -154,11 +154,22 @@
                     {% if current_user.rule == '3' %}
                     <td style="position: sticky; right: 0; background: white; z-index: 1;">
                         <div style="display: flex; gap: 0.5rem; justify-content: center;">
-                            <!-- Phase 3 Offer Transition Button placeholder -->
-                            <!-- <button class="btn" onclick="transToOffer('{{ row.quote_id }}')" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; background: var(--secondary); color: white;">转报价</button> -->
-                            <button class="btn"
-                                style="padding: 0.2rem 0.5rem; font-size: 0.8rem; background: #ef4444; color: white;"
-                                onclick="deleteRow('{{ row.quote_id }}')">删除</button>
+                            <button class="action-btn action-btn-primary"
+                                onclick="transToOffer('{{ row.quote_id }}')"
+                                title="转为报价单"
+                                style="padding: 0.5rem 0.6rem; min-width: 36px;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                                </svg>
+                            </button>
+                            <button class="action-btn action-btn-danger"
+                                onclick="deleteRow('{{ row.quote_id }}')"
+                                title="删除"
+                                style="padding: 0.5rem 0.6rem; min-width: 36px;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                </svg>
+                            </button>
                         </div>
                     </td>
                     {% endif %}
@@ -329,19 +340,109 @@
         color: #0369a1;
     }
 
-    /* 询价中 */
     .badge-warning {
         background: #fef3c7;
         color: #92400e;
     }
 
-    /* 缺货 */
     .badge-success {
         background: #dcfce7;
         color: #166534;
     }
 
-    /* 已报价 */
+    /* Modern Action Buttons - Bento Grid Style */
+    .action-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.4rem;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 0.85rem;
+        font-weight: 500;
+        gap: 0.25rem;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    .action-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .action-btn:active {
+        transform: translateY(0);
+    }
+
+    .action-btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .action-btn-primary:hover {
+        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    }
+
+    .action-btn-success {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+    }
+
+    .action-btn-success:hover {
+        background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+    }
+
+    .action-btn-danger {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        color: white;
+    }
+
+    .action-btn-danger:hover {
+        background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+    }
+
+    .action-btn-warning {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: white;
+    }
+
+    .action-btn-warning:hover {
+        background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+    }
+
+    /* Toast Notification */
+    .toast {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        padding: 0.75rem 1.25rem;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 9999;
+        animation: slideIn 0.3s ease;
+    }
+
+    .toast-success {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+
+    .toast-error {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    }
+
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
 </style>
 
 <script>
@@ -655,6 +756,44 @@
 
         select.onblur = updateValue;
         select.onchange = updateValue;
+    }
+
+    // 单条转报价函数
+    async function transToOffer(quote_id) {
+        if (!confirm(`确定要将需求 ${quote_id} 转为报价单吗？`)) return;
+
+        try {
+            const response = await fetch('/api/quote/batch_to_offer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: [quote_id] })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                showToast(data.message, 'success');
+                setTimeout(() => {
+                    window.location.href = '/offer';
+                }, 1000);
+            } else {
+                showToast('转换失败：' + data.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('请求失败，请稍后重试', 'error');
+        }
+    }
+
+    // Toast 提示函数
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
     }
 </script>
 {% endblock %}

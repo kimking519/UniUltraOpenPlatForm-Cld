@@ -330,16 +330,13 @@ def batch_convert_from_quote(quote_ids, emp_id):
                 data = dict(row)
                 # Pass connection to add_offer to stay in same transaction
                 ok, msg = add_offer(data, emp_id, conn=conn)
-                if ok: 
+                if ok:
                     success_count += 1
-                    # Update source quote status
-                    conn.execute("UPDATE uni_quote SET is_transferred = '已转' WHERE quote_id = ?", (data['quote_id'],))
-                else: 
-                    errors.append(msg)
-            
+                    # Update source quote status and transferred flag
+                    conn.execute("UPDATE uni_quote SET is_transferred = '已转', status = '已报价' WHERE quote_id = ?", (data['quote_id'],))
             if success_count > 0:
                 conn.commit()
-                
+
         if success_count == 0 and errors:
             return False, errors[0]
         return True, f"成功转换 {success_count} 条记录" + (f" (失败 {len(errors)} 条)" if errors else "")
