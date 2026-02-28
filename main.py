@@ -625,9 +625,9 @@ async def offer_page(request: Request, current_user: dict = Depends(login_requir
         session["offer_is_transferred"] = is_transferred
         session["offer_page_size"] = page_size
 
-    # 当 is_transferred 为空字符串时表示"全部"，不为空时才使用传入的值
-    # 只有在首次访问无参数时，才从 session 读取默认值"未转"
-    query_is_transferred = is_transferred if has_params else (is_transferred if is_transferred else "未转")
+    # is_transferred 空字符串表示"全部"，直接传递给查询层处理
+    # 首次访问时 session 默认为"未转"，用户选择"全部"后 session 保存空字符串
+    query_is_transferred = is_transferred
     results, total = get_offer_list(page=page, page_size=page_size, search_kw=search, start_date=start_date, end_date=end_date, cli_id=cli_id, is_transferred=query_is_transferred)
     total_pages = (total + page_size - 1) // page_size
     from Sills.base import get_paginated_list
