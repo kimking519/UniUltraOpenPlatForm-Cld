@@ -57,7 +57,19 @@ def get_quote_list(page=1, page_size=10, search_kw="", start_date="", end_date="
 
 def add_quote(data):
     try:
-        quote_id = "Q" + datetime.now().strftime("%Y%m%d%H%M%S") + uuid.uuid4().hex[:4]
+        # 生成递增的5位数编号
+        with get_db_connection() as conn:
+            last_quote = conn.execute("SELECT quote_id FROM uni_quote WHERE quote_id LIKE 'x%' ORDER BY quote_id DESC LIMIT 1").fetchone()
+            if last_quote:
+                try:
+                    last_num = int(last_quote['quote_id'][1:])  # 去掉前缀x，获取数字部分
+                    new_num = last_num + 1
+                except:
+                    new_num = 1
+            else:
+                new_num = 1
+            quote_id = f"x{new_num:05d}"  # 格式化为5位数，例如 x00001
+
         quote_date = datetime.now().strftime("%Y-%m-%d")
         sql = """
         INSERT INTO uni_quote (quote_id, quote_date, cli_id, inquiry_mpn, quoted_mpn, inquiry_brand, inquiry_qty, target_price_rmb, cost_price_rmb, date_code, delivery_date, status, remark, is_transferred)
