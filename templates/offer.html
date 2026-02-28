@@ -5,10 +5,6 @@
     <h1>6. 报价订单</h1>
     {% if current_user.rule == '3' or current_user.rule == '0' %}
     <div style="display: flex; gap: 1rem;">
-        {% if current_user.rule == '3' %}
-        <button class="btn btn-primary" onclick="batchDelete()"
-            style="background: #ef4444; color: white; border: 1px solid #ef4444;">批量删除</button>
-        {% endif %}
         <button class="btn btn-primary" onclick="batchToOrder()"
             style="background: #6366f1; color: white; border: 1px solid #6366f1;">批量转销售订单</button>
         <button class="btn btn-primary" onclick="exportSelectedOffers()"
@@ -16,46 +12,45 @@
         <button class="btn btn-primary" onclick="toggleModal('importModal')"
             style="background: var(--light); color: var(--text); border: 1px solid var(--border);">+ 批量导入</button>
         <button class="btn btn-primary" onclick="toggleModal('addModal')">+ 新增报价</button>
+        {% if current_user.rule == '3' %}
+        <button class="btn btn-primary" onclick="batchDelete()"
+            style="background: #ef4444; color: white; border: 1px solid #ef4444;">批量删除</button>
+        {% endif %}
     </div>
     {% endif %}
 </div>
 
 <!-- Search Bar -->
 <div class="card" style="margin-bottom: 1rem; padding: 1rem;">
-    <form method="get" action="/offer" style="display: flex; gap: 1rem; flex-wrap: wrap;">
-        <input type="text" name="search" placeholder="搜索型号、报价编号、供应商、负责人..." value="{{ search }}"
+    <form id="filterForm" style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <input type="text" id="search" placeholder="搜索型号、报价编号、供应商、负责人..."
             style="flex: 1; min-width: 250px; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px;">
         <div style="display: flex; align-items: center; gap: 0.5rem;">
             <span style="font-size: 0.9rem; color: var(--secondary);">日期:</span>
-            <input type="date" name="start_date" value="{{ start_date }}"
+            <input type="date" id="start_date"
                 style="padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px;" title="开始日期">
             <span>-</span>
-            <input type="date" name="end_date" value="{{ end_date }}"
+            <input type="date" id="end_date"
                 style="padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px;" title="结束日期">
         </div>
-        <select name="cli_id"
+        <select id="cli_id"
             style="padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; min-width: 150px;">
             <option value="">全部客户</option>
             {% for cli in cli_list %}
-            <option value="{{ cli.cli_id }}" {% if cli.cli_id==cli_id %}selected{% endif %}>{{ cli.cli_name }}</option>
+            <option value="{{ cli.cli_id }}">{{ cli.cli_name }}</option>
             {% endfor %}
         </select>
-        <select name="page_size" style="padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px;">
+        <select id="page_size" style="padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px;">
             <option value="20" {% if page_size==20 %}selected{% endif %}>20条/页</option>
             <option value="50" {% if page_size==50 %}selected{% endif %}>50条/页</option>
             <option value="100" {% if page_size==100 %}selected{% endif %}>100条/页</option>
         </select>
-        <button type="submit" class="btn btn-primary">搜索 / 过滤</button>
-        <select name="is_transferred"
+        <select id="is_transferred"
             style="padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; min-width: 100px;">
             <option value="">全部</option>
-            <option value="未转" {% if is_transferred!='已转' %}selected{% endif %}>未转</option>
+            <option value="未转" {% if is_transferred=='未转' or is_transferred=='' %}selected{% endif %}>未转</option>
             <option value="已转" {% if is_transferred=='已转' %}selected{% endif %}>已转</option>
         </select>
-        {% if search or start_date or end_date %}
-        <a href="/offer" class="btn"
-            style="background: var(--light); color: var(--secondary); text-decoration: none; padding: 0.5rem 1rem; border-radius: 4px;">清除</a>
-        {% endif %}
     </form>
 </div>
 
@@ -699,6 +694,58 @@
 
         select.onblur = updateValue;
         select.onchange = updateValue;
+    }
+
+    // 页面加载时从服务器获取筛选条件并恢复
+    window.addEventListener('DOMContentLoaded', () => {
+        // 从页面数据中恢复筛选条件（由后端从 session 读取）
+        const search = "{{ search }}";
+        const start_date = "{{ start_date }}";
+        const end_date = "{{ end_date }}";
+        const cli_id = "{{ cli_id }}";
+        const is_transferred = "{{ is_transferred }}";
+        const page_size = "{{ page_size }}";
+
+        // 设置表单值
+        if (search) document.getElementById('search').value = search;
+        if (start_date) document.getElementById('start_date').value = start_date;
+        if (end_date) document.getElementById('end_date').value = end_date;
+        if (cli_id) document.getElementById('cli_id').value = cli_id;
+        if (is_transferred) document.getElementById('is_transferred').value = is_transferred;
+        if (page_size) document.getElementById('page_size').value = page_size;
+
+        // 为所有筛选控件添加 change 事件，自动提交
+        ['search', 'start_date', 'end_date', 'cli_id', 'is_transferred', 'page_size'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('change', () => applyFilters());
+                // 搜索框支持回车
+                if (id === 'search') {
+                    el.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') applyFilters();
+                    });
+                }
+            }
+        });
+    });
+
+    // 应用筛选条件，跳转到指定页
+    function applyFilters(page = 1) {
+        const search = encodeURIComponent(document.getElementById('search').value);
+        const start_date = document.getElementById('start_date').value;
+        const end_date = document.getElementById('end_date').value;
+        const cli_id = document.getElementById('cli_id').value;
+        const is_transferred = document.getElementById('is_transferred').value;
+        const page_size = document.getElementById('page_size').value;
+
+        // 始终传递 is_transferred 参数（即使是空值）
+        let url = `/offer?page=${page}&page_size=${page_size}&is_transferred=${encodeURIComponent(is_transferred)}`;
+        if (search) url += `&search=${search}`;
+        if (start_date) url += `&start_date=${start_date}`;
+        if (end_date) url += `&end_date=${end_date}`;
+        if (cli_id) url += `&cli_id=${cli_id}`;
+
+        window.location.href = url;
     }
 </script>
 {% endblock %}

@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, Form, Depends, HTTPException, Response, Co
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 from Sills.base import init_db, get_db_connection, current_env
 from Sills.db_daily import get_daily_list, add_daily, update_daily
 from Sills.db_emp import get_emp_list, add_employee, batch_import_text, verify_login, change_password, update_employee, delete_employee
@@ -30,6 +31,9 @@ from email import encoders
 import openpyxl
 
 app = FastAPI()
+
+# Add session middleware
+app.add_middleware(SessionMiddleware, secret_key="uni_platform_secret_key_2026")
 
 @app.middleware("http")
 async def env_middleware(request: Request, call_next):
@@ -412,12 +416,29 @@ async def cli_delete_api(cli_id: str = Form(...), current_user: dict = Depends(l
 
 # ---------------- Quote Module ----------------
 @app.get("/quote", response_class=HTMLResponse)
-async def quote_page(request: Request, current_user: dict = Depends(login_required), page: int = 1, page_size: int = 20, search: str = "", start_date: str = "", end_date: str = "", cli_id: str = "", status: str = None, is_transferred: str = ""):
-    # Only default to "询价中" if status is strictly None (initial load without parameters)
-    if status is None and not search:
-        status = "询价中"
-    elif status is None:
-        status = ""
+async def quote_page(request: Request, current_user: dict = Depends(login_required), page: int = 1, page_size: int = 20, search: str = "", start_date: str = "", end_date: str = "", cli_id: str = "", status: str = "", is_transferred: str = ""):
+    # 从 session 获取筛选条件
+    session = request.session
+    # 检查 URL 中是否有筛选参数（包括空值）
+    has_params = any(k in request.query_params for k in ['search', 'start_date', 'end_date', 'cli_id', 'status', 'is_transferred'])
+
+    if not has_params:
+        # 首次访问或无参数，从 session 读取
+        search = session.get("quote_search", "")
+        start_date = session.get("quote_start_date", "")
+        end_date = session.get("quote_end_date", "")
+        cli_id = session.get("quote_cli_id", "")
+        status = session.get("quote_status", "")
+        is_transferred = session.get("quote_is_transferred", "")
+    else:
+        # 有参数时（包括空值），保存到 session
+        session["quote_search"] = search
+        session["quote_start_date"] = start_date
+        session["quote_end_date"] = end_date
+        session["quote_cli_id"] = cli_id
+        session["quote_status"] = status
+        session["quote_is_transferred"] = is_transferred
+
     results, total = get_quote_list(page=page, page_size=page_size, search_kw=search, start_date=start_date, end_date=end_date, cli_id=cli_id, status=status, is_transferred=is_transferred)
     total_pages = (total + page_size - 1) // page_size
     cli_list, _ = get_cli_list(page=1, page_size=1000)
@@ -435,7 +456,7 @@ async def quote_page(request: Request, current_user: dict = Depends(login_requir
         "end_date": end_date,
         "cli_id": cli_id,
         "status": status,
-        "is_transferred": request.query_params.get("is_transferred", ""),
+        "is_transferred": is_transferred,
         "cli_list": cli_list
     })
 
@@ -582,6 +603,28 @@ async def quote_export_offer_csv(request: Request, current_user: dict = Depends(
 # ---------------- Offer Module ----------------
 @app.get("/offer", response_class=HTMLResponse)
 async def offer_page(request: Request, current_user: dict = Depends(login_required), page: int = 1, page_size: int = 20, search: str = "", start_date: str = "", end_date: str = "", cli_id: str = "", is_transferred: str = ""):
+    # 从 session 获取筛选条件
+    session = request.session
+    # 检查 URL 中是否有筛选参数（包括空值）
+    has_params = any(k in request.query_params for k in ['search', 'start_date', 'end_date', 'cli_id', 'is_transferred'])
+
+    if not has_params:
+        # 首次访问或无参数，从 session 读取
+        search = session.get("offer_search", "")
+        start_date = session.get("offer_start_date", "")
+        end_date = session.get("offer_end_date", "")
+        cli_id = session.get("offer_cli_id", "")
+        is_transferred = session.get("offer_is_transferred", "未转")
+        page_size = session.get("offer_page_size", 20)
+    else:
+        # 有参数（包括空值），保存到 session
+        session["offer_search"] = search
+        session["offer_start_date"] = start_date
+        session["offer_end_date"] = end_date
+        session["offer_cli_id"] = cli_id
+        session["offer_is_transferred"] = is_transferred
+        session["offer_page_size"] = page_size
+
     results, total = get_offer_list(page=page, page_size=page_size, search_kw=search, start_date=start_date, end_date=end_date, cli_id=cli_id, is_transferred=is_transferred if is_transferred else "未转")
     total_pages = (total + page_size - 1) // page_size
     from Sills.base import get_paginated_list
@@ -602,7 +645,7 @@ async def offer_page(request: Request, current_user: dict = Depends(login_requir
         "start_date": start_date,
         "end_date": end_date,
         "cli_id": cli_id,
-        "is_transferred": request.query_params.get("is_transferred", "未转"),
+        "is_transferred": is_transferred,
         "vendor_list": vendor_list,
         "cli_list": cli_list
     })

@@ -5,62 +5,56 @@
     <h1>4. 需求管理</h1>
     {% if current_user.rule == '3' or current_user.rule == '0' %}
     <div style="display: flex; gap: 1rem;">
-        {% if current_user.rule == '3' %}
-        <button class="btn btn-primary" onclick="batchDelete()"
-            style="background: #ef4444; color: white; border: 1px solid #ef4444;">批量删除</button>
-        {% endif %}
-        <button class="btn btn-primary" onclick="batchCopy()"
-            style="background: #a855f7; color: white; border: 1px solid #a855f7;">批量复制</button>
         <button class="btn btn-primary" onclick="batchToOffer()"
             style="background: #3b82f6; color: white; border: 1px solid #3b82f6;">批量转报价单</button>
         <button class="btn btn-primary" onclick="exportSelectedToOfferCsv()"
             style="background: #10b981; color: white; border: 1px solid #10b981;">导出选中为报价表.csv</button>
+        <button class="btn btn-primary" onclick="batchCopy()"
+            style="background: #a855f7; color: white; border: 1px solid #a855f7;">批量复制</button>
+        <button class="btn btn-primary" onclick="toggleModal('addModal')">+ 新增需求</button>
         <button class="btn btn-primary" onclick="toggleModal('importModal')"
             style="background: var(--light); color: var(--text); border: 1px solid var(--border);">+ 批量导入</button>
-        <button class="btn btn-primary" onclick="toggleModal('addModal')">+ 新增需求</button>
+        {% if current_user.rule == '3' %}
+        <button class="btn btn-primary" onclick="batchDelete()"
+            style="background: #ef4444; color: white; border: 1px solid #ef4444;">批量删除</button>
+        {% endif %}
     </div>
     {% endif %}
 </div>
 
 <!-- Search Bar -->
 <div class="card" style="margin-bottom: 1rem; padding: 1rem;">
-    <form method="get" action="/quote" style="display: flex; gap: 1rem; flex-wrap: wrap;">
-        <input type="text" name="search" placeholder="搜索型号、客户、需求编号..." value="{{ search }}"
+    <form id="filterForm" style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <input type="text" id="search" placeholder="搜索型号、客户、需求编号..."
             style="flex: 1; min-width: 250px; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px;">
         <div style="display: flex; align-items: center; gap: 0.5rem;">
             <span style="font-size: 0.9rem; color: var(--secondary);">日期:</span>
-            <input type="date" name="start_date" value="{{ start_date }}"
+            <input type="date" id="start_date"
                 style="padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px;" title="开始日期">
             <span>-</span>
-            <input type="date" name="end_date" value="{{ end_date }}"
+            <input type="date" id="end_date"
                 style="padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px;" title="结束日期">
         </div>
-        <select name="cli_id"
+        <select id="cli_id"
             style="padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; min-width: 150px;">
             <option value="">全部客户</option>
             {% for cli in cli_list %}
-            <option value="{{ cli.cli_id }}" {% if cli.cli_id==cli_id %}selected{% endif %}>{{ cli.cli_name }}</option>
+            <option value="{{ cli.cli_id }}">{{ cli.cli_name }}</option>
             {% endfor %}
         </select>
-        <select name="status" id="statusFilter"
+        <select id="status"
             style="padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; min-width: 120px;">
             <option value="">全部状态</option>
-            <option value="询价中" {% if status=='询价中' %}selected{% endif %}>询价中</option>
-            <option value="缺货" {% if status=='缺货' %}selected{% endif %}>缺货</option>
-            <option value="已报价" {% if status=='已报价' %}selected{% endif %}>已报价</option>
+            <option value="询价中">询价中</option>
+            <option value="缺货">缺货</option>
+            <option value="已报价">已报价</option>
         </select>
-        <select name="is_transferred"
+        <select id="is_transferred"
             style="padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; min-width: 100px;">
             <option value="">全部</option>
-            <option value="未转" {% if is_transferred=='未转' %}selected{% endif %}>未转</option>
-            <option value="已转" {% if is_transferred=='已转' %}selected{% endif %}>已转</option>
+            <option value="未转">未转</option>
+            <option value="已转">已转</option>
         </select>
-        <button type="submit" class="btn btn-primary">搜索 / 过滤</button>
-        {% if search or start_date or end_date or status %}
-        <button type="button" class="btn"
-            style="background: var(--light); color: var(--secondary); padding: 0.5rem 1rem; border-radius: 4px; border: 1px solid var(--border); cursor: pointer;"
-            onclick="clearFilters()">清除</button>
-        {% endif %}
     </form>
 </div>
 
@@ -190,14 +184,14 @@
         <span style="color: var(--secondary); font-size: 0.9rem;">共 {{ total }} 条记录</span>
         <div style="display: flex; gap: 0.5rem;">
             {% if page > 1 %}
-            <a href="/quote?page={{ page - 1 }}&search={{ search }}&status={{ status }}&start_date={{ start_date }}&end_date={{ end_date }}&page_size={{ page_size }}"
+            <a href="/quote?page={{ page - 1 }}&search={{ search }}&status={{ status }}&start_date={{ start_date }}&end_date={{ end_date }}&cli_id={{ cli_id }}&is_transferred={{ is_transferred }}&page_size={{ page_size }}"
                 class="btn"
                 style="padding: 0.3rem 0.8rem; text-decoration: none; color: var(--text); border: 1px solid var(--border);">上一页</a>
             {% endif %}
             <span style="padding: 0.3rem 0.8rem; background: var(--primary); color: white; border-radius: 4px;">{{ page
                 }} / {{ total_pages if total_pages > 0 else 1 }}</span>
             {% if page < total_pages %} <a
-                href="/quote?page={{ page + 1 }}&search={{ search }}&status={{ status }}&start_date={{ start_date }}&end_date={{ end_date }}&page_size={{ page_size }}"
+                href="/quote?page={{ page + 1 }}&search={{ search }}&status={{ status }}&start_date={{ start_date }}&end_date={{ end_date }}&cli_id={{ cli_id }}&is_transferred={{ is_transferred }}&page_size={{ page_size }}"
                 class="btn"
                 style="padding: 0.3rem 0.8rem; text-decoration: none; color: var(--text); border: 1px solid var(--border);">
                 下一页</a>
@@ -453,22 +447,57 @@
         {% endfor %}
     `;
 
-    // 状态记忆与恢复逻辑
+    // 页面加载时从服务器获取筛选条件并恢复
     window.addEventListener('DOMContentLoaded', () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const filterFields = ['search', 'start_date', 'end_date', 'cli_id', 'status', 'page_size'];
+        // 从页面数据中恢复筛选条件（由后端从 session 读取）
+        const search = "{{ search }}";
+        const start_date = "{{ start_date }}";
+        const end_date = "{{ end_date }}";
+        const cli_id = "{{ cli_id }}";
+        const status = "{{ status }}";
+        const is_transferred = "{{ is_transferred }}";
 
-        const form = document.querySelector('form[action="/quote"]');
-        if (form && urlParams.toString()) {
-            filterFields.forEach(f => {
-                const el = form.querySelector(`[name="${f}"]`);
-                if (el && urlParams.has(f)) el.value = urlParams.get(f);
-            });
-        }
+        // 设置表单值
+        if (search) document.getElementById('search').value = search;
+        if (start_date) document.getElementById('start_date').value = start_date;
+        if (end_date) document.getElementById('end_date').value = end_date;
+        if (cli_id) document.getElementById('cli_id').value = cli_id;
+        if (status) document.getElementById('status').value = status;
+        if (is_transferred) document.getElementById('is_transferred').value = is_transferred;
+
+        // 为所有筛选控件添加 change 事件，自动提交
+        ['search', 'start_date', 'end_date', 'cli_id', 'status', 'is_transferred'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('change', () => applyFilters());
+                // 搜索框支持回车
+                if (id === 'search') {
+                    el.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') applyFilters();
+                    });
+                }
+            }
+        });
     });
 
-    function clearFilters() {
-        window.location.href = '/quote';
+    // 应用筛选条件，跳转到指定页
+    function applyFilters(page = 1) {
+        const search = encodeURIComponent(document.getElementById('search').value);
+        const start_date = document.getElementById('start_date').value;
+        const end_date = document.getElementById('end_date').value;
+        const cli_id = document.getElementById('cli_id').value;
+        const status = document.getElementById('status').value;
+        const is_transferred = document.getElementById('is_transferred').value;
+        const page_size = {{ page_size }};
+
+        // 始终传递 status 和 is_transferred 参数（即使是空值）
+        let url = `/quote?page=${page}&page_size=${page_size}&status=${encodeURIComponent(status)}&is_transferred=${encodeURIComponent(is_transferred)}`;
+        if (search) url += `&search=${search}`;
+        if (start_date) url += `&start_date=${start_date}`;
+        if (end_date) url += `&end_date=${end_date}`;
+        if (cli_id) url += `&cli_id=${cli_id}`;
+
+        window.location.href = url;
     }
 
     function toggleModal(id) {
