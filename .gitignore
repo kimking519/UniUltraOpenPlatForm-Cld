@@ -11,3 +11,4 @@ ENV/
 .vscode/
 .idea/
 *.csv
+.claude/settings.local.json
