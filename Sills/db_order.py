@@ -130,7 +130,7 @@ def add_order(data, conn=None):
             INSERT INTO uni_order (
                 order_id, order_no, order_date, cli_id, offer_id, inquiry_mpn, inquiry_brand,
                 price_rmb, price_kwr, price_usd, cost_price_rmb, is_finished, is_paid, paid_amount, return_status, remark, is_transferred
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '未转')
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
             params = (
                 order_id, order_no, order_date, cli_id, offer_id,
@@ -141,7 +141,8 @@ def add_order(data, conn=None):
                 int(data.get('is_paid', 0)),
                 paid_amount,
                 data.get('return_status', '正常'),
-                data.get('remark', '')
+                data.get('remark', ''),
+                '未转'
             )
             conn.execute(sql, params)
             if must_close:
@@ -206,7 +207,7 @@ def batch_import_order(text, cli_id):
                 INSERT INTO uni_order (
                     order_id, order_no, order_date, cli_id, offer_id, inquiry_mpn, inquiry_brand,
                     price_rmb, price_kwr, price_usd, cost_price_rmb, is_finished, is_paid, paid_amount, return_status, remark, is_transferred
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '未转')
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """
                 conn.executemany(sql, insert_data)
                 conn.commit()
