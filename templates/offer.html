@@ -473,14 +473,13 @@
 
                 if (data.success) {
                     // 计算新的 RMB 价格
+                    // 公式：RMB = KWR / KRW 汇率，RMB = USD / USD 汇率
                     const newPrice = parseFloat(newValue);
                     let newRmb = 0;
                     if (currency === 'KWR') {
-                        // KWR 转 RMB: KWR / rate
-                        newRmb = rate > 10 ? newPrice / rate : newPrice * rate;
+                        newRmb = newPrice / data.krw;
                     } else {
-                        // USD 转 RMB: USD / rate
-                        newRmb = rate > 10 ? newPrice / rate : newPrice * rate;
+                        newRmb = newPrice / data.usd;
                     }
                     newRmb = Math.round(newRmb * 100) / 100;
 
