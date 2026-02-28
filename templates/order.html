@@ -102,13 +102,13 @@
                 <td onclick="editField('{{ row.order_id }}', 'inquiry_brand', '{{ row.inquiry_brand }}')"
                     style="cursor: pointer; color: var(--primary);">{{ row.inquiry_brand }}</td>
                 <td onclick="editField('{{ row.order_id }}', 'price_rmb', '{{ row.price_rmb }}')"
-                    style="cursor: pointer; color: var(--primary);">{{ row.price_rmb }}</td>
+                    style="cursor: pointer; color: var(--primary);">{{ "%.2f"|format(row.price_rmb or 0) }}</td>
                 <td onclick="editField('{{ row.order_id }}', 'price_kwr', '{{ row.price_kwr }}')"
                     style="cursor: pointer; color: var(--primary);">{{ row.price_kwr }}</td>
                 <td onclick="editField('{{ row.order_id }}', 'price_usd', '{{ row.price_usd }}')"
                     style="cursor: pointer; color: var(--primary);">{{ row.price_usd }}</td>
                 <td onclick="editField('{{ row.order_id }}', 'cost_price_rmb', '{{ row.cost_price_rmb }}')"
-                    style="cursor: pointer; color: var(--primary);">{{ row.cost_price_rmb }}</td>
+                    style="cursor: pointer; color: var(--primary);">{{ "%.2f"|format(row.cost_price_rmb or 0) }}</td>
                 <td><span style="color: green;">{{ row.profit }}</span></td>
                 <td ondblclick="editOfferField('{{ row.offer_id }}', 'inquiry_qty', '{{ row.inquiry_qty or 0 }}', 'number')"
                     style="cursor: pointer;">{{ row.inquiry_qty or '' }}</td>
