@@ -436,12 +436,12 @@
         if (td.querySelector('input')) return;
 
         // 获取最新汇率
-        let rate = currency === 'KWR' ? 180.0 : 7.0;
+        let exchangeRate = currency === 'KWR' ? 180.0 : 7.0;
         try {
             const res = await fetch('/api/exchange/rates');
-            const data = await res.json();
-            if (data.success) {
-                rate = currency === 'KWR' ? data.krw : data.usd;
+            const rateData = await res.json();
+            if (rateData.success) {
+                exchangeRate = currency === 'KWR' ? rateData.krw : rateData.usd;
             }
         } catch (e) {
             console.error('Failed to get exchange rate:', e);
@@ -477,9 +477,9 @@
                     const newPrice = parseFloat(newValue);
                     let newRmb = 0;
                     if (currency === 'KWR') {
-                        newRmb = newPrice / data.krw;
+                        newRmb = newPrice / exchangeRate;
                     } else {
-                        newRmb = newPrice / data.usd;
+                        newRmb = newPrice / exchangeRate;
                     }
                     newRmb = Math.round(newRmb * 100) / 100;
 
