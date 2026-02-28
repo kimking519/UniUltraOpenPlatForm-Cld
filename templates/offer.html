@@ -63,8 +63,8 @@
                     <th style="width: 40px; min-width: 40px; text-align: center;"><input type="checkbox" id="selectAll"
                             onclick="toggleAll(this)"></th>
                     {% endif %}
-                    <th style="min-width: 120px;">报价编号</th>
                     <th style="min-width: 90px;">日期</th>
+                    <th style="min-width: 120px;">报价编号</th>
                     <th style="min-width: 100px;">客户名称</th>
                     <th style="min-width: 120px;">需求编号</th>
                     <th style="min-width: 130px;">询价型号</th>
@@ -99,8 +99,8 @@
                     <td style="text-align: center;"><input type="checkbox" class="row-checkbox"
                             value="{{ row.offer_id }}"></td>
                     {% endif %}
-                    <td>{{ row.offer_id }}</td>
                     <td>{{ row.offer_date }}</td>
+                    <td>{{ row.offer_id }}</td>
                     <td>{{ row.cli_name }}</td>
                     <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'quote_id')"><span>{{ row.quote_id
                             }}</span></td>
@@ -159,6 +159,8 @@
                     {% if current_user.rule == '3' %}
                     <td style="position: sticky; right: 0; background: white; z-index: 1;">
                         <div style="display: flex; gap: 0.3rem;">
+                            <button class="btn" style="color: #10b981; padding: 2px 8px;"
+                                onclick="convertToOrder('{{ row.offer_id }}')">转订单</button>
                             <button class="btn" style="color: red; padding: 2px 8px;"
                                 onclick="deleteOffer('{{ row.offer_id }}')">删除</button>
                         </div>
@@ -606,6 +608,25 @@
                 if (data.success) alert(data.message);
                 else alert('发送失败: ' + data.message);
             });
+    }
+
+    function convertToOrder(offer_id) {
+        if (confirm(`确定要将报价 ${offer_id} 转为销售订单吗？`)) {
+            fetch('/api/offer/convert_to_order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: [offer_id] })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    window.location.href = '/order';
+                } else {
+                    alert('转换失败：' + data.message);
+                }
+            });
+        }
     }
 
     function deleteOffer(offer_id) {
