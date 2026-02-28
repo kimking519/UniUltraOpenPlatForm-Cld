@@ -4,14 +4,11 @@
     style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
     <h1>6. 销售订单管理</h1>
     <div style="display: flex; gap: 0.8rem; align-items: center; margin-left: auto;">
-        <button class="btn btn-primary" onclick="toggleModal('addModal')" style="font-size: 0.85rem;">+ 新增订单</button>
-        <button class="btn btn-primary" onclick="toggleModal('importModal')"
-            style="background: var(--light); color: var(--text); border: 1px solid var(--border); font-size: 0.85rem;">+
-            批量导入</button>
         <button class="btn btn-primary" onclick="batchConvertToBuy()"
             style="background: #3b82f6; color: white; border: 1px solid #3b82f6; font-size: 0.85rem;">转为采购记录</button>
         <button class="btn btn-primary" onclick="batchExport()"
             style="background: #10b981; color: white; border: 1px solid #10b981; font-size: 0.85rem;">批量导出 CSV</button>
+        <button class="btn btn-primary" onclick="toggleModal('addModal')" style="font-size: 0.85rem;">+ 新增订单</button>
         <button class="btn btn-primary" onclick="batchDelete()"
             style="background: #ef4444; color: white; border: 1px solid #ef4444; font-size: 0.85rem;">批量删除</button>
     </div>
@@ -66,8 +63,8 @@
         <thead>
             <tr>
                 <th><input type="checkbox" id="select_all" onclick="toggleSelectAll(this.checked)"></th>
-                <th>订单编号</th>
                 <th>订单日期</th>
+                <th>订单编号</th>
                 <th>客户</th>
                 <th>报价编号</th>
                 <th>报价型号</th>
@@ -95,9 +92,9 @@
             {% for row in items %}
             <tr data-id="{{ row.order_id }}">
                 <td><input type="checkbox" class="row-checkbox" value="{{ row.order_id }}"></td>
+                <td>{{ row.order_date }}</td>
                 <td onclick="editField('{{ row.order_id }}', 'order_no', '{{ row.order_no or row.order_id }}')"
                     style="cursor: pointer; color: var(--primary);">{{ row.order_no or row.order_id }}</td>
-                <td>{{ row.order_date }}</td>
                 <td>{{ row.cli_name }}</td>
                 <td>{{ row.offer_id }}</td>
                 <td onclick="editField('{{ row.order_id }}', 'inquiry_mpn', '{{ row.inquiry_mpn }}')"

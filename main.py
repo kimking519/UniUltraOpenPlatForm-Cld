@@ -1001,8 +1001,7 @@ Remark: {r.get('remark')}
 
 @app.get("/order", response_class=HTMLResponse)
 async def order_page(request: Request, current_user: dict = Depends(login_required), page: int = 1, page_size: int = 20, search: str = "", cli_id: str = "", start_date: str = "", end_date: str = "", is_finished: str = "", is_transferred: str = ""):
-    if not start_date:
-        start_date = datetime.now().strftime("%Y-%m-%d")
+    # 日期默认不选择，保持为空
     if not is_finished and not search:
         is_finished = "0"
     results, total = get_order_list(page=page, page_size=page_size, search_kw=search, cli_id=cli_id, start_date=start_date, end_date=end_date, is_finished=is_finished, is_transferred=is_transferred)
