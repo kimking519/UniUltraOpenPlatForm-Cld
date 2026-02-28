@@ -47,8 +47,8 @@
         </select>
         <select id="is_transferred"
             style="padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; min-width: 100px;">
-            <option value="">全部</option>
-            <option value="未转" {% if is_transferred=='未转' or is_transferred=='' %}selected{% endif %}>未转</option>
+            <option value="" {% if is_transferred=='' %}selected{% endif %}>全部</option>
+            <option value="未转" {% if is_transferred=='未转' %}selected{% endif %}>未转</option>
             <option value="已转" {% if is_transferred=='已转' %}selected{% endif %}>已转</option>
         </select>
     </form>
