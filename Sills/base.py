@@ -1,12 +1,11 @@
 import sqlite3
 import os
-from contextvars import ContextVar
 from functools import lru_cache
 from datetime import datetime
 import threading
 
-# 默认为开发环境库
-current_env: ContextVar[str] = ContextVar("current_env", default="dev")
+# 数据库路径
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uni_platform.db")
 
 # 线程本地存储用于连接池
 _local = threading.local()
@@ -27,17 +26,7 @@ PRAGMA foreign_keys = ON;
 
 
 def get_db_path():
-    env = current_env.get()
-    filename = "uni_platform.db" if env == "prod" else "uni_platform_dev.db"
-    return os.path.join(os.path.dirname(os.path.dirname(__file__)), filename)
-
-
-@lru_cache(maxsize=2)
-def _get_cached_db_path():
-    """缓存数据库路径"""
-    env = current_env.get()
-    filename = "uni_platform.db" if env == "prod" else "uni_platform_dev.db"
-    return os.path.join(os.path.dirname(os.path.dirname(__file__)), filename)
+    return DB_PATH
 
 
 def get_db_connection():
@@ -285,20 +274,13 @@ def init_db():
     CREATE INDEX IF NOT EXISTS idx_emp_rule ON uni_emp(rule);
     """
 
-    envs = ["prod", "dev"]
-    original_env = current_env.get()
-    try:
-        for env in envs:
-            current_env.set(env)
-            with get_db_connection() as conn:
-                conn.executescript(schema)
-                conn.execute("""
-                    INSERT OR IGNORE INTO uni_emp (emp_id, emp_name, account, password, rule)
-                    VALUES ('000', '超级管理员', 'Admin', '088426ba2d6e02949f54ef1e62a2aa73', '3')
-                """)
-                conn.commit()
-    finally:
-        current_env.set(original_env)
+    with get_db_connection() as conn:
+        conn.executescript(schema)
+        conn.execute("""
+            INSERT OR IGNORE INTO uni_emp (emp_id, emp_name, account, password, rule)
+            VALUES ('000', '超级管理员', 'Admin', '088426ba2d6e02949f54ef1e62a2aa73', '3')
+        """)
+        conn.commit()
     # 初始化后清除缓存
     clear_cache()
 

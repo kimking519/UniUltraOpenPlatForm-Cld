@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
-from Sills.base import init_db, get_db_connection, current_env, get_exchange_rates
+from Sills.base import init_db, get_db_connection, get_exchange_rates
 from Sills.db_daily import get_daily_list, add_daily, update_daily
 from Sills.db_emp import get_emp_list, add_employee, batch_import_text, verify_login, change_password, update_employee, delete_employee
 from Sills.db_vendor import add_vendor, batch_import_vendor_text, update_vendor, delete_vendor
@@ -34,16 +34,6 @@ app = FastAPI()
 
 # Add session middleware
 app.add_middleware(SessionMiddleware, secret_key="uni_platform_secret_key_2026")
-
-@app.middleware("http")
-async def env_middleware(request: Request, call_next):
-    env = request.cookies.get("app_env", "dev")
-    token = current_env.set(env)
-    try:
-        response = await call_next(request)
-        return response
-    finally:
-        current_env.reset(token)
 
 # Mount static files and templates
 app.mount("/static", StaticFiles(directory="static"), name="static")
