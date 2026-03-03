@@ -30,14 +30,10 @@ def get_quote_list(page=1, page_size=10, search_kw="", start_date="", end_date="
         params.append(is_transferred)
         
     query = f"""
-    SELECT q.*, c.cli_name, 
-           (COALESCE(q.quoted_mpn, '') || ' | ' || 
-            COALESCE(q.inquiry_brand, '') || ' | ' || 
-            COALESCE(CAST(q.inquiry_qty AS TEXT), '') || ' pcs | ' ||
-            COALESCE(q.date_code, '') || ' | ' ||
-            COALESCE(q.delivery_date, '') || ' | ' ||
-            COALESCE(q.is_transferred, '未转') || ' | ' || 
-            COALESCE(q.remark, '')) as combined_info
+    SELECT q.*, c.cli_name,
+           (COALESCE(q.quoted_mpn, '') || ' | ' ||
+            COALESCE(q.inquiry_brand, '') || ' | ' ||
+            COALESCE(CAST(q.inquiry_qty AS TEXT), '') || ' pcs') as combined_info
     {base_query}
     ORDER BY q.created_at DESC
     LIMIT ? OFFSET ?
