@@ -3,6 +3,20 @@ import uuid
 from datetime import datetime
 from Sills.base import get_db_connection
 
+def generate_quote_id():
+    """生成递增的5位数需求编号，格式：x00001"""
+    with get_db_connection() as conn:
+        last_quote = conn.execute("SELECT quote_id FROM uni_quote WHERE quote_id LIKE 'x%' ORDER BY quote_id DESC LIMIT 1").fetchone()
+        if last_quote:
+            try:
+                last_num = int(last_quote['quote_id'][1:])  # 去掉前缀x，获取数字部分
+                new_num = last_num + 1
+            except:
+                new_num = 1
+        else:
+            new_num = 1
+        return f"x{new_num:05d}"  # 格式化为5位数，例如 x00001
+
 def get_quote_list(page=1, page_size=10, search_kw="", start_date="", end_date="", cli_id="", status="", is_transferred=""):
     offset = (page - 1) * page_size
     
@@ -53,19 +67,7 @@ def get_quote_list(page=1, page_size=10, search_kw="", start_date="", end_date="
 
 def add_quote(data):
     try:
-        # 生成递增的5位数编号
-        with get_db_connection() as conn:
-            last_quote = conn.execute("SELECT quote_id FROM uni_quote WHERE quote_id LIKE 'x%' ORDER BY quote_id DESC LIMIT 1").fetchone()
-            if last_quote:
-                try:
-                    last_num = int(last_quote['quote_id'][1:])  # 去掉前缀x，获取数字部分
-                    new_num = last_num + 1
-                except:
-                    new_num = 1
-            else:
-                new_num = 1
-            quote_id = f"x{new_num:05d}"  # 格式化为5位数，例如 x00001
-
+        quote_id = generate_quote_id()
         quote_date = datetime.now().strftime("%Y-%m-%d")
         sql = """
         INSERT INTO uni_quote (quote_id, quote_date, cli_id, inquiry_mpn, quoted_mpn, inquiry_brand, inquiry_qty, target_price_rmb, cost_price_rmb, date_code, delivery_date, status, remark, is_transferred)
@@ -169,38 +171,6 @@ def batch_delete_quote(quote_ids):
         return False, str(e)
 
 def batch_copy_quote(quote_ids):
-    if not quote_ids: return True, "无选中记录"
-    try:
-        with get_db_connection() as conn:
-            placeholders = ','.join(['?'] * len(quote_ids))
-            rows = conn.execute(f"SELECT * FROM uni_quote WHERE quote_id IN ({placeholders})", quote_ids).fetchall()
-            
-            for row in rows:
-                import uuid
-                from datetime import datetime
-                new_id = "Q" + datetime.now().strftime("%Y%m%d%H%M%S") + uuid.uuid4().hex[:4]
-                sql = """
-                INSERT INTO uni_quote (quote_id, quote_date, cli_id, inquiry_mpn, quoted_mpn, inquiry_brand, inquiry_qty, target_price_rmb, cost_price_rmb, remark)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """
-                conn.execute(sql, (
-                    new_id,
-                    datetime.now().strftime("%Y-%m-%d"),
-                    row['cli_id'],
-                    row['inquiry_mpn'],
-                    row['quoted_mpn'],
-                    row['inquiry_brand'],
-                    row['inquiry_qty'],
-                    row['target_price_rmb'],
-                    row['cost_price_rmb'],
-                    row['remark']
-                ))
-            conn.commit()
-            return True, "批量复制成功"
-    except Exception as e:
-        return False, str(e)
-
-def batch_copy_quote(quote_ids):
     try:
         if not quote_ids: return True, "未选择数据"
         with get_db_connection() as conn:
@@ -208,7 +178,7 @@ def batch_copy_quote(quote_ids):
             for q_id in quote_ids:
                 row = conn.execute("SELECT * FROM uni_quote WHERE quote_id=?", (q_id,)).fetchone()
                 if row:
-                    new_id = "Q" + datetime.now().strftime("%Y%m%d%H%M%S") + uuid.uuid4().hex[:4]
+                    new_id = generate_quote_id()
                     d = dict(row)
                     sql = """
                     INSERT INTO uni_quote (quote_id, quote_date, cli_id, inquiry_mpn, quoted_mpn, inquiry_brand, inquiry_qty, target_price_rmb, cost_price_rmb, date_code, delivery_date, status, remark)
