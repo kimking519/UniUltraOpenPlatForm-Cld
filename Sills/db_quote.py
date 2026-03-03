@@ -69,18 +69,22 @@ def add_quote(data):
     try:
         quote_id = generate_quote_id()
         quote_date = datetime.now().strftime("%Y-%m-%d")
+        # 报价型号默认等于询价型号，报价数量默认等于需求数量
+        inquiry_mpn = data.get('inquiry_mpn', '')
+        inquiry_qty = data.get('inquiry_qty', 0)
         sql = """
-        INSERT INTO uni_quote (quote_id, quote_date, cli_id, inquiry_mpn, quoted_mpn, inquiry_brand, inquiry_qty, target_price_rmb, cost_price_rmb, date_code, delivery_date, status, remark, is_transferred)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '未转')
+        INSERT INTO uni_quote (quote_id, quote_date, cli_id, inquiry_mpn, quoted_mpn, inquiry_brand, inquiry_qty, actual_qty, target_price_rmb, cost_price_rmb, date_code, delivery_date, status, remark, is_transferred)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '未转')
         """
         params = (
             quote_id,
             quote_date,
             data.get('cli_id'),
-            data.get('inquiry_mpn'),
-            data.get('quoted_mpn', ''),
+            inquiry_mpn,
+            data.get('quoted_mpn') or inquiry_mpn,  # 报价型号默认等于询价型号
             data.get('inquiry_brand', ''),
-            data.get('inquiry_qty', 0),
+            inquiry_qty,
+            data.get('actual_qty') or inquiry_qty,  # 报价数量默认等于需求数量
             data.get('target_price_rmb', 0.0),
             data.get('cost_price_rmb', 0.0),
             data.get('date_code', ''),
