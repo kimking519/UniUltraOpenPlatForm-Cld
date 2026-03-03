@@ -989,6 +989,64 @@ Remark: {r.get('remark')}
         "filename": f"报价卡片_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
     }
 
+@app.post("/api/offer/generate_koquote")
+async def offer_generate_koquote(request: Request, current_user: dict = Depends(login_required)):
+    """生成韩文Excel报价单"""
+    data = await request.json()
+    offer_ids = data.get("offer_ids", [])
+    if not offer_ids:
+        return {"success": False, "message": "未选择任何报价记录"}
+
+    import subprocess
+    import os
+
+    # 获取项目根目录
+    project_root = os.path.dirname(os.path.abspath(__file__))
+
+    # 脚本路径
+    script_path = os.path.join(project_root, "openclaw_skills", "buyer-make-koquote", "scripts", "make_koquote_20260301194403.py")
+
+    if not os.path.exists(script_path):
+        return {"success": False, "message": "报价单生成脚本不存在"}
+
+    # 数据库路径
+    db_path = os.path.join(project_root, "uni_platform.db")
+
+    # 构建命令
+    offer_ids_str = ",".join(offer_ids)
+    cmd = ["python", script_path, "--offer_ids", offer_ids_str, "--db_path", db_path]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', timeout=60)
+        output = result.stdout.strip()
+
+        if result.returncode == 0 and "成功" in output:
+            # 解析输出获取文件路径
+            lines = output.split('\n')
+            file_path = ""
+            count = len(offer_ids)
+            cli_name = ""
+
+            for line in lines:
+                if "文件路径:" in line:
+                    file_path = line.split("文件路径:")[-1].strip()
+                if "客户" in line:
+                    cli_name = line.split("客户")[-1].strip()
+
+            return {
+                "success": True,
+                "file_path": file_path,
+                "count": count,
+                "cli_name": cli_name
+            }
+        else:
+            error_msg = result.stderr.strip() if result.stderr else output
+            return {"success": False, "message": f"生成失败: {error_msg}"}
+    except subprocess.TimeoutExpired:
+        return {"success": False, "message": "生成超时，请稍后重试"}
+    except Exception as e:
+        return {"success": False, "message": f"生成异常: {str(e)}"}
+
 @app.get("/order", response_class=HTMLResponse)
 async def order_page(request: Request, current_user: dict = Depends(login_required), page: int = 1, page_size: int = 20, search: str = "", cli_id: str = "", start_date: str = "", end_date: str = "", is_finished: str = "", is_transferred: str = ""):
     # 日期默认不选择，保持为空

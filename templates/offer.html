@@ -5,6 +5,8 @@
     <h1>6. 报价订单</h1>
     {% if current_user.rule == '3' or current_user.rule == '0' %}
     <div style="display: flex; gap: 1rem;">
+        <button class="btn btn-primary" onclick="generateKoquote()"
+            style="background: #f59e0b; color: white; border: 1px solid #f59e0b;">生成Excel报价单</button>
         <button class="btn btn-primary" onclick="batchToOrder()"
             style="background: #6366f1; color: white; border: 1px solid #6366f1;">批量转销售订单</button>
         <button class="btn btn-primary" onclick="exportSelectedOffers()"
@@ -729,6 +731,34 @@
                 alert("导出成功，报价内容已复制到剪贴板，CSV 文件已下载。可直接粘贴使用！");
             } else {
                 alert('导出失败: ' + data.message);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('请求失败，请稍后重试');
+        }
+    }
+
+    async function generateKoquote() {
+        const selected = Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => cb.value);
+        if (selected.length === 0) {
+            alert('请先选择要生成报价单的记录');
+            return;
+        }
+
+        if (!confirm(`确定要为选中的 ${selected.length} 条报价生成Excel报价单吗？`)) return;
+
+        try {
+            const response = await fetch('/api/offer/generate_koquote', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ offer_ids: selected })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                alert(`✅ 报价单生成成功！\n文件路径: ${data.file_path}\n报价条数: ${data.count}\n客户: ${data.cli_name}`);
+            } else {
+                alert('生成失败: ' + data.message);
             }
         } catch (error) {
             console.error('Error:', error);
