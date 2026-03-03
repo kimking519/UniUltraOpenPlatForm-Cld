@@ -12,3 +12,4 @@ ENV/
 .idea/
 *.csv
 .claude/settings.local.json
+openclaw_skills/
