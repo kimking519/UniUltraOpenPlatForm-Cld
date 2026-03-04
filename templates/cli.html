@@ -28,6 +28,10 @@
                 <tr>
                     <th>客户编号</th>
                     <th>客户名称</th>
+                    <th>公司全名</th>
+                    <th>公司英文名</th>
+                    <th>联系人</th>
+                    <th>地址</th>
                     <th>所属区域</th>
                     <th>信用等级</th>
                     <th>利润率(%)</th>
@@ -49,6 +53,14 @@
                     <td {% if current_user.rule=='3' or current_user.rule=='0'
                         %}ondblclick="makeEditable(this, '{{ item.cli_id }}', 'cli_name')" {% endif %}>{{ item.cli_name
                         }}</td>
+                    <td {% if current_user.rule=='3' or current_user.rule=='0'
+                        %}ondblclick="makeEditable(this, '{{ item.cli_id }}', 'cli_full_name')" {% endif %}>{{ item.cli_full_name or '' }}</td>
+                    <td {% if current_user.rule=='3' or current_user.rule=='0'
+                        %}ondblclick="makeEditable(this, '{{ item.cli_id }}', 'cli_name_en')" {% endif %}>{{ item.cli_name_en or '' }}</td>
+                    <td {% if current_user.rule=='3' or current_user.rule=='0'
+                        %}ondblclick="makeEditable(this, '{{ item.cli_id }}', 'contact_name')" {% endif %}>{{ item.contact_name or '' }}</td>
+                    <td {% if current_user.rule=='3' or current_user.rule=='0'
+                        %}ondblclick="makeEditable(this, '{{ item.cli_id }}', 'address')" {% endif %}>{{ item.address or '' }}</td>
                     <td {% if current_user.rule=='3' or current_user.rule=='0'
                         %}ondblclick="makeEditable(this, '{{ item.cli_id }}', 'region')" {% endif %}>{{ item.region }}
                     </td>
@@ -87,7 +99,7 @@
                 {% endfor %}
                 {% if not items %}
                 <tr>
-                    <td colspan="{% if current_user.rule == '3' or current_user.rule == '0' %}12{% else %}11{% endif %}"
+                    <td colspan="{% if current_user.rule == '3' or current_user.rule == '0' %}16{% else %}15{% endif %}"
                         style="text-align: center; color: var(--secondary);">暂无数据</td>
                 </tr>
                 {% endif %}
@@ -112,6 +124,16 @@
         <h3>新增客户</h3>
         <form action="/cli/add" method="post" style="display: grid; gap: 1rem; margin-top: 1rem;">
             <input type="text" name="cli_name" placeholder="客户名称*" required style="padding: 0.5rem;">
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <input type="text" name="cli_full_name" placeholder="公司全名" style="padding: 0.5rem;">
+                <input type="text" name="cli_name_en" placeholder="公司英文名" style="padding: 0.5rem;">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <input type="text" name="contact_name" placeholder="联系人" style="padding: 0.5rem;">
+                <input type="text" name="address" placeholder="地址" style="padding: 0.5rem;">
+            </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                 <input type="text" name="region" placeholder="所属区域 (默认: 韩国)" style="padding: 0.5rem;">

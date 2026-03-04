@@ -80,6 +80,10 @@ VALUES ('000', '超级管理员', 'Admin', '088426ba2d6e02949f54ef1e62a2aa73', '
 |------|------|------|------|
 | cli_id | TEXT | PRIMARY KEY | 客户编号 (C001 格式) |
 | cli_name | TEXT | NOT NULL | 客户名称 |
+| cli_full_name | TEXT | - | 公司全名 |
+| cli_name_en | TEXT | - | 公司英文名 |
+| contact_name | TEXT | - | 公司联系人 |
+| address | TEXT | - | 公司地址 |
 | region | TEXT | NOT NULL DEFAULT '韩国' | 地区 |
 | credit_level | TEXT | DEFAULT 'A' | 信用等级 (A/B/C) |
 | margin_rate | REAL | DEFAULT 10.0 | 利润率 (%) |

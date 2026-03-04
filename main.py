@@ -382,7 +382,7 @@ async def order_update_status_api(order_id: str = Form(...), field: str = Form(.
 async def cli_update_api(cli_id: str = Form(...), field: str = Form(...), value: str = Form(...), current_user: dict = Depends(login_required)):
     if current_user['rule'] not in ['3', '0']:
         return {"success": False, "message": "无权限"}
-    allowed_fields = ['cli_name', 'region', 'credit_level', 'margin_rate', 'emp_id', 'website', 'payment_terms', 'email', 'phone', 'remark']
+    allowed_fields = ['cli_name', 'cli_full_name', 'cli_name_en', 'contact_name', 'address', 'region', 'credit_level', 'margin_rate', 'emp_id', 'website', 'payment_terms', 'email', 'phone', 'remark']
     if field not in allowed_fields:
         return {"success": False, "message": "非法字段"}
     

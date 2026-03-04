@@ -127,6 +127,10 @@ def init_db():
     CREATE TABLE IF NOT EXISTS uni_cli (
         cli_id TEXT PRIMARY KEY,
         cli_name TEXT NOT NULL,
+        cli_full_name TEXT,
+        cli_name_en TEXT,
+        contact_name TEXT,
+        address TEXT,
         region TEXT NOT NULL DEFAULT '韩国',
         credit_level TEXT DEFAULT 'A',
         margin_rate REAL DEFAULT 10.0,
