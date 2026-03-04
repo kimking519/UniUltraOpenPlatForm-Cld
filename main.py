@@ -496,11 +496,11 @@ async def quote_update_api(quote_id: str = Form(...), field: str = Form(...), va
     if current_user['rule'] not in ['3', '0']:
         return {"success": False, "message": "无修改权限"}
         
-    allowed_fields = ['cli_id', 'inquiry_mpn', 'quoted_mpn', 'inquiry_brand', 'inquiry_qty', 'target_price_rmb', 'cost_price_rmb', 'date_code', 'delivery_date', 'status', 'is_transferred', 'remark']
+    allowed_fields = ['cli_id', 'inquiry_mpn', 'quoted_mpn', 'inquiry_brand', 'inquiry_qty', 'actual_qty', 'target_price_rmb', 'cost_price_rmb', 'date_code', 'delivery_date', 'status', 'is_transferred', 'remark']
     if field not in allowed_fields:
         return {"success": False, "message": f"非法字段: {field}"}
-        
-    if field in ['inquiry_qty', 'target_price_rmb', 'cost_price_rmb']:
+
+    if field in ['inquiry_qty', 'actual_qty', 'target_price_rmb', 'cost_price_rmb']:
         try:
             val = float(value) if 'price' in field else int(value)
             success, msg = update_quote(quote_id, {field: val})
@@ -1016,8 +1016,12 @@ async def offer_generate_koquote(request: Request, current_user: dict = Depends(
     offer_ids_str = ",".join(offer_ids)
     cmd = ["python", script_path, "--offer_ids", offer_ids_str, "--db_path", db_path]
 
+    # 设置环境变量，解决 Windows 控制台编码问题
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', timeout=60)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', env=env, timeout=60)
         output = result.stdout.strip()
 
         if result.returncode == 0 and "成功" in output:
@@ -1400,11 +1404,10 @@ async def api_order_batch_to_buy(data: dict, current_user: dict = Depends(login_
 async def settings_page(request: Request, current_user: dict = Depends(login_required)):
     if current_user['rule'] != '3':
         return RedirectResponse(url="/", status_code=303)
-        
+
     # Get backup path info
-    is_windows = platform.system() == "Windows"
-    backup_root = r"E:\WorkPlace\1_AIemployee\备份目录" if is_windows else os.path.expanduser("~/")
-    
+    backup_root = "/home/kim/workspace/DbBackup"
+
     return templates.TemplateResponse("settings.html", {
         "request": request,
         "active_page": "settings",
@@ -1416,30 +1419,35 @@ async def settings_page(request: Request, current_user: dict = Depends(login_req
 async def api_backup(current_user: dict = Depends(login_required)):
     if current_user['rule'] != '3':
         return {"success": False, "message": "仅管理员可执行备份"}
-        
+
     try:
-        is_windows = platform.system() == "Windows"
-        backup_root = r"E:\WorkPlace\1_AIemployee\备份目录" if is_windows else os.path.expanduser("~/")
-        
+        backup_root = "/home/kim/workspace/DbBackup"
+
         # Create day folder
         date_str = datetime.now().strftime("%Y%m%d")
         backup_dir = os.path.join(backup_root, f"backup_{date_str}")
-        
+
         # If exists, delete and recreate
         if os.path.exists(backup_dir):
             shutil.rmtree(backup_dir)
         os.makedirs(backup_dir, exist_ok=True)
-        
+
         # Copy all .db files from project root
         project_root = os.path.dirname(os.path.abspath(__file__))
         db_files = [f for f in os.listdir(project_root) if f.endswith(".db")]
-        
+
         for db_file in db_files:
             src = os.path.join(project_root, db_file)
             dst = os.path.join(backup_dir, db_file)
             shutil.copy2(src, dst)
-            
-        return {"success": True, "message": f"备份成功！已备份 {len(db_files)} 个数据库文件到 {backup_dir}"}
+
+        # Copy static directory
+        static_src = os.path.join(project_root, "static")
+        if os.path.exists(static_src):
+            static_dst = os.path.join(backup_dir, "static")
+            shutil.copytree(static_src, static_dst)
+
+        return {"success": True, "message": f"备份成功！已备份 {len(db_files)} 个数据库文件和 static 目录到 {backup_dir}"}
     except Exception as e:
         return {"success": False, "message": f"备份失败: {str(e)}"}
 
