@@ -1405,8 +1405,9 @@ async def settings_page(request: Request, current_user: dict = Depends(login_req
     if current_user['rule'] != '3':
         return RedirectResponse(url="/", status_code=303)
 
-    # Get backup path info
-    backup_root = "/home/kim/workspace/DbBackup"
+    # Get backup path info - 根据系统选择路径
+    is_windows = platform.system() == "Windows"
+    backup_root = r"E:\WorkPlace\1_AIemployee\备份目录" if is_windows else "/home/kim/workspace/DbBackup"
 
     return templates.TemplateResponse("settings.html", {
         "request": request,
@@ -1421,7 +1422,9 @@ async def api_backup(current_user: dict = Depends(login_required)):
         return {"success": False, "message": "仅管理员可执行备份"}
 
     try:
-        backup_root = "/home/kim/workspace/DbBackup"
+        # 根据系统选择备份路径
+        is_windows = platform.system() == "Windows"
+        backup_root = r"E:\WorkPlace\1_AIemployee\备份目录" if is_windows else "/home/kim/workspace/DbBackup"
 
         # Create day folder
         date_str = datetime.now().strftime("%Y%m%d")
