@@ -12,8 +12,11 @@ import sys
 import os
 import json
 import argparse
+import shutil
+import zipfile
 from datetime import datetime
 from copy import copy
+from xml.etree import ElementTree as ET
 
 try:
     import openpyxl
@@ -95,36 +98,105 @@ def query_orders(conn, order_ids):
 
 
 # ============================================================
+# XML命名空间
+# ============================================================
+
+NS = {
+    'main': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
+    'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+}
+
+
+def get_cell_value_element(sheet_xml, row, col):
+    """获取指定单元格的值元素"""
+    # 列字母转换
+    col_letter = ''
+    temp = col
+    while temp > 0:
+        temp -= 1
+        col_letter = chr(temp % 26 + ord('A')) + col_letter
+        temp //= 26
+
+    cell_ref = f"{col_letter}{row}"
+
+    # 查找单元格
+    for row_elem in sheet_xml.findall('.//main:row', NS):
+        if row_elem.get('r') == str(row):
+            for c in row_elem.findall('main:c', NS):
+                if c.get('r') == cell_ref:
+                    return c
+    return None
+
+
+def set_cell_value(sheet_xml, row, col, value, shared_strings=None):
+    """设置单元格值（直接修改XML）"""
+    from xml.etree.ElementTree import SubElement
+
+    # 列字母转换
+    col_letter = ''
+    temp = col
+    while temp > 0:
+        temp -= 1
+        col_letter = chr(temp % 26 + ord('A')) + col_letter
+        temp //= 26
+
+    cell_ref = f"{col_letter}{row}"
+
+    # 查找或创建行元素
+    sheet_data = sheet_xml.find('main:sheetData', NS)
+    row_elem = None
+    for r in sheet_data.findall('main:row', NS):
+        if r.get('r') == str(row):
+            row_elem = r
+            break
+
+    if row_elem is None:
+        row_elem = SubElement(sheet_data, '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}row')
+        row_elem.set('r', str(row))
+
+    # 查找或创建单元格元素
+    cell_elem = None
+    for c in row_elem.findall('main:c', NS):
+        if c.get('r') == cell_ref:
+            cell_elem = c
+            break
+
+    if cell_elem is None:
+        cell_elem = SubElement(row_elem, '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}c')
+        cell_elem.set('r', cell_ref)
+
+    # 设置值
+    if value is not None and value != '':
+        # 检查是否是数字
+        try:
+            num_val = float(value)
+            cell_elem.set('t', 'n')
+            v_elem = cell_elem.find('main:v', NS)
+            if v_elem is None:
+                v_elem = SubElement(cell_elem, '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}v')
+            v_elem.text = str(num_val if num_val != int(num_val) else int(num_val))
+        except (ValueError, TypeError):
+            # 字符串值
+            cell_elem.set('t', 'str')
+            v_elem = cell_elem.find('main:v', NS)
+            if v_elem is None:
+                v_elem = SubElement(cell_elem, '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}v')
+            v_elem.text = str(value)
+    else:
+        # 清空值
+        v_elem = cell_elem.find('main:v', NS)
+        if v_elem is not None:
+            cell_elem.remove(v_elem)
+
+
+# ============================================================
 # 生成PI文件
 # ============================================================
 
 def generate_pi(orders, template_path, output_path, invoice_no, cli_name):
     """
-    基于模板生成PI Excel文件
-
-    模板结构:
-      E1:H2 = 公司名 (HONG KONG UNICORN...)
-      F3:H4 = 地址
-      F5:H5 = Contact Person
-      F6:H6 = Email
-      F7:H7 = Phone Number
-      A8:H8 = "Proforma Invoice" 标题
-      A9:F9 = "Customer"
-      G9 = "Date:", H9 = 日期
-      G10 = "Invoice No.", H10 = 发票号
-      A10 = "Name:", B10:F10 = 联系人(合并)
-      A11 = "Company Name:", B11:H11 = 公司名(合并)
-      A12:A13 = "Address:", B12:H13 = 地址(合并)
-      A14 = "Email:", B14:H14 = 邮箱(合并)
-      A15 = "Phone Number:", B15:H15 = 电话(合并)
-      16行 = 表头
-      17-19行 = 数据行(模板默认3行)
-      20行 = 合计行
-      21-35行 = 固定内容(TERMS & CONDITIONS等) - 不移动!
+    基于模板生成PI Excel文件，保留图片等所有内容
     """
-    wb = openpyxl.load_workbook(template_path)
-    ws = wb.active
-
     now = datetime.now()
     data_count = len(orders)
 
@@ -134,107 +206,107 @@ def generate_pi(orders, template_path, output_path, invoice_no, cli_name):
     # 获取第一个订单的客户信息
     first_order = orders[0]
 
-    # ---- 1. 填写头部信息 ----
+    # 复制模板文件
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    shutil.copy2(template_path, output_path)
+
+    # 临时解压目录
+    temp_dir = output_path + '_temp'
+    if os.path.exists(temp_dir):
+        shutil.rmtree(temp_dir)
+    os.makedirs(temp_dir)
+
+    # 解压xlsx文件
+    with zipfile.ZipFile(output_path, 'r') as z:
+        z.extractall(temp_dir)
+
+    # 读取sheet1.xml
+    sheet_path = os.path.join(temp_dir, 'xl', 'worksheets', 'sheet1.xml')
+    ET.register_namespace('', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main')
+    ET.register_namespace('r', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships')
+
+    tree = ET.parse(sheet_path)
+    root = tree.getroot()
+
+    # ---- 修改单元格值 ----
     # H9 = 日期 YYYY-MM-DD
-    ws.cell(9, 8).value = now.strftime("%Y-%m-%d")
+    set_cell_value(root, 9, 8, now.strftime("%Y-%m-%d"))
 
     # H10 = Invoice No.
-    ws.cell(10, 8).value = invoice_no
+    set_cell_value(root, 10, 8, invoice_no)
 
-    # B10 = 联系人 (合并单元格 B10:F10)
-    ws.cell(10, 2).value = first_order.get("contact_name", "")
+    # B10 = 联系人
+    set_cell_value(root, 10, 2, first_order.get("contact_name", ""))
 
-    # B11 = 公司英文名 (合并单元格 B11:H11)
-    cli_name_en = first_order.get("cli_name_en", "")
-    if not cli_name_en:
-        cli_name_en = first_order.get("cli_name", "")
-    ws.cell(11, 2).value = cli_name_en
+    # B11 = 公司英文名
+    cli_name_en = first_order.get("cli_name_en", "") or first_order.get("cli_name", "")
+    set_cell_value(root, 11, 2, cli_name_en)
 
-    # B12 = 地址 (合并单元格 B12:H13)
-    ws.cell(12, 2).value = first_order.get("address", "")
+    # B12 = 地址
+    set_cell_value(root, 12, 2, first_order.get("address", ""))
 
-    # B14 = 邮箱 (合并单元格 B14:H14)
-    ws.cell(14, 2).value = first_order.get("email", "")
+    # B14 = 邮箱
+    set_cell_value(root, 14, 2, first_order.get("email", ""))
 
-    # B15 = 电话 (合并单元格 B15:H15)
-    ws.cell(15, 2).value = first_order.get("phone", "")
+    # B15 = 电话
+    set_cell_value(root, 15, 2, first_order.get("phone", ""))
 
-    # ---- 2. 处理数据行 ----
-    # 模板默认有3行数据 (17, 18, 19)
+    # ---- 处理数据行 ----
+    # 注意：XML方式暂时不支持动态增删行，这里使用openpyxl处理行调整
+    # 先保存XML修改
+    tree.write(sheet_path, xml_declaration=True, encoding='UTF-8')
+
+    # 使用openpyxl处理行调整和数据写入
+    wb = openpyxl.load_workbook(output_path)
+    ws = wb.active
+
     first_data_row = 17
     template_data_rows = 3
-    total_row = 20  # 合计行固定在20行
-    footer_start = 21  # 固定内容从21行开始，不移动!
 
-    # 保存模板第17行的样式
-    template_row = first_data_row
+    # 保存样式
     row_styles = {}
     for col in range(1, 9):
-        cell = ws.cell(template_row, col)
+        cell = ws.cell(first_data_row, col)
         row_styles[col] = {
             "font": copy(cell.font) if cell.font else None,
             "border": copy(cell.border) if cell.border else None,
             "fill": copy(cell.fill) if cell.fill else None,
             "alignment": copy(cell.alignment) if cell.alignment else None,
-            "number_format": cell.number_format,
         }
 
-    # 获取行高
-    template_height = ws.row_dimensions[template_row].height or 20.0
+    template_height = ws.row_dimensions[first_data_row].height or 20.0
 
-    # 策略：只在数据超过3行时插入新行，不删除行
+    # 调整行数
     if data_count > template_data_rows:
-        # 需要插入新行 (在20行位置插入，把合计行和固定内容下移)
         rows_to_insert = data_count - template_data_rows
-        ws.insert_rows(total_row, rows_to_insert)
-
-        # 更新合计行和固定内容起始位置
-        total_row = first_data_row + data_count
-        footer_start = total_row + 1
-
-        # 设置新行的行高和样式
+        ws.insert_rows(20, rows_to_insert)
         for i in range(rows_to_insert):
             new_row = first_data_row + template_data_rows + i
             ws.row_dimensions[new_row].height = template_height
-    else:
-        # 数据不超过3行，清空多余的模板数据行，但保留合计行和固定内容
-        for row in range(first_data_row + data_count, first_data_row + template_data_rows):
-            for col in range(1, 9):
-                ws.cell(row, col).value = None
+    elif data_count < template_data_rows:
+        rows_to_delete = template_data_rows - data_count
+        ws.delete_rows(first_data_row + data_count, rows_to_delete)
 
-    # 更新合计行位置（如果插入了行）
-    last_data_row = first_data_row + data_count - 1
+    total_row = first_data_row + data_count
+    last_data_row = total_row - 1
 
     # 写入数据
     for idx, order in enumerate(orders):
         row = first_data_row + idx
 
-        # A列 = Item (序号)
         ws.cell(row, 1).value = idx + 1
-
-        # B列 = Part No. (型号)
         ws.cell(row, 2).value = order.get("inquiry_mpn", "")
-
-        # C列 = Maker (品牌)
         ws.cell(row, 3).value = order.get("inquiry_brand", "")
 
-        # D列 = QTY (报价数量) - 优先使用quoted_qty，其次inquiry_qty
         qty = order.get("quoted_qty") or order.get("inquiry_qty") or ""
         ws.cell(row, 4).value = qty
 
-        # E列 = D/C (批号)
         ws.cell(row, 5).value = order.get("date_code", "")
-
-        # F列 = L/T (货期)
         ws.cell(row, 6).value = order.get("delivery_date", "")
 
-        # G列 = price/unit (KWR)
-        price_kwr = order.get("price_kwr")
-        if not price_kwr:
-            price_kwr = order.get("price_rmb", "")
+        price_kwr = order.get("price_kwr", "")
         ws.cell(row, 7).value = price_kwr
 
-        # H列 = Total amount (KWR) = G * D
         if qty and price_kwr:
             ws.cell(row, 8).value = f"=G{row}*D{row}"
         else:
@@ -253,20 +325,32 @@ def generate_pi(orders, template_path, output_path, invoice_no, cli_name):
             if style.get("alignment"):
                 cell.alignment = style["alignment"]
 
-    # ---- 3. 更新合计行 ----
-    # 只有当数据超过3行时，合计行位置才需要更新
-    if data_count > template_data_rows:
-        # F列 = "Total amount："
-        ws.cell(total_row, 6).value = "Total amount："
-        # H列 = SUM公式
-        ws.cell(total_row, 8).value = f"=SUM(H{first_data_row}:H{last_data_row})"
-    else:
-        # 模板中合计行固定在20行，只需更新SUM范围
-        ws.cell(total_row, 8).value = f"=SUM(H{first_data_row}:H{last_data_row})"
+    # 更新合计行
+    ws.cell(total_row, 6).value = "Total amount："
+    ws.cell(total_row, 8).value = f"=SUM(H{first_data_row}:H{last_data_row})"
 
-    # ---- 4. 保存文件 ----
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    # 保存（这会丢失图片）
     wb.save(output_path)
+
+    # 恢复图片：重新解压原始模板，复制图片和drawing相关文件
+    with zipfile.ZipFile(template_path, 'r') as z:
+        for name in z.namelist():
+            if 'media' in name or 'drawing' in name:
+                # 提取到临时目录
+                z.extract(name, temp_dir)
+
+    # 将图片和drawing文件添加到生成的文件中
+    with zipfile.ZipFile(output_path, 'a') as z:
+        for root_dir, dirs, files in os.walk(temp_dir):
+            for file in files:
+                full_path = os.path.join(root_dir, file)
+                arc_name = os.path.relpath(full_path, temp_dir)
+                if 'media' in arc_name or 'drawing' in arc_name:
+                    z.write(full_path, arc_name)
+
+    # 清理临时目录
+    shutil.rmtree(temp_dir)
+
     return output_path
 
 
@@ -356,7 +440,7 @@ def main():
         # 生成输出路径
         now = datetime.now()
         date_dir = now.strftime("%Y%m%d")
-        invoice_no = now.strftime("UNI%Y%m%d%H%M%S")
+        invoice_no = now.strftime("UNI%Y%m%d%H")
 
         output_dir = os.path.join(output_base, cli_name, date_dir)
         output_filename = f"Proforma Invoice_{cli_name}_{invoice_no}.xlsx"
