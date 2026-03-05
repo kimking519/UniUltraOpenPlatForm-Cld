@@ -1,0 +1,10 @@
+{
+    "skill_name": "order-pi-generator",
+    "version": "1.0.0",
+    "description": "根据销售订单生成Proforma Invoice(PI)文件",
+    "created_at": "2026-03-05",
+    "db_path_windows": "E:\\WorkPlace\\7_AI_APP\\UniUltraOpenPlatForm\\uni_platform.db",
+    "db_path_wsl": "/mnt/e/WorkPlace/7_AI_APP/UniUltraOpenPlatForm/uni_platform.db",
+    "output_base_windows": "E:\\1_Business\\1_Auto",
+    "output_base_wsl": "/mnt/e/1_Business/1_Auto"
+}
