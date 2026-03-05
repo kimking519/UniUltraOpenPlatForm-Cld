@@ -95,24 +95,6 @@ def query_orders(conn, order_ids):
 
 
 # ============================================================
-# 复制单元格样式
-# ============================================================
-
-def copy_cell_style(source_cell, target_cell):
-    """复制单元格的样式"""
-    if source_cell.font:
-        target_cell.font = copy(source_cell.font)
-    if source_cell.border:
-        target_cell.border = copy(source_cell.border)
-    if source_cell.fill:
-        target_cell.fill = copy(source_cell.fill)
-    if source_cell.alignment:
-        target_cell.alignment = copy(source_cell.alignment)
-    if source_cell.number_format:
-        target_cell.number_format = source_cell.number_format
-
-
-# ============================================================
 # 生成PI文件
 # ============================================================
 
@@ -121,11 +103,24 @@ def generate_pi(orders, template_path, output_path, invoice_no, cli_name):
     基于模板生成PI Excel文件
 
     模板结构:
-      R1-R15 = 头部信息
-      R16 = 表头
-      R17-R19 = 数据行
-      R20 = 合计行
-      R21-R35 = 固定内容(TERMS & CONDITIONS等)
+      E1:H2 = 公司名 (HONG KONG UNICORN...)
+      F3:H4 = 地址
+      F5:H5 = Contact Person
+      F6:H6 = Email
+      F7:H7 = Phone Number
+      A8:H8 = "Proforma Invoice" 标题
+      A9:F9 = "Customer"
+      G9 = "Date:", H9 = 日期
+      G10 = "Invoice No.", H10 = 发票号
+      A10 = "Name:", B10:F10 = 联系人(合并)
+      A11 = "Company Name:", B11:H11 = 公司名(合并)
+      A12:A13 = "Address:", B12:H13 = 地址(合并)
+      A14 = "Email:", B14:H14 = 邮箱(合并)
+      A15 = "Phone Number:", B15:H15 = 电话(合并)
+      16行 = 表头
+      17-19行 = 数据行(模板默认3行)
+      20行 = 合计行
+      21-35行 = 固定内容(TERMS & CONDITIONS等) - 不移动!
     """
     wb = openpyxl.load_workbook(template_path)
     ws = wb.active
@@ -146,10 +141,10 @@ def generate_pi(orders, template_path, output_path, invoice_no, cli_name):
     # H10 = Invoice No.
     ws.cell(10, 8).value = invoice_no
 
-    # B10 = 联系人
+    # B10 = 联系人 (合并单元格 B10:F10)
     ws.cell(10, 2).value = first_order.get("contact_name", "")
 
-    # B11 = 公司英文名
+    # B11 = 公司英文名 (合并单元格 B11:H11)
     cli_name_en = first_order.get("cli_name_en", "")
     if not cli_name_en:
         cli_name_en = first_order.get("cli_name", "")
@@ -158,22 +153,25 @@ def generate_pi(orders, template_path, output_path, invoice_no, cli_name):
     # B12 = 地址 (合并单元格 B12:H13)
     ws.cell(12, 2).value = first_order.get("address", "")
 
-    # B14 = 邮箱
+    # B14 = 邮箱 (合并单元格 B14:H14)
     ws.cell(14, 2).value = first_order.get("email", "")
 
-    # B15 = 电话
+    # B15 = 电话 (合并单元格 B15:H15)
     ws.cell(15, 2).value = first_order.get("phone", "")
 
     # ---- 2. 处理数据行 ----
+    # 模板默认有3行数据 (17, 18, 19)
     first_data_row = 17
-    template_data_rows = 3  # 模板中有3行数据(17,18,19)
-    footer_start_row = 20   # 合计行从20开始
+    template_data_rows = 3
+    total_row = 20  # 合计行固定在20行
+    footer_start = 21  # 固定内容从21行开始，不移动!
 
-    # 保存模板行的样式
-    template_styles = {}
+    # 保存模板第17行的样式
+    template_row = first_data_row
+    row_styles = {}
     for col in range(1, 9):
-        cell = ws.cell(first_data_row, col)
-        template_styles[col] = {
+        cell = ws.cell(template_row, col)
+        row_styles[col] = {
             "font": copy(cell.font) if cell.font else None,
             "border": copy(cell.border) if cell.border else None,
             "fill": copy(cell.fill) if cell.fill else None,
@@ -182,22 +180,30 @@ def generate_pi(orders, template_path, output_path, invoice_no, cli_name):
         }
 
     # 获取行高
-    template_row_height = ws.row_dimensions[first_data_row].height or 20.0
+    template_height = ws.row_dimensions[template_row].height or 20.0
 
-    # 根据数据量调整行
+    # 策略：只在数据超过3行时插入新行，不删除行
     if data_count > template_data_rows:
-        # 需要插入新行
+        # 需要插入新行 (在20行位置插入，把合计行和固定内容下移)
         rows_to_insert = data_count - template_data_rows
-        ws.insert_rows(first_data_row + template_data_rows, rows_to_insert)
+        ws.insert_rows(total_row, rows_to_insert)
+
+        # 更新合计行和固定内容起始位置
+        total_row = first_data_row + data_count
+        footer_start = total_row + 1
 
         # 设置新行的行高和样式
         for i in range(rows_to_insert):
             new_row = first_data_row + template_data_rows + i
-            ws.row_dimensions[new_row].height = template_row_height
-    elif data_count < template_data_rows:
-        # 需要删除多余行
-        rows_to_delete = template_data_rows - data_count
-        ws.delete_rows(first_data_row + data_count, rows_to_delete)
+            ws.row_dimensions[new_row].height = template_height
+    else:
+        # 数据不超过3行，清空多余的模板数据行，但保留合计行和固定内容
+        for row in range(first_data_row + data_count, first_data_row + template_data_rows):
+            for col in range(1, 9):
+                ws.cell(row, col).value = None
+
+    # 更新合计行位置（如果插入了行）
+    last_data_row = first_data_row + data_count - 1
 
     # 写入数据
     for idx, order in enumerate(orders):
@@ -230,17 +236,14 @@ def generate_pi(orders, template_path, output_path, invoice_no, cli_name):
 
         # H列 = Total amount (KWR) = G * D
         if qty and price_kwr:
-            try:
-                ws.cell(row, 8).value = f"=G{row}*D{row}"
-            except:
-                ws.cell(row, 8).value = ""
+            ws.cell(row, 8).value = f"=G{row}*D{row}"
         else:
             ws.cell(row, 8).value = ""
 
         # 应用样式
         for col in range(1, 9):
             cell = ws.cell(row, col)
-            style = template_styles.get(col, {})
+            style = row_styles.get(col, {})
             if style.get("font"):
                 cell.font = style["font"]
             if style.get("border"):
@@ -251,14 +254,15 @@ def generate_pi(orders, template_path, output_path, invoice_no, cli_name):
                 cell.alignment = style["alignment"]
 
     # ---- 3. 更新合计行 ----
-    total_row = first_data_row + data_count
-    last_data_row = total_row - 1
-
-    # F20 = "Total amount："
-    ws.cell(total_row, 6).value = "Total amount："
-
-    # H20 = SUM(H17:H{last_data_row})
-    ws.cell(total_row, 8).value = f"=SUM(H{first_data_row}:H{last_data_row})"
+    # 只有当数据超过3行时，合计行位置才需要更新
+    if data_count > template_data_rows:
+        # F列 = "Total amount："
+        ws.cell(total_row, 6).value = "Total amount："
+        # H列 = SUM公式
+        ws.cell(total_row, 8).value = f"=SUM(H{first_data_row}:H{last_data_row})"
+    else:
+        # 模板中合计行固定在20行，只需更新SUM范围
+        ws.cell(total_row, 8).value = f"=SUM(H{first_data_row}:H{last_data_row})"
 
     # ---- 4. 保存文件 ----
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
