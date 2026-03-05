@@ -357,9 +357,10 @@ def main():
         now = datetime.now()
         date_dir = now.strftime("%Y%m%d")
         invoice_no = now.strftime("UNI%Y%m%d%H")
+        file_timestamp = now.strftime("%Y%m%d%H%M")  # 文件名精确到分钟
 
         output_dir = os.path.join(output_base, cli_name, date_dir)
-        output_filename = f"Proforma Invoice_{cli_name}_{invoice_no}.xlsx"
+        output_filename = f"Proforma Invoice_{cli_name}_{file_timestamp}.xlsx"
         output_path = os.path.join(output_dir, output_filename)
 
         # 生成PI
