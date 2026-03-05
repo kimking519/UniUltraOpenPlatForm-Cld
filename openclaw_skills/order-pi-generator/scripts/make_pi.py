@@ -356,7 +356,7 @@ def main():
         # 生成输出路径
         now = datetime.now()
         date_dir = now.strftime("%Y%m%d")
-        invoice_no = now.strftime("UNI%Y%m%d%H%M%S")
+        invoice_no = now.strftime("UNI%Y%m%d%H")
 
         output_dir = os.path.join(output_base, cli_name, date_dir)
         output_filename = f"Proforma Invoice_{cli_name}_{invoice_no}.xlsx"
