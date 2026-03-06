@@ -234,19 +234,64 @@ def update_offer(offer_id, data):
     try:
         if 'emp_id' in data:
             del data['emp_id'] # Prevent changing owner post-creation
-            
+
+        # 检查是否更新了价格字段，需要同步更新关联订单
+        price_fields = ['offer_price_rmb', 'price_kwr', 'price_usd']
+        need_sync_order = any(field in data for field in price_fields)
+
+        # 如果更新了 offer_price_rmb，需要计算 KWR 和 USD
+        if 'offer_price_rmb' in data:
+            krw_val, usd_val = get_exchange_rates()
+            offer_price = float(data.get('offer_price_rmb') or 0)
+
+            # 计算 KWR
+            if krw_val > 10:
+                data['price_kwr'] = round(offer_price * krw_val, 1)
+            else:
+                data['price_kwr'] = round(offer_price / krw_val, 1) if krw_val else 0.0
+
+            # 计算 USD
+            if usd_val > 10:
+                data['price_usd'] = round(offer_price * usd_val, 2)
+            else:
+                data['price_usd'] = round(offer_price / usd_val, 2) if usd_val else 0.0
+
         set_cols = []
         params = []
         for k, v in data.items():
             set_cols.append(f"{k} = ?")
             params.append(v)
         if not set_cols: return True, "No changes"
-        
+
         sql = f"UPDATE uni_offer SET {', '.join(set_cols)} WHERE offer_id = ?"
         params.append(offer_id)
-        
+
         with get_db_connection() as conn:
             conn.execute(sql, params)
+
+            # 同步更新关联订单的价格字段
+            if need_sync_order:
+                price_rmb = data.get('offer_price_rmb')
+                price_kwr = data.get('price_kwr')
+                price_usd = data.get('price_usd')
+
+                update_parts = []
+                update_params = []
+                if price_rmb is not None:
+                    update_parts.append("price_rmb = ?")
+                    update_params.append(price_rmb)
+                if price_kwr is not None:
+                    update_parts.append("price_kwr = ?")
+                    update_params.append(price_kwr)
+                if price_usd is not None:
+                    update_parts.append("price_usd = ?")
+                    update_params.append(price_usd)
+
+                if update_parts:
+                    update_params.append(offer_id)
+                    order_sql = f"UPDATE uni_order SET {', '.join(update_parts)} WHERE offer_id = ?"
+                    conn.execute(order_sql, update_params)
+
             conn.commit()
             return True, "更新成功"
     except Exception as e:
