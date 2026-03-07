@@ -1464,6 +1464,136 @@ async def api_order_generate_pi(request: Request, current_user: dict = Depends(l
     except Exception as e:
         return {"success": False, "message": f"生成异常: {str(e)}"}
 
+
+@app.post("/api/order/generate_ci_kr")
+async def api_order_generate_ci_kr(request: Request, current_user: dict = Depends(login_required)):
+    """生成CI-KR文件"""
+    import subprocess
+    data = await request.json()
+    order_ids = data.get("order_ids", [])
+    if not order_ids:
+        return {"success": False, "message": "未选择任何订单"}
+
+    # 获取项目根目录
+    project_root = os.path.dirname(os.path.abspath(__file__))
+
+    # 脚本路径
+    script_path = os.path.join(project_root, "openclaw_skills", "order-ci-generator-kr", "scripts", "make_ci_kr.py")
+
+    if not os.path.exists(script_path):
+        return {"success": False, "message": "CI生成脚本不存在"}
+
+    # 数据库路径
+    db_path = os.path.join(project_root, "uni_platform.db")
+
+    # 构建命令
+    order_ids_str = ",".join(order_ids)
+    cmd = ["python", script_path, "--order_ids", order_ids_str, "--db_path", db_path]
+
+    # 设置环境变量
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', env=env, timeout=60)
+        output = result.stdout.strip()
+
+        if result.returncode == 0 and "成功" in output:
+            # 解析输出获取文件路径
+            lines = output.split('\n')
+            file_path = ""
+            count = len(order_ids)
+            cli_name = ""
+            invoice_no = ""
+
+            for line in lines:
+                if "文件路径:" in line:
+                    file_path = line.split("文件路径:")[-1].strip()
+                if "客户:" in line:
+                    cli_name = line.split("客户:")[-1].strip()
+                if "Invoice No.:" in line:
+                    invoice_no = line.split("Invoice No.:")[-1].strip()
+
+            return {
+                "success": True,
+                "file_path": file_path,
+                "count": count,
+                "cli_name": cli_name,
+                "invoice_no": invoice_no
+            }
+        else:
+            error_msg = result.stderr.strip() if result.stderr else output
+            return {"success": False, "message": f"生成失败: {error_msg}"}
+    except subprocess.TimeoutExpired:
+        return {"success": False, "message": "生成超时，请稍后重试"}
+    except Exception as e:
+        return {"success": False, "message": f"生成异常: {str(e)}"}
+
+
+@app.post("/api/order/generate_ci_us")
+async def api_order_generate_ci_us(request: Request, current_user: dict = Depends(login_required)):
+    """生成CI-US文件（美元版）"""
+    import subprocess
+    data = await request.json()
+    order_ids = data.get("order_ids", [])
+    if not order_ids:
+        return {"success": False, "message": "未选择任何订单"}
+
+    # 获取项目根目录
+    project_root = os.path.dirname(os.path.abspath(__file__))
+
+    # 脚本路径
+    script_path = os.path.join(project_root, "openclaw_skills", "order-ci-generator-us", "scripts", "make_ci_us.py")
+
+    if not os.path.exists(script_path):
+        return {"success": False, "message": "CI-US生成脚本不存在"}
+
+    # 数据库路径
+    db_path = os.path.join(project_root, "uni_platform.db")
+
+    # 构建命令
+    order_ids_str = ",".join(order_ids)
+    cmd = ["python", script_path, "--order_ids", order_ids_str, "--db_path", db_path]
+
+    # 设置环境变量
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', env=env, timeout=60)
+        output = result.stdout.strip()
+
+        if result.returncode == 0 and "成功" in output:
+            # 解析输出获取文件路径
+            lines = output.split('\n')
+            file_path = ""
+            count = len(order_ids)
+            cli_name = ""
+            invoice_no = ""
+
+            for line in lines:
+                if "文件路径:" in line:
+                    file_path = line.split("文件路径:")[-1].strip()
+                if "客户:" in line:
+                    cli_name = line.split("客户:")[-1].strip()
+                if "Invoice No.:" in line:
+                    invoice_no = line.split("Invoice No.:")[-1].strip()
+
+            return {
+                "success": True,
+                "file_path": file_path,
+                "count": count,
+                "cli_name": cli_name,
+                "invoice_no": invoice_no
+            }
+        else:
+            error_msg = result.stderr.strip() if result.stderr else output
+            return {"success": False, "message": f"生成失败: {error_msg}"}
+    except subprocess.TimeoutExpired:
+        return {"success": False, "message": "生成超时，请稍后重试"}
+    except Exception as e:
+        return {"success": False, "message": f"生成异常: {str(e)}"}
+
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, current_user: dict = Depends(login_required)):
     if current_user['rule'] != '3':

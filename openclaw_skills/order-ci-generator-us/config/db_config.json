@@ -1,0 +1,7 @@
+{
+    "db_path_windows": "E:\\WorkPlace\\7_AI_APP\\UniUltraOpenPlatForm\\uni_platform.db",
+    "db_path_wsl": "/home/kim/workspace/UniUltraOpenPlatForm/uni_platform.db",
+    "output_base_windows": "E:\\1_Business\\1_Auto",
+    "output_base_wsl": "/mnt/e/1_Business/1_Auto",
+    "template_name": "CI_template_US.xlsx"
+}
