@@ -107,11 +107,11 @@
                     style="cursor: pointer; color: var(--primary);">{{ row.inquiry_mpn }}</td>
                 <td onclick="editField('{{ row.order_id }}', 'inquiry_brand', '{{ row.inquiry_brand }}')"
                     style="cursor: pointer; color: var(--primary);">{{ row.inquiry_brand }}</td>
-                <td onclick="editField('{{ row.order_id }}', 'price_rmb', '{{ row.price_rmb }}')"
+                <td id="price_rmb_{{ row.order_id }}" onclick="editField('{{ row.order_id }}', 'price_rmb', '{{ row.price_rmb }}')"
                     style="cursor: pointer; color: var(--primary);">{{ "%.2f"|format(row.price_rmb or 0) }}</td>
-                <td onclick="editField('{{ row.order_id }}', 'price_kwr', '{{ row.price_kwr }}')"
+                <td id="price_kwr_{{ row.order_id }}" onclick="editField('{{ row.order_id }}', 'price_kwr', '{{ row.price_kwr }}')"
                     style="cursor: pointer; color: var(--primary);">{{ row.price_kwr }}</td>
-                <td onclick="editField('{{ row.order_id }}', 'price_usd', '{{ row.price_usd }}')"
+                <td id="price_usd_{{ row.order_id }}" onclick="editField('{{ row.order_id }}', 'price_usd', '{{ row.price_usd }}')"
                     style="cursor: pointer; color: var(--primary);">{{ row.price_usd }}</td>
                 <td onclick="editField('{{ row.order_id }}', 'cost_price_rmb', '{{ row.cost_price_rmb }}')"
                     style="cursor: pointer; color: var(--primary);">{{ "%.2f"|format(row.cost_price_rmb or 0) }}</td>
@@ -471,8 +471,18 @@
 
         const resp = await fetch('/api/order/update', { method: 'POST', body: formData });
         const res = await resp.json();
-        if (res.success) window.location.reload();
-        else alert(res.message);
+        if (res.success) {
+            // 如果修改的是price_rmb，更新相关字段显示
+            if (field === 'price_rmb' && res.price_kwr !== undefined && res.price_usd !== undefined) {
+                document.getElementById('price_rmb_' + orderId).innerText = parseFloat(newVal).toFixed(2);
+                document.getElementById('price_kwr_' + orderId).innerText = res.price_kwr;
+                document.getElementById('price_usd_' + orderId).innerText = res.price_usd;
+            } else {
+                window.location.reload();
+            }
+        } else {
+            alert(res.message);
+        }
     }
 
     // 编辑报价字段（需求数量、报价数量、批号、货期）

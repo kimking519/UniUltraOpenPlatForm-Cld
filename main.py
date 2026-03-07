@@ -356,14 +356,34 @@ async def cli_import_csv(csv_file: UploadFile = File(...), current_user: dict = 
 async def order_update_api(order_id: str = Form(...), field: str = Form(...), value: str = Form(...), current_user: dict = Depends(login_required)):
     if current_user['rule'] not in ['3', '0']:
         return {"success": False, "message": "无修改权限"}
-        
+
     allowed_fields = ['order_no', 'order_date', 'inquiry_mpn', 'inquiry_brand', 'price_rmb', 'price_kwr', 'price_usd', 'cost_price_rmb', 'paid_amount', 'return_status', 'remark', 'is_transferred']
     if field not in allowed_fields:
         return {"success": False, "message": f"非法字段: {field}"}
-        
+
     if field in ['price_rmb', 'price_kwr', 'price_usd', 'cost_price_rmb', 'paid_amount']:
         try:
             val = float(value)
+
+            # 当修改price_rmb时，自动计算price_kwr和price_usd
+            if field == 'price_rmb':
+                from Sills.base import get_exchange_rates
+                krw_rate, usd_rate = get_exchange_rates()
+
+                # 汇率含义: 1 RMB = X 外币
+                # price_kwr = price_rmb * krw_rate (韩元)
+                # price_usd = price_rmb * usd_rate (美元)
+                price_kwr = round(val * krw_rate, 1) if krw_rate else 0
+                price_usd = round(val * usd_rate, 2) if usd_rate else 0
+
+                # 同时更新三个价格字段
+                success, msg = update_order(order_id, {
+                    'price_rmb': val,
+                    'price_kwr': price_kwr,
+                    'price_usd': price_usd
+                })
+                return {"success": success, "message": msg, "price_kwr": price_kwr, "price_usd": price_usd}
+
             success, msg = update_order(order_id, {field: val})
             return {"success": success, "message": msg}
         except:
