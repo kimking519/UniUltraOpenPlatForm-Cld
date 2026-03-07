@@ -44,19 +44,29 @@
         gap: 0.75rem;
         flex-wrap: nowrap;
         align-items: center;
-        overflow-x: auto;
     }
 
     .filter-bar input,
     .filter-bar select {
         padding: 0.5rem 0.75rem;
         font-size: 0.875rem;
-        min-width: auto;
         flex-shrink: 0;
     }
 
     .filter-bar input[type="text"] {
-        min-width: 180px;
+        width: 160px;
+    }
+
+    .filter-bar input[type="date"] {
+        width: 140px;
+    }
+
+    .filter-bar select {
+        width: 100px;
+    }
+
+    .filter-bar select[id="cli_id"] {
+        width: 140px;
     }
 
     .filter-group {
@@ -189,22 +199,22 @@
 
 <!-- Filter Bar -->
 <div class="filter-bar">
-    <input type="text" id="search" placeholder="搜索型号、客户、需求编号..." style="min-width: 200px;">
+    <input type="text" id="search" placeholder="搜索型号、客户、需求编号...">
     <input type="date" id="start_date" title="开始日期">
     <input type="date" id="end_date" title="结束日期">
-    <select id="cli_id" style="min-width: 120px;">
+    <select id="cli_id">
         <option value="">全部客户</option>
         {% for cli in cli_list %}
         <option value="{{ cli.cli_id }}">{{ cli.cli_name }}</option>
         {% endfor %}
     </select>
-    <select id="status" style="min-width: 100px;">
+    <select id="status">
         <option value="">全部状态</option>
         <option value="询价中">询价中</option>
         <option value="缺货">缺货</option>
         <option value="已报价">已报价</option>
     </select>
-    <select id="is_transferred" style="min-width: 80px;">
+    <select id="is_transferred">
         <option value="">全部</option>
         <option value="未转">未转</option>
         <option value="已转">已转</option>

@@ -39,12 +39,26 @@
         gap: 0.75rem;
         flex-wrap: nowrap;
         align-items: center;
-        overflow-x: auto;
     }
     .filter-bar input,
     .filter-bar select {
         padding: 0.5rem 0.75rem;
         font-size: 0.875rem;
+        flex-shrink: 0;
+    }
+    .filter-bar input[type="text"] {
+        width: 160px;
+    }
+    .filter-bar input[type="date"] {
+        width: 140px;
+    }
+    .filter-bar select {
+        width: 100px;
+    }
+    .filter-bar select[id="filter_cli"] {
+        width: 140px;
+    }
+    .filter-bar .btn {
         flex-shrink: 0;
     }
     .data-card {
@@ -112,25 +126,25 @@
 </div>
 
 <div class="filter-bar">
-    <select id="filter_cli" onchange="applyFilter()" style="min-width: 120px;">
+    <select id="filter_cli" onchange="applyFilter()">
         <option value="">全部客户</option>
         {% for c in cli_list %}
         <option value="{{ c.cli_id }}" {% if cli_id==c.cli_id %}selected{% endif %}>{{ c.cli_name }}</option>
         {% endfor %}
     </select>
-    <select id="filter_finished" onchange="applyFilter()" style="min-width: 100px;">
+    <select id="filter_finished" onchange="applyFilter()">
         <option value="">全部状态</option>
         <option value="0" {% if is_finished=='0' %}selected{% endif %}>未完结</option>
         <option value="1" {% if is_finished=='1' %}selected{% endif %}>已完结</option>
     </select>
-    <select id="filter_transferred" onchange="applyFilter()" style="min-width: 80px;">
+    <select id="filter_transferred" onchange="applyFilter()">
         <option value="">全部</option>
         <option value="未转" {% if is_transferred=='未转' %}selected{% endif %}>未转</option>
         <option value="已转" {% if is_transferred=='已转' %}selected{% endif %}>已转</option>
     </select>
     <input type="date" id="start_date" value="{{ start_date }}">
     <input type="date" id="end_date" value="{{ end_date }}">
-    <input type="text" id="search_input" value="{{ search }}" placeholder="订单号/型号/客户..." style="min-width: 150px;">
+    <input type="text" id="search_input" value="{{ search }}" placeholder="订单号/型号/客户...">
     <button class="btn btn-primary" onclick="applyFilter()">查询</button>
 </div>
 

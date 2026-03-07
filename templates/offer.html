@@ -40,17 +40,24 @@
         gap: 0.75rem;
         flex-wrap: nowrap;
         align-items: center;
-        overflow-x: auto;
     }
     .filter-bar input,
     .filter-bar select {
         padding: 0.5rem 0.75rem;
         font-size: 0.875rem;
-        min-width: auto;
         flex-shrink: 0;
     }
     .filter-bar input[type="text"] {
-        min-width: 180px;
+        width: 160px;
+    }
+    .filter-bar input[type="date"] {
+        width: 140px;
+    }
+    .filter-bar select {
+        width: 100px;
+    }
+    .filter-bar select[id="cli_id"] {
+        width: 140px;
     }
     .filter-group {
         display: flex;
@@ -126,21 +133,21 @@
 
 <!-- Filter Bar -->
 <div class="filter-bar">
-    <input type="text" id="search" placeholder="搜索型号、报价编号..." style="min-width: 180px;">
+    <input type="text" id="search" placeholder="搜索型号、报价编号...">
     <input type="date" id="start_date" title="开始日期">
     <input type="date" id="end_date" title="结束日期">
-    <select id="cli_id" style="min-width: 120px;">
+    <select id="cli_id">
         <option value="">全部客户</option>
         {% for cli in cli_list %}
         <option value="{{ cli.cli_id }}">{{ cli.cli_name }}</option>
         {% endfor %}
     </select>
-    <select id="page_size" style="min-width: 90px;">
+    <select id="page_size">
         <option value="20" {% if page_size==20 %}selected{% endif %}>20条/页</option>
         <option value="50" {% if page_size==50 %}selected{% endif %}>50条/页</option>
         <option value="100" {% if page_size==100 %}selected{% endif %}>100条/页</option>
     </select>
-    <select id="is_transferred" style="min-width: 80px;">
+    <select id="is_transferred">
         <option value="" {% if is_transferred=='' %}selected{% endif %}>全部</option>
         <option value="未转" {% if is_transferred=='未转' %}selected{% endif %}>未转</option>
         <option value="已转" {% if is_transferred=='已转' %}selected{% endif %}>已转</option>
