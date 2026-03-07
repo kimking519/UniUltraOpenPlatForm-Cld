@@ -1,41 +1,102 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<div class="header-action">
-    <h1>5. 员工管理</h1>
-    <div style="display: flex; gap: 1rem; align-items: center;">
-        <form action="/emp" method="get" style="display: flex; gap: 0.5rem; align-items: center; margin: 0;">
-            <input type="text" name="search" value="{{ search }}" placeholder="搜索姓名或账号..."
-                style="padding: 0.4rem; border: 1px solid var(--border); border-radius: 4px; width: 200px;">
-            <button type="submit" class="btn btn-primary" style="height: fit-content;">查询</button>
-        </form>
-        {% if current_user.rule == '3' %}
-        <button class="btn" style="background: var(--secondary); color: white;"
-            onclick="toggleModal('importModal')">批量导入</button>
-        <button class="btn btn-primary" onclick="toggleModal('addModal')">+ 新增员工</button>
-        {% endif %}
+<style>
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .page-header h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-main);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .page-header h1 svg {
+        width: 28px;
+        height: 28px;
+        color: var(--primary);
+    }
+    .page-header .search-form {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+    .page-header .search-form input {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        min-width: 200px;
+    }
+    .page-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+    .data-card {
+        background: var(--card-bg);
+        -webkit-backdrop-filter: var(--glass-blur);
+        backdrop-filter: var(--glass-blur);
+        border: var(--glass-border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+</style>
+
+<div class="page-header">
+    <h1>
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+        </svg>
+        员工管理
+    </h1>
+    <form action="/emp" method="get" class="search-form" style="display: flex; gap: 0.5rem; align-items: center;">
+        <input type="text" name="search" value="{{ search }}" placeholder="搜索姓名或账号..." style="padding: 0.5rem 0.75rem; font-size: 0.875rem; min-width: 180px;">
+        <button type="submit" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">查询</button>
+    </form>
+    {% if current_user.rule == '3' %}
+    <div class="page-actions">
+        <button class="btn btn-ghost" onclick="toggleModal('importModal')">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+            </svg>
+            批量导入
+        </button>
+        <button class="btn btn-primary" onclick="toggleModal('addModal')">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            新增员工
+        </button>
     </div>
+    {% endif %}
 </div>
 
-<div class="table-container">
-    <table>
-        <thead>
-            <tr>
-                <th>编号(ID)</th>
-                <th>姓名</th>
-                <th>账号</th>
-                <th>部门</th>
-                <th>职位</th>
-                <th>角色/权限</th>
-                <th>联系方式</th>
-                <th>入职时间</th>
-                <th>备注</th>
-                {% if current_user.rule == '3' or current_user.rule == '0' %}
-                <th>操作</th>
-                {% endif %}
-            </tr>
-        </thead>
-        <tbody>
+<div class="data-card">
+    <div class="table-container" style="overflow-x: auto;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>编号(ID)</th>
+                    <th>姓名</th>
+                    <th>账号</th>
+                    <th>部门</th>
+                    <th>职位</th>
+                    <th>角色/权限</th>
+                    <th>联系方式</th>
+                    <th>入职时间</th>
+                    <th>备注</th>
+                    {% if current_user.rule == '3' or current_user.rule == '0' %}
+                    <th>操作</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
             {% for item in items %}
             <tr>
                 <td style="font-weight: 700;">{{ item.emp_id }}</td>

@@ -1,83 +1,140 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="header-action"
-    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-    <h1>7. 采购管理</h1>
-    <div style="display: flex; gap: 0.8rem; align-items: center; margin-left: auto;">
-        <button class="btn btn-primary" onclick="showAddModal()" style="font-size: 0.85rem;">+ 新增采购记录</button>
-        <button class="btn btn-primary" onclick="showImportModal()"
-            style="background: var(--light); color: var(--text); border: 1px solid var(--border); font-size: 0.85rem;">+
-            批量导入</button>
-        <button class="btn btn-primary" onclick="batchExport()"
-            style="background: #10b981; color: white; border: 1px solid #10b981; font-size: 0.85rem;">批量导出 CSV</button>
-        <button class="btn btn-primary" onclick="batchDelete()"
-            style="background: #ef4444; color: white; border: 1px solid #ef4444; font-size: 0.85rem;">批量删除</button>
+<style>
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .page-header h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-main);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .page-header h1 svg {
+        width: 28px;
+        height: 28px;
+        color: var(--primary);
+    }
+    .page-actions {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+    .filter-bar {
+        background: var(--card-bg);
+        -webkit-backdrop-filter: var(--glass-blur);
+        backdrop-filter: var(--glass-blur);
+        border: var(--glass-border);
+        border-radius: var(--radius-lg);
+        padding: 1rem 1.25rem;
+        margin-bottom: 1rem;
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: nowrap;
+        align-items: center;
+        overflow-x: auto;
+    }
+    .filter-bar input,
+    .filter-bar select {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        flex-shrink: 0;
+    }
+    .data-card {
+        background: var(--card-bg);
+        -webkit-backdrop-filter: var(--glass-blur);
+        backdrop-filter: var(--glass-blur);
+        border: var(--glass-border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+</style>
+
+<div class="page-header">
+    <h1>
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+        </svg>
+        采购管理
+    </h1>
+    <div class="page-actions">
+        <button class="btn btn-primary" onclick="showAddModal()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            新增采购记录
+        </button>
+        <button class="btn btn-ghost" onclick="showImportModal()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+            </svg>
+            批量导入
+        </button>
+        <button class="btn btn-success" onclick="batchExport()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            批量导出 CSV
+        </button>
+        <button class="btn btn-danger" onclick="batchDelete()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+            批量删除
+        </button>
     </div>
 </div>
 
-<div class="filter-bar card"
-    style="margin-top: 1rem; margin-bottom: 1rem; display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
-    <div>
-        <label>客户</label>
-        <select id="filter_cli" onchange="applyFilter()" style="padding: 0.4rem;">
-            <option value="">全部客户</option>
-            {% for c in cli_list %}
-            <option value="{{ c.cli_id }}" {% if cli_id==c.cli_id %}selected{% endif %}>{{ c.cli_name }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <div>
-        <label>销售订单</label>
-        <select id="filter_order" onchange="applyFilter()" style="width: 250px; padding: 0.4rem;">
-            <option value="">全部订单</option>
-            {% for o in order_list %}
-            <option value="{{ o.order_id }}" {% if order_id==o.order_id %}selected{% endif %}>{{ o.order_no }} ({{
-                o.order_id }})</option>
-            {% endfor %}
-        </select>
-    </div>
-    <div>
-        <label>发货状态</label>
-        <select id="filter_shipped" onchange="applyFilter()" style="padding: 0.4rem;">
-            <option value="">全部状态</option>
-            <option value="0" {% if is_shipped=='0' %}selected{% endif %}>未发货</option>
-            <option value="1" {% if is_shipped=='1' %}selected{% endif %}>已发货</option>
-        </select>
-    </div>
-    <div>
-        <label>日期从</label>
-        <input type="date" id="start_date" value="{{ start_date }}" style="padding: 0.4rem;">
-    </div>
-    <div>
-        <label>日期至</label>
-        <input type="date" id="end_date" value="{{ end_date }}" style="padding: 0.4rem;">
-    </div>
-    <div>
-        <label>搜索</label>
-        <input type="text" id="search_input" value="{{ search }}" placeholder="采购单/型号/供应商..." style="padding: 0.4rem;">
-    </div>
+<div class="filter-bar">
+    <select id="filter_cli" onchange="applyFilter()" style="min-width: 120px;">
+        <option value="">全部客户</option>
+        {% for c in cli_list %}
+        <option value="{{ c.cli_id }}" {% if cli_id==c.cli_id %}selected{% endif %}>{{ c.cli_name }}</option>
+        {% endfor %}
+    </select>
+    <select id="filter_order" onchange="applyFilter()" style="min-width: 200px;">
+        <option value="">全部订单</option>
+        {% for o in order_list %}
+        <option value="{{ o.order_id }}" {% if order_id==o.order_id %}selected{% endif %}>{{ o.order_no }} ({{ o.order_id }})</option>
+        {% endfor %}
+    </select>
+    <select id="filter_shipped" onchange="applyFilter()" style="min-width: 100px;">
+        <option value="">全部状态</option>
+        <option value="0" {% if is_shipped=='0' %}selected{% endif %}>未发货</option>
+        <option value="1" {% if is_shipped=='1' %}selected{% endif %}>已发货</option>
+    </select>
+    <input type="date" id="start_date" value="{{ start_date }}">
+    <input type="date" id="end_date" value="{{ end_date }}">
+    <input type="text" id="search_input" value="{{ search }}" placeholder="采购单/型号/供应商..." style="min-width: 150px;">
     <button class="btn btn-primary" onclick="applyFilter()">查询</button>
 </div>
 
-<!-- 删除多余的批量操作栏 -->
-
-<div class="table-container">
-    <table style="font-size: 0.85rem;">
-        <thead>
-            <tr>
-                <th><input type="checkbox" id="select_all" onclick="toggleSelectAll(this.checked)"></th>
-                <th style="min-width: 120px;">日期</th>
-                <th>采购编号</th>
-                <th>对应销售单</th>
-                <th>客户 ID</th>
-                <th>客户名称</th>
-                <th>供应商</th>
-                <th>供应商地址</th>
-                <th>型号</th>
-                <th>品牌</th>
-                <th>批号(DC)</th>
-                <th>货期</th>
-                <th>采购单价(RMB)</th>
+<div class="data-card">
+    <div class="table-container" style="overflow-x: auto;">
+        <table class="data-table" style="font-size: 0.85rem;">
+            <thead>
+                <tr>
+                    <th style="width: 40px;"><input type="checkbox" id="select_all" onclick="toggleSelectAll(this.checked)"></th>
+                    <th style="min-width: 120px;">日期</th>
+                    <th>采购编号</th>
+                    <th>对应销售单</th>
+                    <th>客户 ID</th>
+                    <th>客户名称</th>
+                    <th>供应商</th>
+                    <th>供应商地址</th>
+                    <th>型号</th>
+                    <th>品牌</th>
+                    <th>批号(DC)</th>
+                    <th>货期</th>
+                    <th>采购单价(RMB)</th>
                 <th>销售报价(RMB)</th>
                 <th>采购单价(KWR)</th>
                 <th>采购单价(USD)</th>

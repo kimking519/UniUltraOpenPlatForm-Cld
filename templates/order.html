@@ -1,83 +1,154 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="header-action"
-    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-    <h1>6. 销售订单管理</h1>
-    <div style="display: flex; gap: 0.8rem; align-items: center; margin-left: auto;">
-        <button class="btn btn-primary" onclick="batchConvertToBuy()"
-            style="background: #3b82f6; color: white; border: 1px solid #3b82f6; font-size: 0.85rem;">转为采购记录</button>
-        <button class="btn btn-primary" onclick="batchGeneratePI()"
-            style="background: #8b5cf6; color: white; border: 1px solid #8b5cf6; font-size: 0.85rem;">生成PI</button>
-        <button class="btn btn-primary" onclick="batchGenerateCIKR()"
-            style="background: #f59e0b; color: white; border: 1px solid #f59e0b; font-size: 0.85rem;">生成CI-KR</button>
-        <button class="btn btn-primary" onclick="batchGenerateCIUS()"
-            style="background: #06b6d4; color: white; border: 1px solid #06b6d4; font-size: 0.85rem;">生成CI-US</button>
-        <button class="btn btn-primary" onclick="batchExport()"
-            style="background: #10b981; color: white; border: 1px solid #10b981; font-size: 0.85rem;">批量导出 CSV</button>
-        <button class="btn btn-primary" onclick="toggleModal('addModal')" style="font-size: 0.85rem;">+ 新增订单</button>
-        <button class="btn btn-primary" onclick="batchDelete()"
-            style="background: #ef4444; color: white; border: 1px solid #ef4444; font-size: 0.85rem;">批量删除</button>
+<style>
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .page-header h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-main);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .page-header h1 svg {
+        width: 28px;
+        height: 28px;
+        color: var(--primary);
+    }
+    .page-actions {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+    .filter-bar {
+        background: var(--card-bg);
+        -webkit-backdrop-filter: var(--glass-blur);
+        backdrop-filter: var(--glass-blur);
+        border: var(--glass-border);
+        border-radius: var(--radius-lg);
+        padding: 1rem 1.25rem;
+        margin-bottom: 1rem;
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: nowrap;
+        align-items: center;
+        overflow-x: auto;
+    }
+    .filter-bar input,
+    .filter-bar select {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        flex-shrink: 0;
+    }
+    .data-card {
+        background: var(--card-bg);
+        -webkit-backdrop-filter: var(--glass-blur);
+        backdrop-filter: var(--glass-blur);
+        border: var(--glass-border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+</style>
+
+<div class="page-header">
+    <h1>
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+        </svg>
+        销售订单管理
+    </h1>
+    <div class="page-actions">
+        <button class="btn btn-primary" onclick="batchConvertToBuy()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+            </svg>
+            转为采购记录
+        </button>
+        <button class="btn" onclick="batchGeneratePI()" style="background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%); color: white;">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            生成PI
+        </button>
+        <button class="btn" onclick="batchGenerateCIKR()" style="background: linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%); color: white;">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            生成CI-KR
+        </button>
+        <button class="btn" onclick="batchGenerateCIUS()" style="background: linear-gradient(135deg, #06B6D4 0%, #22D3EE 100%); color: white;">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            生成CI-US
+        </button>
+        <button class="btn btn-success" onclick="batchExport()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            批量导出 CSV
+        </button>
+        <button class="btn btn-primary" onclick="toggleModal('addModal')">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            新增订单
+        </button>
+        <button class="btn btn-danger" onclick="batchDelete()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+            批量删除
+        </button>
     </div>
 </div>
 
-<div class="filter-bar card"
-    style="margin-top: 1rem; margin-bottom: 1rem; display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
-    <div>
-        <label>客户</label>
-        <select id="filter_cli" onchange="applyFilter()" style="padding: 0.4rem;">
-            <option value="">全部客户</option>
-            {% for c in cli_list %}
-            <option value="{{ c.cli_id }}" {% if cli_id==c.cli_id %}selected{% endif %}>{{ c.cli_name }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <div>
-        <label>完结状态</label>
-        <select id="filter_finished" onchange="applyFilter()" style="padding: 0.4rem;">
-            <option value="">全部状态</option>
-            <option value="0" {% if is_finished=='0' %}selected{% endif %}>未完结</option>
-            <option value="1" {% if is_finished=='1' %}selected{% endif %}>已完结</option>
-        </select>
-    </div>
-    <div>
-        <label>已转</label>
-        <select id="filter_transferred" onchange="applyFilter()" style="padding: 0.4rem;">
-            <option value="">全部</option>
-            <option value="未转" {% if is_transferred=='未转' %}selected{% endif %}>未转</option>
-            <option value="已转" {% if is_transferred=='已转' %}selected{% endif %}>已转</option>
-        </select>
-    </div>
-    <div>
-        <label>日期从</label>
-        <input type="date" id="start_date" value="{{ start_date }}" style="padding: 0.4rem;">
-    </div>
-    <div>
-        <label>日期至</label>
-        <input type="date" id="end_date" value="{{ end_date }}" style="padding: 0.4rem;">
-    </div>
-    <div>
-        <label>搜索</label>
-        <input type="text" id="search_input" value="{{ search }}" placeholder="订单号/型号/客户..." style="padding: 0.4rem;">
-    </div>
+<div class="filter-bar">
+    <select id="filter_cli" onchange="applyFilter()" style="min-width: 120px;">
+        <option value="">全部客户</option>
+        {% for c in cli_list %}
+        <option value="{{ c.cli_id }}" {% if cli_id==c.cli_id %}selected{% endif %}>{{ c.cli_name }}</option>
+        {% endfor %}
+    </select>
+    <select id="filter_finished" onchange="applyFilter()" style="min-width: 100px;">
+        <option value="">全部状态</option>
+        <option value="0" {% if is_finished=='0' %}selected{% endif %}>未完结</option>
+        <option value="1" {% if is_finished=='1' %}selected{% endif %}>已完结</option>
+    </select>
+    <select id="filter_transferred" onchange="applyFilter()" style="min-width: 80px;">
+        <option value="">全部</option>
+        <option value="未转" {% if is_transferred=='未转' %}selected{% endif %}>未转</option>
+        <option value="已转" {% if is_transferred=='已转' %}selected{% endif %}>已转</option>
+    </select>
+    <input type="date" id="start_date" value="{{ start_date }}">
+    <input type="date" id="end_date" value="{{ end_date }}">
+    <input type="text" id="search_input" value="{{ search }}" placeholder="订单号/型号/客户..." style="min-width: 150px;">
     <button class="btn btn-primary" onclick="applyFilter()">查询</button>
 </div>
 
-<!-- 删除中间重复的按钮栏 -->
-
-<div class="table-container">
-    <table style="font-size: 0.85rem;">
-        <thead>
-            <tr>
-                <th><input type="checkbox" id="select_all" onclick="toggleSelectAll(this.checked)"></th>
-                <th style="min-width: 120px;">订单日期</th>
-                <th>订单编号</th>
-                <th>客户</th>
-                <th>报价编号</th>
-                <th>报价型号</th>
-                <th>品牌</th>
-                <th>报价(RMB)</th>
-                <th>报价(KWR)</th>
-                <th>报价(USD)</th>
+<div class="data-card">
+    <div class="table-container" style="overflow-x: auto;">
+        <table class="data-table" style="font-size: 0.85rem;">
+            <thead>
+                <tr>
+                    <th style="width: 40px;"><input type="checkbox" id="select_all" onclick="toggleSelectAll(this.checked)"></th>
+                    <th style="min-width: 120px;">订单日期</th>
+                    <th>订单编号</th>
+                    <th>客户</th>
+                    <th>报价编号</th>
+                    <th>报价型号</th>
+                    <th>品牌</th>
+                    <th>报价(RMB)</th>
+                    <th>报价(KWR)</th>
+                    <th>报价(USD)</th>
                 <th>成本(RMB)</th>
                 <th>利润</th>
                 <th>需求数量(pcs)</th>
