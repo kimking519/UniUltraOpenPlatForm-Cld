@@ -63,15 +63,16 @@ def _get_output_base():
 
 
 def _safe_write_cell(ws, row, col, value):
-    """安全写入单元格 - 先取消合并再写入"""
-    # 检查该单元格是否在合并区域内
-    cell = ws.cell(row=row, column=col)
-    for merged_range in ws.merged_cells.ranges:
+    """安全写入单元格 - 必须先取消合并再获取单元格"""
+    # 关键：先取消该单元格所在的所有合并区域，再获取单元格
+    # 因为 MergedCell 对象是只读的，必须在获取 cell 之前取消合并
+    for merged_range in list(ws.merged_cells.ranges):
         if (merged_range.min_row <= row <= merged_range.max_row and
             merged_range.min_col <= col <= merged_range.max_col):
-            # 如果是合并单元格的一部分，先取消合并
             ws.unmerge_cells(str(merged_range))
-            break
+
+    # 取消合并后获取的一定是普通 Cell 对象
+    cell = ws.cell(row=row, column=col)
     cell.value = value
 
 
