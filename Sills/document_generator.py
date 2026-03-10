@@ -91,13 +91,14 @@ def get_offers_for_document(offer_ids):
     placeholders = ','.join(['?'] * len(offer_ids))
     with get_db_connection() as conn:
         rows = conn.execute(f"""
-            SELECT o.offer_id, o.offer_date, o.cli_id,
+            SELECT o.offer_id, o.offer_date,
                    o.quoted_mpn, o.quoted_brand, o.offer_price_rmb, o.price_usd as offer_price_usd,
                    o.quoted_qty, o.date_code, o.delivery_date, o.inquiry_qty, o.inquiry_mpn,
-                   c.cli_name, c.cli_name_en, c.contact_name, c.address, c.email, c.phone,
+                   c.cli_id, c.cli_name, c.cli_name_en, c.contact_name, c.address, c.email, c.phone,
                    c.cli_full_name, c.region
             FROM uni_offer o
-            LEFT JOIN uni_cli c ON o.cli_id = c.cli_id
+            LEFT JOIN uni_quote q ON o.quote_id = q.quote_id
+            LEFT JOIN uni_cli c ON q.cli_id = c.cli_id
             WHERE o.offer_id IN ({placeholders})
             ORDER BY o.offer_id
         """, offer_ids).fetchall()
@@ -290,8 +291,27 @@ def _generate_ci_us_excel(orders, template_dir, output_path):
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     wb.save(output_path)
 
+    # 生成 PDF
+    pdf_path = ""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "excel_to_pdf",
+            os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                        "openclaw_skills", "order-ci-generator-us", "scripts", "excel_to_pdf.py")
+        )
+        if spec and spec.loader:
+            pdf_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(pdf_module)
+            pdf_success, pdf_result = pdf_module.convert_to_pdf(output_path)
+            if pdf_success:
+                pdf_path = pdf_result
+    except Exception as e:
+        pass  # PDF 生成失败不影响 Excel
+
     return True, {
         "excel_path": output_path,
+        "pdf_path": pdf_path,
         "invoice_no": invoice_no,
         "total_qty": total_qty,
         "total_amount": total_amount,
@@ -465,6 +485,14 @@ def _generate_pi_excel(orders, template_dir, output_path):
     # 写入数据
     for idx, order in enumerate(orders):
         row = first_data_row + idx
+
+        # 先取消该行可能存在的合并单元格
+        merged_ranges_to_remove = []
+        for merged_range in ws.merged_cells.ranges:
+            if merged_range.min_row == row:
+                merged_ranges_to_remove.append(merged_range)
+        for mr in merged_ranges_to_remove:
+            ws.unmerge_cells(str(mr))
 
         ws.cell(row, 1).value = idx + 1
         ws.cell(row, 2).value = order.get("inquiry_mpn", "") or ""

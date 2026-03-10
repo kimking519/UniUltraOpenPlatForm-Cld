@@ -1536,7 +1536,7 @@ async def api_order_generate_ci_kr(request: Request, current_user: dict = Depend
             return {
                 "success": True,
                 "excel_path": result.get("excel_path", ""),
-                "pdf_path": "",
+                "pdf_path": result.get("pdf_path", ""),
                 "count": result.get("count", 0),
                 "cli_name": result.get("cli_name", ""),
                 "invoice_no": result.get("invoice_no", "")
@@ -1564,7 +1564,7 @@ async def api_order_generate_ci_us(request: Request, current_user: dict = Depend
             return {
                 "success": True,
                 "excel_path": result.get("excel_path", ""),
-                "pdf_path": "",
+                "pdf_path": result.get("pdf_path", ""),
                 "count": result.get("count", 0),
                 "cli_name": result.get("cli_name", ""),
                 "invoice_no": result.get("invoice_no", "")

@@ -272,8 +272,27 @@ def generate_ci_excel(orders, template_dir, output_path):
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     wb.save(output_path)
 
+    # 生成 PDF
+    pdf_path = ""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "excel_to_pdf",
+            os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                        "openclaw_skills", "order-ci-generator-kr", "scripts", "excel_to_pdf.py")
+        )
+        if spec and spec.loader:
+            pdf_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(pdf_module)
+            pdf_success, pdf_result = pdf_module.convert_to_pdf(output_path)
+            if pdf_success:
+                pdf_path = pdf_result
+    except Exception as e:
+        pass  # PDF 生成失败不影响 Excel
+
     return True, {
         "excel_path": output_path,
+        "pdf_path": pdf_path,
         "invoice_no": invoice_no,
         "total_qty": total_qty,
         "total_amount": total_amount,
