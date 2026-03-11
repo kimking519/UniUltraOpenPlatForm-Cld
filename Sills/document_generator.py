@@ -709,27 +709,199 @@ def generate_koquote(offer_ids, output_base=None, template_dir=None):
 
 
 def _generate_koquote_excel(offers, template_dir, output_path, exchange_rate_krw):
-    """生成韩文报价单 Excel 文件 - 参照成功脚本 make_koquote_20260301194403.py"""
+    """
+    生成韩文报价单 Excel 文件 - 使用双模板方案
+
+    模板1 (template1.xlsx): 头部信息 + 动态数据表
+    模板2 (template2.xlsx): 固定报价条款 + 特别事项 (直接拼接)
+    """
+    from openpyxl.utils import get_column_letter
+    from copy import copy
+
     data_count = len(offers)
     first_offer = offers[0]
     now = datetime.now()
 
-    # 查找模板文件
-    template_path = None
-    if os.path.isdir(template_dir):
-        for f in os.listdir(template_dir):
-            if f.endswith(".xlsx") and not f.startswith("~"):
-                template_path = os.path.join(template_dir, f)
-                break
+    # ---- 1. 加载模板文件 ----
+    template1_path = os.path.join(template_dir, "유니콘_전자부품견적서_template1.xlsx")
+    template2_path = os.path.join(template_dir, "유니콘_전자부품견적서_template2.xlsx")
 
-    if not template_path or not os.path.exists(template_path):
-        return False, f"模板文件不存在于 {template_dir}"
+    # 检查新模板是否存在
+    use_new_template = os.path.exists(template1_path) and os.path.exists(template2_path)
+
+    if not use_new_template:
+        # 回退到旧模板
+        template_path = None
+        if os.path.isdir(template_dir):
+            for f in os.listdir(template_dir):
+                if f.endswith(".xlsx") and not f.startswith("~") and "template1" not in f and "template2" not in f:
+                    template_path = os.path.join(template_dir, f)
+                    break
+        if not template_path or not os.path.exists(template_path):
+            return False, f"模板文件不存在于 {template_dir}"
+
+        # 使用旧模板逻辑
+        return _generate_koquote_excel_legacy(offers, template_path, output_path, exchange_rate_krw)
+
+    # ---- 2. 使用新双模板方案 ----
+    wb1 = openpyxl.load_workbook(template1_path)
+    ws1 = wb1.active
+
+    wb2 = openpyxl.load_workbook(template2_path)
+    ws2 = wb2.active
+
+    # ---- 3. 填写 template1 头部信息 ----
+    # 根据新模板结构:
+    # Row 3: 수신(客户名) + 공급자
+    # Row 4: 견적번호 + 사이트
+    # Row 5: 작성일자 + 담당자
+    # Row 6: 비고 + 연락처
+
+    cli_full_name = first_offer.get("cli_full_name", "") or first_offer.get("cli_name", "")
+    quote_no = now.strftime("%Y%m%d%H%M")
+
+    # Row 3: 수신 (客户名在 C3)
+    ws1.cell(3, 3).value = cli_full_name
+
+    # Row 4: 견적번호 (在 C4)
+    ws1.cell(4, 3).value = f"제 {quote_no}호"
+
+    # Row 5: 작성일자 (在 C5)
+    ws1.cell(5, 3).value = f"{now.year}년 {now.month:02d}월 {now.day:02d}일"
+
+    # ---- 4. 处理数据行 ----
+    # template1 数据从 Row 11 开始 (Row 10 是表头)
+    # 模板中有5行示例数据 (Row 11-15)
+    first_data_row = 11
+    template_data_rows = 5  # template1 中有5行示例数据
+
+    # 删除多余的示例行
+    if data_count < template_data_rows:
+        rows_to_delete = template_data_rows - data_count
+        ws1.delete_rows(first_data_row + data_count, rows_to_delete)
+
+    # 如果需要更多行，插入新行
+    elif data_count > template_data_rows:
+        rows_to_insert = data_count - template_data_rows
+        ws1.insert_rows(first_data_row + template_data_rows, rows_to_insert)
+
+    # ---- 5. 写入数据 ----
+    total_qty = 0
+    total_amount = 0
+
+    for idx, offer in enumerate(offers):
+        row = first_data_row + idx
+
+        # 列结构 (新模板):
+        # B列: No.
+        # C列: 모델명 (型号)
+        # D列: 메이커 (品牌)
+        # E列: 생산일자 (date code)
+        # F列: 수량 (数量)
+        # G列: 단가 (单价 KRW)
+        # H列: 납기 (交期)
+        # I列: 비고 (备注)
+
+        ws1.cell(row, 2).value = str(idx + 1)                       # B: No.
+
+        # 型号: 优先使用 quoted_mpn，否则用 inquiry_mpn
+        mpn = offer.get("quoted_mpn") or offer.get("inquiry_mpn", "")
+        ws1.cell(row, 3).value = mpn                                 # C: 모델명
+
+        # 品牌
+        brand = offer.get("quoted_brand") or offer.get("inquiry_brand", "")
+        ws1.cell(row, 4).value = brand                               # D: 메이커
+
+        # Date code
+        ws1.cell(row, 5).value = offer.get("date_code", "")          # E: 생산일자
+
+        # 数量
+        qty = offer.get("quoted_qty") or offer.get("inquiry_qty") or 0
+        try:
+            qty = int(qty)
+        except:
+            qty = 0
+        ws1.cell(row, 6).value = qty                                 # F: 수량
+        total_qty += qty
+
+        # 单价: offer_price_rmb * 汇率
+        price_rmb = offer.get("offer_price_rmb")
+        if price_rmb and float(price_rmb or 0) > 0:
+            price_kwr = round(float(price_rmb) * exchange_rate_krw, 1)
+        else:
+            price_kwr = 0
+        ws1.cell(row, 7).value = price_kwr                           # G: 단가
+
+        # 交期
+        ws1.cell(row, 8).value = offer.get("delivery_date", "")      # H: 납기
+
+        # 备注
+        ws1.cell(row, 9).value = offer.get("remark", "")             # I: 비고
+
+        total_amount += float(price_kwr or 0) * qty
+
+    # ---- 6. 合并 template2 内容到 template1 ----
+    # 计算 template1 数据结束后的空行
+    last_data_row = first_data_row + data_count - 1
+    insert_start_row = last_data_row + 2  # 留一行空行
+
+    # 复制 template2 的所有行到 template1
+    for src_row_idx, src_row in enumerate(ws2.iter_rows(min_row=3), start=insert_start_row):
+        # 在目标位置插入新行 (第一行除外)
+        if src_row_idx > insert_start_row:
+            ws1.insert_rows(src_row_idx)
+
+        for src_cell in src_row:
+            if src_cell.value is not None:
+                dest_cell = ws1.cell(row=src_row_idx, column=src_cell.column)
+                dest_cell.value = src_cell.value
+
+                # 复制样式
+                if src_cell.has_style:
+                    dest_cell.font = copy(src_cell.font)
+                    dest_cell.border = copy(src_cell.border)
+                    dest_cell.fill = copy(src_cell.fill)
+                    dest_cell.number_format = src_cell.number_format
+                    dest_cell.protection = copy(src_cell.protection)
+                    dest_cell.alignment = copy(src_cell.alignment)
+
+    # 合并单元格处理
+    for merged_range in ws2.merged_cells.ranges:
+        # 计算目标范围
+        new_min_row = merged_range.min_row - 3 + insert_start_row
+        new_max_row = merged_range.max_row - 3 + insert_start_row
+        new_range = f"{get_column_letter(merged_range.min_col)}{new_min_row}:{get_column_letter(merged_range.max_col)}{new_max_row}"
+        try:
+            ws1.merge_cells(new_range)
+        except:
+            pass  # 忽略合并错误
+
+    # ---- 7. 保存文件 ----
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    wb1.save(output_path)
+    wb1.close()
+    wb2.close()
+
+    return True, {
+        "excel_path": output_path,
+        "quote_no": quote_no,
+        "cli_name": first_offer.get("cli_name", ""),
+        "count": data_count,
+        "total_qty": total_qty,
+        "total_amount": total_amount
+    }
+
+
+def _generate_koquote_excel_legacy(offers, template_path, output_path, exchange_rate_krw):
+    """旧模板生成逻辑 - 兼容旧版本模板"""
+    data_count = len(offers)
+    first_offer = offers[0]
+    now = datetime.now()
 
     wb = openpyxl.load_workbook(template_path)
     ws = wb.active
 
     # ---- 1. 填写头部信息 ----
-    # B5固定填写"수신:"，C5动态填入客户公司全名
     cli_full_name = first_offer.get("cli_full_name", "") or first_offer.get("cli_name", "")
     ws.cell(5, 2).value = "수신:"
     ws.cell(5, 3).value = cli_full_name
@@ -739,20 +911,11 @@ def _generate_koquote_excel(offers, template_dir, output_path, exchange_rate_krw
     ws.cell(9, 2).value = f"작성일자 :{now.year}년  {now.month:02d}월 {now.day:02d}일"
 
     # ---- 2. 数据行处理 ----
-    # 模板固定行号 (参照成功脚本)
     first_data_row = 17
-    template_data_rows = 3  # 模板中有3行数据
-    TEMPLATE_TOTAL_ROW = 20
-    FOOTER_ROWS = 3  # 合计行 + 报价信息行 + 特别事项行
+    template_data_rows = 3
 
-    # 计算需要的行数
     last_data_row = first_data_row + data_count - 1
-    total_row = last_data_row + 1
-    info_row = last_data_row + 2
-    note_row = last_data_row + 3
 
-    # 删除模板中多余的行
-    default_template_rows = 20
     if data_count < template_data_rows:
         ws.delete_rows(last_data_row + 1, template_data_rows - data_count)
 
@@ -763,31 +926,29 @@ def _generate_koquote_excel(offers, template_dir, output_path, exchange_rate_krw
     for idx, offer in enumerate(offers):
         row = first_data_row + idx
 
-        # 列结构: B=No., C=모델명, D=제공가능한 부품, E=메이커, F=생산일자, G=수량, I=단가, J=납기, L=비고
-        ws.cell(row, 2).value = str(idx + 1)                       # B列: No.
-        ws.cell(row, 3).value = offer.get("inquiry_mpn", "")       # C列: 모델명
-        ws.cell(row, 4).value = offer.get("quoted_mpn", "")        # D列: 제공가능한 부품
-        ws.cell(row, 5).value = offer.get("inquiry_brand", "")     # E列: 메이커
-        ws.cell(row, 6).value = offer.get("date_code", "")         # F列: 생산일자
+        ws.cell(row, 2).value = str(idx + 1)
+        ws.cell(row, 3).value = offer.get("inquiry_mpn", "")
+        ws.cell(row, 4).value = offer.get("quoted_mpn", "")
+        ws.cell(row, 5).value = offer.get("inquiry_brand", "")
+        ws.cell(row, 6).value = offer.get("date_code", "")
 
         qty = offer.get("quoted_qty") or offer.get("inquiry_qty") or 0
         try:
             qty = int(qty)
         except:
             qty = 0
-        ws.cell(row, 7).value = qty                                # G列: 수량
+        ws.cell(row, 7).value = qty
         total_qty += qty
 
-        # 单价: 优先使用 offer_price_rmb * 汇率
         price_kwr = offer.get("offer_price_rmb")
         if price_kwr and float(price_kwr or 0) > 0:
             price_kwr = round(float(price_kwr) * exchange_rate_krw, 1)
         else:
             price_kwr = 0
-        ws.cell(row, 9).value = price_kwr                          # I列: 단가
+        ws.cell(row, 9).value = price_kwr
 
-        ws.cell(row, 10).value = offer.get("delivery_date", "")    # J列: 납기
-        ws.cell(row, 12).value = offer.get("remark", "")           # L列: 비고
+        ws.cell(row, 10).value = offer.get("delivery_date", "")
+        ws.cell(row, 12).value = offer.get("remark", "")
 
         total_amount += float(price_kwr or 0) * qty
 
