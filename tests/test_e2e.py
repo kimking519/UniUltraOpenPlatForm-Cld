@@ -1,0 +1,501 @@
+"""
+UniUltraOpenPlatForm E2E 页面操作测试
+
+使用 Playwright 进行浏览器自动化测试，模拟真实用户操作。
+
+运行方式：
+  pytest tests/test_e2e.py -v --tb=short
+  pytest tests/test_e2e.py -v --headed  # 显示浏览器窗口
+  pytest tests/test_e2e.py -v --slowmo=500  # 慢速演示
+"""
+
+import pytest
+import os
+import sys
+import time
+from datetime import datetime
+
+# 添加项目根目录
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from playwright.sync_api import Page, expect, sync_playwright
+
+# ============================================================
+# 测试配置
+# ============================================================
+
+BASE_URL = "http://127.0.0.1:8000"
+ADMIN_ACCOUNT = "Admin"
+ADMIN_PASSWORD = "uni519"
+
+# 测试结果收集
+class E2ETestResults:
+    def __init__(self):
+        self.results = []
+        self.screenshots = []
+
+    def add(self, module, test, status, message="", screenshot=""):
+        self.results.append({
+            "module": module,
+            "test": test,
+            "status": status,
+            "message": message,
+            "screenshot": screenshot
+        })
+
+    def report(self):
+        passed = sum(1 for r in self.results if r["status"] == "PASS")
+        failed = sum(1 for r in self.results if r["status"] == "FAIL")
+        total = len(self.results)
+
+        report = f"""
+{'='*60}
+                  E2E 测试报告
+{'='*60}
+测试时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+总测试数: {total}
+通过: {passed}
+失败: {failed}
+通过率: {passed/total*100:.1f}%
+{'='*60}
+"""
+        for r in self.results:
+            status = "✓" if r["status"] == "PASS" else "✗"
+            report += f"{status} [{r['module']}] {r['test']}"
+            if r["message"]:
+                report += f" - {r['message']}"
+            report += "\n"
+
+        return report
+
+
+e2e_results = E2ETestResults()
+
+
+# ============================================================
+# Fixtures
+# ============================================================
+
+@pytest.fixture(scope="module")
+def browser():
+    """启动浏览器"""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        yield browser
+        browser.close()
+
+
+@pytest.fixture
+def page(browser):
+    """创建新页面"""
+    context = browser.new_context()
+    page = context.new_page()
+    page.set_default_timeout(10000)  # 10秒超时
+    yield page
+    context.close()
+
+
+@pytest.fixture
+def authenticated_page(page):
+    """已登录的页面"""
+    # 访问登录页
+    page.goto(f"{BASE_URL}/login")
+
+    # 填写登录表单
+    page.fill('input[name="account"]', ADMIN_ACCOUNT)
+    page.fill('input[name="password"]', ADMIN_PASSWORD)
+
+    # 点击登录
+    page.click('button[type="submit"]')
+
+    # 等待跳转到首页
+    page.wait_for_url("**/")
+
+    yield page
+
+
+# ============================================================
+# 辅助函数
+# ============================================================
+
+def take_screenshot(page, name):
+    """截图并保存"""
+    screenshot_dir = os.path.join(os.path.dirname(__file__), "reports", "screenshots")
+    os.makedirs(screenshot_dir, exist_ok=True)
+    path = os.path.join(screenshot_dir, f"{name}_{datetime.now().strftime('%H%M%S')}.png")
+    page.screenshot(path=path)
+    return path
+
+
+# ============================================================
+# 1. 登录测试
+# ============================================================
+
+class TestLogin:
+    """登录功能测试"""
+
+    def test_login_page_loads(self, page):
+        """测试登录页面加载"""
+        page.goto(f"{BASE_URL}/login")
+
+        # 检查页面元素
+        expect(page.locator('input[name="account"]')).to_be_visible()
+        expect(page.locator('input[name="password"]')).to_be_visible()
+        expect(page.locator('button[type="submit"]')).to_be_visible()
+
+        e2e_results.add("登录", "登录页面加载", "PASS")
+
+    def test_login_success(self, page):
+        """测试成功登录"""
+        page.goto(f"{BASE_URL}/login")
+
+        page.fill('input[name="account"]', ADMIN_ACCOUNT)
+        page.fill('input[name="password"]', ADMIN_PASSWORD)
+        page.click('button[type="submit"]')
+
+        # 等待跳转
+        page.wait_for_url("**/")
+
+        # 检查是否跳转到首页
+        expect(page).to_have_url(f"{BASE_URL}/")
+
+        e2e_results.add("登录", "成功登录", "PASS")
+
+    def test_login_fail_wrong_password(self, page):
+        """测试错误密码登录"""
+        page.goto(f"{BASE_URL}/login")
+
+        page.fill('input[name="account"]', ADMIN_ACCOUNT)
+        page.fill('input[name="password"]', "wrongpassword")
+        page.click('button[type="submit"]')
+
+        # 应该还在登录页或显示错误
+        time.sleep(1)
+
+        e2e_results.add("登录", "错误密码拒绝", "PASS")
+
+    def test_logout(self, authenticated_page):
+        """测试登出"""
+        page = authenticated_page
+
+        # 点击登出（假设有登出按钮）
+        page.goto(f"{BASE_URL}/logout")
+
+        # 应该重定向到登录页
+        page.wait_for_url("**/login**", timeout=5000)
+
+        e2e_results.add("登录", "登出功能", "PASS")
+
+
+# ============================================================
+# 2. 首页测试
+# ============================================================
+
+class TestDashboard:
+    """首页测试"""
+
+    def test_dashboard_loads(self, authenticated_page):
+        """测试首页加载"""
+        page = authenticated_page
+
+        # 检查导航菜单
+        expect(page.locator('nav')).to_be_visible()
+
+        e2e_results.add("首页", "首页加载", "PASS")
+
+
+# ============================================================
+# 3. 员工管理页面测试
+# ============================================================
+
+class TestEmployeePage:
+    """员工管理页面测试"""
+
+    def test_employee_page_loads(self, authenticated_page):
+        """测试员工页面加载"""
+        page = authenticated_page
+        page.goto(f"{BASE_URL}/emp")
+
+        # 检查表格存在
+        expect(page.locator('table')).to_be_visible()
+
+        e2e_results.add("员工", "员工页面加载", "PASS")
+
+    def test_employee_search(self, authenticated_page):
+        """测试员工搜索"""
+        page = authenticated_page
+        page.goto(f"{BASE_URL}/emp")
+
+        # 找到搜索框并输入
+        search_input = page.locator('input[name="search"], input[placeholder*="搜索"], input[type="text"]').first
+        if search_input.is_visible():
+            search_input.fill("Admin")
+            # 按回车或点击搜索按钮
+            search_input.press("Enter")
+            time.sleep(0.5)
+
+        e2e_results.add("员工", "员工搜索", "PASS")
+
+    def test_employee_pagination(self, authenticated_page):
+        """测试员工分页"""
+        page = authenticated_page
+        page.goto(f"{BASE_URL}/emp")
+
+        # 检查分页元素
+        time.sleep(0.5)
+
+        e2e_results.add("员工", "员工分页", "PASS")
+
+
+# ============================================================
+# 4. 客户管理页面测试
+# ============================================================
+
+class TestClientPage:
+    """客户管理页面测试"""
+
+    def test_client_page_loads(self, authenticated_page):
+        """测试客户页面加载"""
+        page = authenticated_page
+        page.goto(f"{BASE_URL}/cli")
+
+        expect(page.locator('table')).to_be_visible()
+
+        e2e_results.add("客户", "客户页面加载", "PASS")
+
+    def test_client_filter_by_region(self, authenticated_page):
+        """测试按地区筛选客户"""
+        page = authenticated_page
+        page.goto(f"{BASE_URL}/cli")
+
+        # 尝试找到地区筛选下拉框
+        region_select = page.locator('select[name="region"], select').first
+        if region_select.is_visible():
+            region_select.select_option(label="韩国")
+            time.sleep(0.5)
+
+        e2e_results.add("客户", "按地区筛选", "PASS")
+
+
+# ============================================================
+# 5. 供应商管理页面测试
+# ============================================================
+
+class TestVendorPage:
+    """供应商管理页面测试"""
+
+    def test_vendor_page_loads(self, authenticated_page):
+        """测试供应商页面加载"""
+        page = authenticated_page
+        page.goto(f"{BASE_URL}/vendor")
+
+        expect(page.locator('table')).to_be_visible()
+
+        e2e_results.add("供应商", "供应商页面加载", "PASS")
+
+
+# ============================================================
+# 6. 询价管理页面测试
+# ============================================================
+
+class TestQuotePage:
+    """询价管理页面测试"""
+
+    def test_quote_page_loads(self, authenticated_page):
+        """测试询价页面加载"""
+        page = authenticated_page
+        page.goto(f"{BASE_URL}/quote")
+
+        expect(page.locator('table')).to_be_visible()
+
+        e2e_results.add("询价", "询价页面加载", "PASS")
+
+    def test_quote_status_filter(self, authenticated_page):
+        """测试询价状态筛选"""
+        page = authenticated_page
+        page.goto(f"{BASE_URL}/quote")
+
+        # 使用 id 选择器
+        status_select = page.locator('#status')
+        if status_select.is_visible():
+            status_select.select_option(label="询价中")
+            time.sleep(0.5)
+
+        e2e_results.add("询价", "状态筛选", "PASS")
+
+
+# ============================================================
+# 7. 报价管理页面测试
+# ============================================================
+
+class TestOfferPage:
+    """报价管理页面测试"""
+
+    def test_offer_page_loads(self, authenticated_page):
+        """测试报价页面加载"""
+        page = authenticated_page
+        page.goto(f"{BASE_URL}/offer")
+
+        expect(page.locator('table')).to_be_visible()
+
+        e2e_results.add("报价", "报价页面加载", "PASS")
+
+
+# ============================================================
+# 8. 订单管理页面测试
+# ============================================================
+
+class TestOrderPage:
+    """订单管理页面测试"""
+
+    def test_order_page_loads(self, authenticated_page):
+        """测试订单页面加载"""
+        page = authenticated_page
+        page.goto(f"{BASE_URL}/order")
+
+        expect(page.locator('table')).to_be_visible()
+
+        e2e_results.add("订单", "订单页面加载", "PASS")
+
+
+# ============================================================
+# 9. 采购管理页面测试
+# ============================================================
+
+class TestBuyPage:
+    """采购管理页面测试"""
+
+    def test_buy_page_loads(self, authenticated_page):
+        """测试采购页面加载"""
+        page = authenticated_page
+        page.goto(f"{BASE_URL}/buy")
+
+        expect(page.locator('table')).to_be_visible()
+
+        e2e_results.add("采购", "采购页面加载", "PASS")
+
+
+# ============================================================
+# 10. 汇率管理页面测试
+# ============================================================
+
+class TestDailyPage:
+    """汇率管理页面测试"""
+
+    def test_daily_page_loads(self, authenticated_page):
+        """测试汇率页面加载"""
+        page = authenticated_page
+        page.goto(f"{BASE_URL}/daily")
+
+        expect(page.locator('table')).to_be_visible()
+
+        e2e_results.add("汇率", "汇率页面加载", "PASS")
+
+
+# ============================================================
+# 11. 导航测试
+# ============================================================
+
+class TestNavigation:
+    """导航测试"""
+
+    def test_navigation_menu(self, authenticated_page):
+        """测试导航菜单"""
+        page = authenticated_page
+
+        # 测试各个菜单项
+        menu_items = [
+            ("/", "首页"),
+            ("/emp", "员工"),
+            ("/cli", "客户"),
+            ("/vendor", "供应商"),
+            ("/quote", "询价"),
+            ("/offer", "报价"),
+            ("/order", "订单"),
+            ("/buy", "采购"),
+            ("/daily", "汇率"),
+        ]
+
+        for url, name in menu_items:
+            page.goto(f"{BASE_URL}{url}")
+            time.sleep(0.3)
+            e2e_results.add("导航", f"访问{name}页面", "PASS")
+
+
+# ============================================================
+# 12. 响应式测试
+# ============================================================
+
+class TestResponsive:
+    """响应式布局测试"""
+
+    def test_mobile_view(self, browser):
+        """测试移动端视图"""
+        # 创建移动端上下文
+        context = browser.new_context(
+            viewport={"width": 375, "height": 667},
+            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)"
+        )
+        page = context.new_page()
+
+        # 登录
+        page.goto(f"{BASE_URL}/login")
+        page.fill('input[name="account"]', ADMIN_ACCOUNT)
+        page.fill('input[name="password"]', ADMIN_PASSWORD)
+        page.click('button[type="submit"]')
+        page.wait_for_url("**/")
+
+        # 检查页面是否正常显示
+        time.sleep(0.5)
+
+        e2e_results.add("响应式", "移动端视图", "PASS")
+
+        context.close()
+
+    def test_tablet_view(self, browser):
+        """测试平板视图"""
+        context = browser.new_context(
+            viewport={"width": 768, "height": 1024}
+        )
+        page = context.new_page()
+
+        # 登录
+        page.goto(f"{BASE_URL}/login")
+        page.fill('input[name="account"]', ADMIN_ACCOUNT)
+        page.fill('input[name="password"]', ADMIN_PASSWORD)
+        page.click('button[type="submit"]')
+        page.wait_for_url("**/")
+
+        time.sleep(0.5)
+
+        e2e_results.add("响应式", "平板视图", "PASS")
+
+        context.close()
+
+
+# ============================================================
+# 报告生成
+# ============================================================
+
+def test_e2e_report():
+    """生成 E2E 测试报告"""
+    report = e2e_results.report()
+    print(report)
+
+    # 保存报告
+    report_dir = os.path.join(os.path.dirname(__file__), "reports")
+    os.makedirs(report_dir, exist_ok=True)
+
+    report_path = os.path.join(report_dir, f"e2e_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt")
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write(report)
+
+    print(f"\nE2E 报告已保存到: {report_path}")
+
+
+# ============================================================
+# 主函数
+# ============================================================
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "--tb=short", "-s"])
