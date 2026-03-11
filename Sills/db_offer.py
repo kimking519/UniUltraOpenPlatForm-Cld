@@ -7,7 +7,7 @@ from Sills.base import get_db_connection, get_exchange_rates
 
 def get_offer_list(page=1, page_size=10, search_kw="", start_date="", end_date="", cli_id="", is_transferred=""):
     offset = (page - 1) * page_size
-    
+
     base_query = """
     FROM uni_offer o
     LEFT JOIN uni_vendor v ON o.vendor_id = v.vendor_id
@@ -17,7 +17,7 @@ def get_offer_list(page=1, page_size=10, search_kw="", start_date="", end_date="
     WHERE (o.inquiry_mpn LIKE ? OR o.offer_id LIKE ? OR v.vendor_name LIKE ? OR e.emp_name LIKE ?)
     """
     params = [f"%{search_kw}%", f"%{search_kw}%", f"%{search_kw}%", f"%{search_kw}%"]
-    
+
     if start_date:
         base_query += " AND o.offer_date >= ?"
         params.append(start_date)
@@ -30,16 +30,16 @@ def get_offer_list(page=1, page_size=10, search_kw="", start_date="", end_date="
     if is_transferred:
         base_query += " AND o.is_transferred = ?"
         params.append(is_transferred)
-        
+
     query = f"""
     SELECT o.*, v.vendor_name, e.emp_name, c.cli_name, c.margin_rate,
-           ('Model: ' || COALESCE(o.quoted_mpn, '') || ' | ' || 
-            'Brand: ' || COALESCE(o.quoted_brand, '') || ' | ' || 
-            'Amount(pcs): ' || COALESCE(CAST(o.inquiry_qty AS TEXT), '') || ' | ' || 
-            'Price: ' || COALESCE(CAST(o.offer_price_rmb AS TEXT), '') || ' | ' || 
-            'DC: ' || COALESCE(o.date_code, '') || ' | ' || 
-            'LeadTime: ' || COALESCE(o.delivery_date, '') || ' | ' || 
-            'Transferred: ' || COALESCE(o.is_transferred, '未转') || ' | ' || 
+           ('Model: ' || COALESCE(o.quoted_mpn, '') || ' | ' ||
+            'Brand: ' || COALESCE(o.quoted_brand, '') || ' | ' ||
+            'Amount(pcs): ' || COALESCE(CAST(o.inquiry_qty AS TEXT), '') || ' | ' ||
+            'Price: ' || COALESCE(CAST(o.offer_price_rmb AS TEXT), '') || ' | ' ||
+            'DC: ' || COALESCE(o.date_code, '') || ' | ' ||
+            'LeadTime: ' || COALESCE(o.delivery_date, '') || ' | ' ||
+            'Transferred: ' || COALESCE(o.is_transferred, '未转') || ' | ' ||
             'Remark: ' || COALESCE(o.remark, '')) as combined_offer_info,
             ROUND(o.offer_price_rmb - o.cost_price_rmb, 3) as profit,
             CAST(ROUND((o.offer_price_rmb - o.cost_price_rmb) * o.quoted_qty, 0) AS INTEGER) as total_profit
@@ -47,7 +47,7 @@ def get_offer_list(page=1, page_size=10, search_kw="", start_date="", end_date="
     ORDER BY o.created_at DESC
     LIMIT ? OFFSET ?
     """
-    
+
     count_query = f"SELECT COUNT(*) {base_query}"
 
     with get_db_connection() as conn:
@@ -62,6 +62,9 @@ def get_offer_list(page=1, page_size=10, search_kw="", start_date="", end_date="
         # 使用缓存的汇率
         krw_val, usd_val = get_exchange_rates()
 
+        # 需要更新的记录
+        updates_needed = []
+
         for r in results:
             remark = r.get('remark') or ""
             r['remark'] = remark.replace(' | ', '\n').replace('|', '\n')
@@ -73,23 +76,45 @@ def get_offer_list(page=1, page_size=10, search_kw="", start_date="", end_date="
             except:
                 r['offer_price_rmb'] = 0.0
 
-            # 只在数据库中没有值时才计算汇率，不覆盖已保存的值
-            # 如果已有 price_kwr/price_usd，说明是用户手动输入的，保持不变
-            if not r.get('price_kwr') or float(r.get('price_kwr') or 0) == 0:
-                try:
-                    offer_price = float(r.get('offer_price_rmb') or 0.0)
-                    if krw_val > 10: r['price_kwr'] = round(offer_price * krw_val, 1)
-                    else: r['price_kwr'] = round(offer_price / krw_val, 1) if krw_val else 0.0
-                except:
-                    pass
+            # 计算正确的 KWR 和 USD
+            offer_price = float(r.get('offer_price_rmb') or 0.0)
 
-            if not r.get('price_usd') or float(r.get('price_usd') or 0) == 0:
-                try:
-                    offer_price = float(r.get('offer_price_rmb') or 0.0)
-                    if usd_val > 10: r['price_usd'] = round(offer_price * usd_val, 2)
-                    else: r['price_usd'] = round(offer_price / usd_val, 2) if usd_val else 0.0
-                except:
-                    pass
+            # 计算期望的 KWR 值
+            if krw_val > 10:
+                expected_kwr = round(offer_price * krw_val, 1)
+            else:
+                expected_kwr = round(offer_price / krw_val, 1) if krw_val else 0.0
+
+            # 计算期望的 USD 值
+            if usd_val > 10:
+                expected_usd = round(offer_price * usd_val, 3)
+            else:
+                expected_usd = round(offer_price / usd_val, 3) if usd_val else 0.0
+
+            # 获取数据库中的当前值
+            current_kwr = float(r.get('price_kwr') or 0)
+            current_usd = float(r.get('price_usd') or 0)
+
+            # 校验并更新显示值
+            r['price_kwr'] = expected_kwr
+            r['price_usd'] = expected_usd
+
+            # 如果数据库值与计算值不一致，记录需要更新
+            if abs(current_kwr - expected_kwr) > 0.1 or abs(current_usd - expected_usd) > 0.001:
+                updates_needed.append({
+                    'offer_id': r.get('offer_id'),
+                    'price_kwr': expected_kwr,
+                    'price_usd': expected_usd
+                })
+
+        # 批量更新数据库
+        if updates_needed:
+            for update in updates_needed:
+                conn.execute(
+                    "UPDATE uni_offer SET price_kwr = ?, price_usd = ? WHERE offer_id = ?",
+                    (update['price_kwr'], update['price_usd'], update['offer_id'])
+                )
+            conn.commit()
 
         return results, total
 
