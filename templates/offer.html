@@ -78,6 +78,67 @@
         box-shadow: var(--shadow);
         overflow: hidden;
     }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.6rem;
+    }
+
+    .data-table th {
+        background: linear-gradient(180deg, var(--bg-glass) 0%, rgba(241, 245, 249, 0.5) 100%);
+        padding: 0.4rem 0.5rem;
+        text-align: left;
+        font-size: 0.55rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: var(--text-muted);
+        border-bottom: 1px solid var(--border);
+        border-right: 1px solid rgba(148, 163, 184, 0.1);
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .data-table th:last-child {
+        border-right: none;
+    }
+
+    .data-table td {
+        padding: 0.35rem 0.4rem;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+        border-right: 1px solid rgba(148, 163, 184, 0.06);
+    }
+
+    .data-table td:last-child {
+        border-right: none;
+    }
+
+    .data-table tbody tr:nth-child(odd) {
+        background: rgba(241, 245, 249, 0.3);
+    }
+
+    .data-table tbody tr:nth-child(even) {
+        background: var(--card-bg);
+    }
+
+    .data-table tbody tr:hover {
+        background: rgba(99, 102, 241, 0.06);
+    }
+
+    [data-theme="dark"] .data-table tbody tr:nth-child(odd) {
+        background: rgba(30, 41, 59, 0.5);
+    }
+
+    [data-theme="dark"] .data-table tbody tr:nth-child(even) {
+        background: rgba(30, 41, 59, 0.3);
+    }
+
+    [data-theme="dark"] .data-table tbody tr:hover {
+        background: rgba(99, 102, 241, 0.08);
+    }
 </style>
 
 <div class="page-header">
@@ -156,38 +217,36 @@
 
 <div class="data-card">
     <div class="table-container" style="overflow-x: auto;">
-        <table class="data-table" style="min-width: 1800px; font-size: 0.85rem;">
+        <table class="data-table" style="min-width: 1800px;">
             <thead>
                 <tr>
                     {% if current_user.rule == '3' %}
-                    <th style="width: 40px; min-width: 40px; text-align: center;"><input type="checkbox" id="selectAll"
+                    <th style="width: 30px; text-align: center;"><input type="checkbox" id="selectAll"
                             onclick="toggleAll(this)"></th>
                     {% endif %}
-                    <th style="min-width: 120px;">日期</th>
-                    <th style="min-width: 120px;">报价编号</th>
-                    <th style="min-width: 100px;">客户名称</th>
-                    <th style="min-width: 120px;">需求编号</th>
-                    <th style="min-width: 130px;">询价型号</th>
-                    <th style="min-width: 130px;">报价型号</th>
-                    <th style="min-width: 80px;">需求品牌</th>
-                    <th style="min-width: 80px;">报价品牌</th>
-                    <th style="min-width: 70px;">需求数量(pcs)</th>
-                    <th style="min-width: 70px;">报价数量(pcs)</th>
-                    <th style="min-width: 70px;">成本价</th>
-                    <th style="min-width: 70px;">报价(RMB)</th>
-                    <th style="min-width: 80px;">报价(KWR)</th>
-                    <th style="min-width: 80px;">报价(USD)</th>
-                    <th style="min-width: 80px;">利润</th>
-                    <th style="min-width: 80px;">总利润</th>
-                    <th style="min-width: 120px;">供应商</th>
-                    <th style="min-width: 80px;">批号(DC)</th>
-                    <th style="min-width: 150px;">交期(LT)</th>
-                    <th style="min-width: 80px;">负责人</th>
-                    <th style="min-width: 80px;">已转</th>
-                    <th style="min-width: 350px;">拼接信息</th>
-                    <th style="min-width: 200px;">备注</th>
+                    <th>日期</th>
+                    <th>报价编号</th>
+                    <th>需求编号</th>
+                    <th>客户名称</th>
+                    <th>供应商</th>
+                    <th>询价型号</th>
+                    <th>报价型号</th>
+                    <th>报价品牌</th>
+                    <th>报价数量(pcs)</th>
+                    <th>批号(DC)</th>
+                    <th>交期(LT)</th>
+                    <th>成本价</th>
+                    <th>报价(RMB)</th>
+                    <th>报价(KWR)</th>
+                    <th>报价(USD)</th>
+                    <th>利润</th>
+                    <th>总利润</th>
+                    <th>需求品牌</th>
+                    <th>需求数量(pcs)</th>
+                    <th>负责人</th>
+                    <th>已转</th>
                     {% if current_user.rule == '3' %}
-                    <th style="min-width: 80px; position: sticky; right: 0; background: white; z-index: 1;">操作</th>
+                    <th style="position: sticky; right: 0; background: white; z-index: 1;">操作</th>
                     {% endif %}
                 </tr>
             </thead>
@@ -200,22 +259,30 @@
                     {% endif %}
                     <td>{{ row.offer_date }}</td>
                     <td>{{ row.offer_id }}</td>
-                    <td>{{ row.cli_name }}</td>
                     <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'quote_id')"><span>{{ row.quote_id
                             }}</span></td>
+                    <td>{{ row.cli_name }}</td>
+
+                    {% if current_user.rule == '3' or current_user.rule == '0' %}
+                    <td ondblclick="makeEditableSelect(this, '{{ row.offer_id }}', 'vendor_id', '{{ row.vendor_id }}', vendorOptions)">
+                        <span>{{ row.vendor_name }}</span>
+                    </td>
+                    {% else %}
+                    <td>{{ row.vendor_name }}</td>
+                    {% endif %}
+
                     <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'inquiry_mpn')"><span>{{ row.inquiry_mpn
                             }}</span></td>
                     <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'quoted_mpn')"><span>{{ row.quoted_mpn
                             }}</span></td>
-                    <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'inquiry_brand')"><span>{{
-                            row.inquiry_brand
-                            }}</span></td>
                     <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'quoted_brand')"><span>{{ row.quoted_brand
                             }}</span></td>
-                    <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'inquiry_qty', 'number')"><span>{{
-                            row.inquiry_qty }}</span></td>
                     <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'quoted_qty', 'number')"><span>{{
                             row.quoted_qty }}</span></td>
+                    <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'date_code')"><span>{{ row.date_code
+                            }}</span></td>
+                    <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'delivery_date')"><span>{{
+                            row.delivery_date }}</span></td>
                     <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'cost_price_rmb', 'number')"><span>{{
                             "%.2f"|format(row.cost_price_rmb or 0) }}</span></td>
                     <td ondblclick="makeEditableRmb(this, '{{ row.offer_id }}', 'offer_price_rmb', {{ row.offer_price_rmb or 0 }})"><span>{{
@@ -226,39 +293,23 @@
                             style="color:var(--primary);">{{ row.price_usd }}</span></td>
                     <td><span style="color:#10b981; font-weight:500;">{{ row.profit }}</span></td>
                     <td><span style="color:#10b981; font-weight:bold;">{{ row.total_profit }}</span></td>
-
-                    {% if current_user.rule == '3' or current_user.rule == '0' %}
-                    <td
-                        ondblclick="makeEditableSelect(this, '{{ row.offer_id }}', 'vendor_id', '{{ row.vendor_id }}', vendorOptions)">
-                        <span>{{ row.vendor_name }}</span>
-                    </td>
-                    {% else %}
-                    <td>{{ row.vendor_name }}</td>
-                    {% endif %}
-
-                    <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'date_code')"><span>{{ row.date_code
-                            }}</span></td>
-                    <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'delivery_date')"><span>{{
-                            row.delivery_date }}</span></td>
+                    <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'inquiry_brand')"><span>{{
+                            row.inquiry_brand }}</span></td>
+                    <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'inquiry_qty', 'number')"><span>{{
+                            row.inquiry_qty }}</span></td>
                     <td>{{ row.emp_name }}</td>
                     <td ondblclick="makeTransferredEditable(this, '{{ row.offer_id }}', '{{ row.is_transferred }}')">
-                        <span
-                            class="badge {% if row.is_transferred == '已转' %}badge-success{% else %}badge-warning{% endif %}">
+                        <span class="badge {% if row.is_transferred == '已转' %}badge-success{% else %}badge-warning{% endif %}">
                             {{ row.is_transferred }}
                         </span>
-                    </td>
-                    <td style="font-size: 0.85rem; color: var(--secondary); background: #f8fafc;">{{
-                        row.combined_offer_info }}</td>
-                    <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'remark')" style="white-space: pre-line;">
-                        <span>{{ row.remark }}</span>
                     </td>
 
                     {% if current_user.rule == '3' %}
                     <td style="position: sticky; right: 0; background: white; z-index: 1;">
-                        <div style="display: flex; gap: 0.3rem;">
-                            <button class="btn" style="color: #10b981; padding: 2px 8px;"
+                        <div style="display: flex; gap: 0.2rem;">
+                            <button class="btn" style="color: #10b981; padding: 1px 4px; font-size: 0.55rem;"
                                 onclick="convertToOrder('{{ row.offer_id }}')">转订单</button>
-                            <button class="btn" style="color: red; padding: 2px 8px;"
+                            <button class="btn" style="color: red; padding: 1px 4px; font-size: 0.55rem;"
                                 onclick="deleteOffer('{{ row.offer_id }}')">删除</button>
                         </div>
                     </td>
@@ -266,7 +317,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="20" style="text-align: center; color: var(--secondary); padding: 2rem;">暂无报价记录，请添加新报价。
+                    <td colspan="23" style="text-align: center; color: var(--secondary); padding: 2rem;">暂无报价记录，请添加新报价。
                     </td>
                 </tr>
                 {% endfor %}

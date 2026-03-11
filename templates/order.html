@@ -70,6 +70,67 @@
         box-shadow: var(--shadow);
         overflow: hidden;
     }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.6rem;
+    }
+
+    .data-table th {
+        background: linear-gradient(180deg, var(--bg-glass) 0%, rgba(241, 245, 249, 0.5) 100%);
+        padding: 0.4rem 0.5rem;
+        text-align: left;
+        font-size: 0.55rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: var(--text-muted);
+        border-bottom: 1px solid var(--border);
+        border-right: 1px solid rgba(148, 163, 184, 0.1);
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .data-table th:last-child {
+        border-right: none;
+    }
+
+    .data-table td {
+        padding: 0.35rem 0.4rem;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+        border-right: 1px solid rgba(148, 163, 184, 0.06);
+    }
+
+    .data-table td:last-child {
+        border-right: none;
+    }
+
+    .data-table tbody tr:nth-child(odd) {
+        background: rgba(241, 245, 249, 0.3);
+    }
+
+    .data-table tbody tr:nth-child(even) {
+        background: var(--card-bg);
+    }
+
+    .data-table tbody tr:hover {
+        background: rgba(99, 102, 241, 0.06);
+    }
+
+    [data-theme="dark"] .data-table tbody tr:nth-child(odd) {
+        background: rgba(30, 41, 59, 0.5);
+    }
+
+    [data-theme="dark"] .data-table tbody tr:nth-child(even) {
+        background: rgba(30, 41, 59, 0.3);
+    }
+
+    [data-theme="dark"] .data-table tbody tr:hover {
+        background: rgba(99, 102, 241, 0.08);
+    }
 </style>
 
 <div class="page-header">
@@ -150,114 +211,113 @@
 
 <div class="data-card">
     <div class="table-container" style="overflow-x: auto;">
-        <table class="data-table" style="font-size: 0.85rem;">
+        <table class="data-table">
             <thead>
                 <tr>
-                    <th style="width: 40px;"><input type="checkbox" id="select_all" onclick="toggleSelectAll(this.checked)"></th>
-                    <th style="min-width: 120px;">订单日期</th>
+                    <th style="width: 30px;"><input type="checkbox" id="select_all" onclick="toggleSelectAll(this.checked)"></th>
+                    <th>订单日期</th>
                     <th>订单编号</th>
-                    <th>客户</th>
                     <th>报价编号</th>
+                    <th>客户</th>
                     <th>报价型号</th>
                     <th>品牌</th>
                     <th>报价(RMB)</th>
                     <th>报价(KWR)</th>
                     <th>报价(USD)</th>
-                <th>成本(RMB)</th>
-                <th>利润</th>
-                <th>需求数量(pcs)</th>
-                <th>报价数量(pcs)</th>
-                <th>供应商</th>
-                <th>批号(DC)</th>
-                <th>货期</th>
-                <th>退货状态</th>
-                <th>完结</th>
-                <th>付款</th>
-                <th>已付金额</th>
-                <th>已转</th>
-                <th>备注</th>
-                <th>操作</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for row in items %}
-            <tr data-id="{{ row.order_id }}">
-                <td><input type="checkbox" class="row-checkbox" value="{{ row.order_id }}"></td>
-                <td>{{ row.order_date }}</td>
-                <td onclick="editField('{{ row.order_id }}', 'order_no', '{{ row.order_no or row.order_id }}')"
-                    style="cursor: pointer; color: var(--primary);">{{ row.order_no or row.order_id }}</td>
-                <td>{{ row.cli_name }}</td>
-                <td>{{ row.offer_id }}</td>
-                <td onclick="editField('{{ row.order_id }}', 'inquiry_mpn', '{{ row.inquiry_mpn }}')"
-                    style="cursor: pointer; color: var(--primary);">{{ row.inquiry_mpn }}</td>
-                <td onclick="editField('{{ row.order_id }}', 'inquiry_brand', '{{ row.inquiry_brand }}')"
-                    style="cursor: pointer; color: var(--primary);">{{ row.inquiry_brand }}</td>
-                <td id="price_rmb_{{ row.order_id }}" onclick="editField('{{ row.order_id }}', 'price_rmb', '{{ row.price_rmb }}')"
-                    style="cursor: pointer; color: var(--primary);">{{ "%.2f"|format(row.price_rmb or 0) }}</td>
-                <td id="price_kwr_{{ row.order_id }}" onclick="editField('{{ row.order_id }}', 'price_kwr', '{{ row.price_kwr }}')"
-                    style="cursor: pointer; color: var(--primary);">{{ row.price_kwr }}</td>
-                <td id="price_usd_{{ row.order_id }}" onclick="editField('{{ row.order_id }}', 'price_usd', '{{ row.price_usd }}')"
-                    style="cursor: pointer; color: var(--primary);">{{ row.price_usd }}</td>
-                <td onclick="editField('{{ row.order_id }}', 'cost_price_rmb', '{{ row.cost_price_rmb }}')"
-                    style="cursor: pointer; color: var(--primary);">{{ "%.2f"|format(row.cost_price_rmb or 0) }}</td>
-                <td><span style="color: green;">{{ row.profit }}</span></td>
-                <td ondblclick="editOfferField('{{ row.offer_id }}', 'inquiry_qty', '{{ row.inquiry_qty or 0 }}', 'number')"
-                    style="cursor: pointer;">{{ row.inquiry_qty or '' }}</td>
-                <td ondblclick="editOfferField('{{ row.offer_id }}', 'quoted_qty', '{{ row.quoted_qty or 0 }}', 'number')"
-                    style="cursor: pointer;">{{ row.quoted_qty or '' }}</td>
-                <td ondblclick="editOfferVendor('{{ row.offer_id }}', '{{ row.vendor_id or '' }}')"
-                    style="cursor: pointer;">{{ row.vendor_name or '' }}</td>
-                <td ondblclick="editOfferField('{{ row.offer_id }}', 'date_code', '{{ row.date_code or '' }}')"
-                    style="cursor: pointer;">{{ row.date_code or '' }}</td>
-                <td ondblclick="editOfferField('{{ row.offer_id }}', 'delivery_date', '{{ row.delivery_date or '' }}')"
-                    style="cursor: pointer;">{{ row.delivery_date or '' }}</td>
-                <td>
-                    <select onchange="updateRowField('{{ row.order_id }}', 'return_status', this.value)"
-                        style="padding: 2px;">
-                        <option value="正常" {% if row.return_status=='正常' %}selected{% endif %}>正常</option>
-                        <option value="已退货" {% if row.return_status=='已退货' %}selected{% endif %}>已退货</option>
-                    </select>
-                </td>
-                <td>
-                    <label class="switch">
-                        <input type="checkbox" {% if row.is_finished==1 %}checked{% endif %}
-                            onchange="toggleStatus('{{ row.order_id }}', 'is_finished', this.checked)">
-                        <span class="slider"></span>
-                    </label>
-                </td>
-                <td>
-                    <label class="switch">
-                        <input type="checkbox" {% if row.is_paid==1 %}checked{% endif %}
-                            onchange="toggleStatus('{{ row.order_id }}', 'is_paid', this.checked)">
-                        <span class="slider"></span>
-                    </label>
-                </td>
-                <td onclick="editField('{{ row.order_id }}', 'paid_amount', '{{ row.paid_amount }}')"
-                    style="cursor: pointer; color: var(--primary);">
-                    {{ row.paid_amount }}
-                </td>
-                <td ondblclick="makeTransferredEditable(this, '{{ row.order_id }}', '{{ row.is_transferred }}')">
-                    <span
-                        class="badge {% if row.is_transferred == '已转' %}badge-success{% else %}badge-warning{% endif %}">
-                        {{ row.is_transferred }}
-                    </span>
-                </td>
-                <td onclick="editField('{{ row.order_id }}', 'remark', '{{ row.remark }}')" style="cursor: pointer;">
-                    {{ row.remark }}
-                </td>
-                <td>
-                    <div style="display: flex; gap: 0.3rem;">
-                        <button class="btn" style="color: #3b82f6; padding: 2px 8px;"
-                            onclick="convertToBuy('{{ row.order_id }}')">转采购</button>
-                        <button class="btn" style="color: red; padding: 2px 8px;"
-                            onclick="deleteOrder('{{ row.order_id }}')">删除</button>
-                    </div>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
+                    <th>成本(RMB)</th>
+                    <th>利润</th>
+                    <th>需求数量(pcs)</th>
+                    <th>报价数量(pcs)</th>
+                    <th>供应商</th>
+                    <th>批号(DC)</th>
+                    <th>货期</th>
+                    <th>退货状态</th>
+                    <th>完结</th>
+                    <th>付款</th>
+                    <th>已付金额</th>
+                    <th>已转</th>
+                    <th>备注</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in items %}
+                <tr data-id="{{ row.order_id }}">
+                    <td><input type="checkbox" class="row-checkbox" value="{{ row.order_id }}"></td>
+                    <td>{{ row.order_date }}</td>
+                    <td onclick="editField('{{ row.order_id }}', 'order_no', '{{ row.order_no or row.order_id }}')"
+                        style="cursor: pointer; color: var(--primary);">{{ row.order_no or row.order_id }}</td>
+                    <td>{{ row.offer_id }}</td>
+                    <td>{{ row.cli_name }}</td>
+                    <td onclick="editField('{{ row.order_id }}', 'inquiry_mpn', '{{ row.inquiry_mpn }}')"
+                        style="cursor: pointer; color: var(--primary);">{{ row.inquiry_mpn }}</td>
+                    <td onclick="editField('{{ row.order_id }}', 'inquiry_brand', '{{ row.inquiry_brand }}')"
+                        style="cursor: pointer; color: var(--primary);">{{ row.inquiry_brand }}</td>
+                    <td id="price_rmb_{{ row.order_id }}" onclick="editField('{{ row.order_id }}', 'price_rmb', '{{ row.price_rmb }}')"
+                        style="cursor: pointer; color: var(--primary);">{{ "%.2f"|format(row.price_rmb or 0) }}</td>
+                    <td id="price_kwr_{{ row.order_id }}" onclick="editField('{{ row.order_id }}', 'price_kwr', '{{ row.price_kwr }}')"
+                        style="cursor: pointer; color: var(--primary);">{{ row.price_kwr }}</td>
+                    <td id="price_usd_{{ row.order_id }}" onclick="editField('{{ row.order_id }}', 'price_usd', '{{ row.price_usd }}')"
+                        style="cursor: pointer; color: var(--primary);">{{ row.price_usd }}</td>
+                    <td onclick="editField('{{ row.order_id }}', 'cost_price_rmb', '{{ row.cost_price_rmb }}')"
+                        style="cursor: pointer; color: var(--primary);">{{ "%.2f"|format(row.cost_price_rmb or 0) }}</td>
+                    <td><span style="color: green;">{{ row.profit }}</span></td>
+                    <td ondblclick="editOfferField('{{ row.offer_id }}', 'inquiry_qty', '{{ row.inquiry_qty or 0 }}', 'number')"
+                        style="cursor: pointer;">{{ row.inquiry_qty or '' }}</td>
+                    <td ondblclick="editOfferField('{{ row.offer_id }}', 'quoted_qty', '{{ row.quoted_qty or 0 }}', 'number')"
+                        style="cursor: pointer;">{{ row.quoted_qty or '' }}</td>
+                    <td ondblclick="editOfferVendor('{{ row.offer_id }}', '{{ row.vendor_id or '' }}')"
+                        style="cursor: pointer;">{{ row.vendor_name or '' }}</td>
+                    <td ondblclick="editOfferField('{{ row.offer_id }}', 'date_code', '{{ row.date_code or '' }}')"
+                        style="cursor: pointer;">{{ row.date_code or '' }}</td>
+                    <td ondblclick="editOfferField('{{ row.offer_id }}', 'delivery_date', '{{ row.delivery_date or '' }}')"
+                        style="cursor: pointer;">{{ row.delivery_date or '' }}</td>
+                    <td>
+                        <select onchange="updateRowField('{{ row.order_id }}', 'return_status', this.value)"
+                            style="padding: 1px; font-size: 0.55rem;">
+                            <option value="正常" {% if row.return_status=='正常' %}selected{% endif %}>正常</option>
+                            <option value="已退货" {% if row.return_status=='已退货' %}selected{% endif %}>已退货</option>
+                        </select>
+                    </td>
+                    <td>
+                        <label class="switch" style="transform: scale(0.7);">
+                            <input type="checkbox" {% if row.is_finished==1 %}checked{% endif %}
+                                onchange="toggleStatus('{{ row.order_id }}', 'is_finished', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </td>
+                    <td>
+                        <label class="switch" style="transform: scale(0.7);">
+                            <input type="checkbox" {% if row.is_paid==1 %}checked{% endif %}
+                                onchange="toggleStatus('{{ row.order_id }}', 'is_paid', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </td>
+                    <td onclick="editField('{{ row.order_id }}', 'paid_amount', '{{ row.paid_amount }}')"
+                        style="cursor: pointer; color: var(--primary);">
+                        {{ row.paid_amount }}
+                    </td>
+                    <td ondblclick="makeTransferredEditable(this, '{{ row.order_id }}', '{{ row.is_transferred }}')">
+                        <span class="badge {% if row.is_transferred == '已转' %}badge-success{% else %}badge-warning{% endif %}">
+                            {{ row.is_transferred }}
+                        </span>
+                    </td>
+                    <td onclick="editField('{{ row.order_id }}', 'remark', '{{ row.remark }}')" style="cursor: pointer;">
+                        {{ row.remark }}
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 0.2rem;">
+                            <button class="btn" style="color: #3b82f6; padding: 1px 4px; font-size: 0.55rem;"
+                                onclick="convertToBuy('{{ row.order_id }}')">转采购</button>
+                            <button class="btn" style="color: red; padding: 1px 4px; font-size: 0.55rem;"
+                                onclick="deleteOrder('{{ row.order_id }}')">删除</button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 
 <div class="pagination" style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: center;">
     {% if page is defined and page > 1 %}

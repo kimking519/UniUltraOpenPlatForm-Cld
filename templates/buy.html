@@ -73,6 +73,67 @@
         box-shadow: var(--shadow);
         overflow: hidden;
     }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.6rem;
+    }
+
+    .data-table th {
+        background: linear-gradient(180deg, var(--bg-glass) 0%, rgba(241, 245, 249, 0.5) 100%);
+        padding: 0.4rem 0.5rem;
+        text-align: left;
+        font-size: 0.55rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: var(--text-muted);
+        border-bottom: 1px solid var(--border);
+        border-right: 1px solid rgba(148, 163, 184, 0.1);
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .data-table th:last-child {
+        border-right: none;
+    }
+
+    .data-table td {
+        padding: 0.35rem 0.4rem;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+        border-right: 1px solid rgba(148, 163, 184, 0.06);
+    }
+
+    .data-table td:last-child {
+        border-right: none;
+    }
+
+    .data-table tbody tr:nth-child(odd) {
+        background: rgba(241, 245, 249, 0.3);
+    }
+
+    .data-table tbody tr:nth-child(even) {
+        background: var(--card-bg);
+    }
+
+    .data-table tbody tr:hover {
+        background: rgba(99, 102, 241, 0.06);
+    }
+
+    [data-theme="dark"] .data-table tbody tr:nth-child(odd) {
+        background: rgba(30, 41, 59, 0.5);
+    }
+
+    [data-theme="dark"] .data-table tbody tr:nth-child(even) {
+        background: rgba(30, 41, 59, 0.3);
+    }
+
+    [data-theme="dark"] .data-table tbody tr:hover {
+        background: rgba(99, 102, 241, 0.08);
+    }
 </style>
 
 <div class="page-header">
@@ -136,107 +197,101 @@
 
 <div class="data-card">
     <div class="table-container" style="overflow-x: auto;">
-        <table class="data-table" style="font-size: 0.85rem;">
+        <table class="data-table">
             <thead>
                 <tr>
-                    <th style="width: 40px;"><input type="checkbox" id="select_all" onclick="toggleSelectAll(this.checked)"></th>
-                    <th style="min-width: 120px;">日期</th>
+                    <th style="width: 30px;"><input type="checkbox" id="select_all" onclick="toggleSelectAll(this.checked)"></th>
+                    <th>日期</th>
                     <th>采购编号</th>
                     <th>对应销售单</th>
                     <th>客户 ID</th>
                     <th>客户名称</th>
-                    <th>供应商</th>
-                    <th>供应商地址</th>
-                    <th>型号</th>
-                    <th>品牌</th>
+                    <th>报价型号</th>
+                    <th>报价品牌</th>
                     <th>批号(DC)</th>
                     <th>货期</th>
                     <th>采购单价(RMB)</th>
-                <th>销售报价(RMB)</th>
-                <th>采购单价(KWR)</th>
-                <th>采购单价(USD)</th>
-                <th>数量</th>
-                <th>总额 (RMB)</th>
-                <th>业务流程节点</th>
-                <th>操作</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for item in items %}
-            <tr data-id="{{ item.buy_id }}">
-                <td><input type="checkbox" class="row-checkbox" value="{{ item.buy_id }}"></td>
-                <td>{{ item.buy_date }}</td>
-                <td>{{ item.buy_id }}</td>
-                <td ondblclick="editField(this, '{{ item.buy_id }}', 'order_id')">{{ item.order_no }}</td>
-                <td>{{ item.cli_id }}</td>
-                <td>{{ item.cli_name }}</td>
-                <td style="min-width: 140px;">
-                    <select onchange="updateVendorChange('{{ item.buy_id }}', this.value)"
-                        style="width: 100%; padding: 4px; border: 1px solid var(--border); border-radius: 4px;">
-                        <option value="">--未选择--</option>
-                        {% for v in vendor_list %}
-                        <option value="{{ v.vendor_id }}" {% if v.vendor_id==item.vendor_id %}selected{% endif %}>{{
-                            v.vendor_name }}</option>
-                        {% endfor %}
-                    </select>
-                </td>
-                <td id="addr-{{ item.buy_id }}" style="font-size: 0.75rem; color: #666; max-width: 200px;">{{
-                    item.vendor_address }}</td>
-                <td ondblclick="editField(this, '{{ item.buy_id }}', 'buy_mpn')"
-                    style="cursor: pointer; color: var(--primary);">{{ item.buy_mpn }}</td>
-                <td ondblclick="editField(this, '{{ item.buy_id }}', 'buy_brand')"
-                    style="cursor: pointer; color: var(--primary);">{{ item.buy_brand }}</td>
-                <td>{{ item.date_code or '' }}</td>
-                <td>{{ item.delivery_date or '' }}</td>
-                <td ondblclick="editField(this, '{{ item.buy_id }}', 'buy_price_rmb')"
-                    style="cursor: pointer; color: var(--primary); font-weight: 600;">{{ "%.2f"|format(item.buy_price_rmb or 0) }}</td>
-                <td ondblclick="editField(this, '{{ item.buy_id }}', 'sales_price_rmb')"
-                    style="cursor: pointer; color: var(--primary); font-weight: 600;">{{ "%.2f"|format(item.sales_price_rmb or 0) }}</td>
-                <td ondblclick="editBuyPrice(this, '{{ item.buy_id }}', 'price_kwr', 'KWR', {{ item.price_kwr or 0 }}, {{ item.buy_price_rmb or 0 }})"
-                    style="cursor: pointer;"><span style="color:var(--primary);">{{ item.price_kwr }}</span></td>
-                <td ondblclick="editBuyPrice(this, '{{ item.buy_id }}', 'price_usd', 'USD', {{ item.price_usd or 0 }}, {{ item.buy_price_rmb or 0 }})"
-                    style="cursor: pointer;"><span style="color:var(--primary);">{{ item.price_usd }}</span></td>
-                <td ondblclick="editField(this, '{{ item.buy_id }}', 'buy_qty')"
-                    style="cursor: pointer; color: var(--primary); font-weight: 600;">{{ item.buy_qty }}</td>
-                <td style="font-weight: 700;">{{ item.total_amount }}</td>
-                <td>
-                    <div class="status-nodes">
-                        <div class="node {% if item.is_source_confirmed == 1 or item.is_source_confirmed == '1' %}active{% endif %}"
-                            title="货源确认">
-                            <input type="checkbox" {% if item.is_source_confirmed==1 or item.is_source_confirmed=='1'
-                                %}checked{% endif %}
-                                onchange="toggleNode('{{ item.buy_id }}', 'is_source_confirmed', this.checked)">
-                            <span>货源</span>
+                    <th>销售报价(RMB)</th>
+                    <th>数量</th>
+                    <th>总额(RMB)</th>
+                    <th>供应商</th>
+                    <th>供应商地址</th>
+                    <th>业务流程节点</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr data-id="{{ item.buy_id }}">
+                    <td><input type="checkbox" class="row-checkbox" value="{{ item.buy_id }}"></td>
+                    <td>{{ item.buy_date }}</td>
+                    <td>{{ item.buy_id }}</td>
+                    <td ondblclick="editField(this, '{{ item.buy_id }}', 'order_id')">{{ item.order_no }}</td>
+                    <td>{{ item.cli_id }}</td>
+                    <td>{{ item.cli_name }}</td>
+                    <td ondblclick="editField(this, '{{ item.buy_id }}', 'buy_mpn')"
+                        style="cursor: pointer; color: var(--primary);">{{ item.buy_mpn }}</td>
+                    <td ondblclick="editField(this, '{{ item.buy_id }}', 'buy_brand')"
+                        style="cursor: pointer; color: var(--primary);">{{ item.buy_brand }}</td>
+                    <td>{{ item.date_code or '' }}</td>
+                    <td>{{ item.delivery_date or '' }}</td>
+                    <td ondblclick="editField(this, '{{ item.buy_id }}', 'buy_price_rmb')"
+                        style="cursor: pointer; color: var(--primary); font-weight: 600;">{{ "%.2f"|format(item.buy_price_rmb or 0) }}</td>
+                    <td ondblclick="editField(this, '{{ item.buy_id }}', 'sales_price_rmb')"
+                        style="cursor: pointer; color: var(--primary); font-weight: 600;">{{ "%.2f"|format(item.sales_price_rmb or 0) }}</td>
+                    <td ondblclick="editField(this, '{{ item.buy_id }}', 'buy_qty')"
+                        style="cursor: pointer; color: var(--primary); font-weight: 600;">{{ item.buy_qty }}</td>
+                    <td style="font-weight: 700;">{{ item.total_amount }}</td>
+                    <td style="min-width: 100px;">
+                        <select onchange="updateVendorChange('{{ item.buy_id }}', this.value)"
+                            style="width: 100%; padding: 2px; font-size: 0.55rem; border: 1px solid var(--border); border-radius: 4px;">
+                            <option value="">--未选择--</option>
+                            {% for v in vendor_list %}
+                            <option value="{{ v.vendor_id }}" {% if v.vendor_id==item.vendor_id %}selected{% endif %}>{{
+                                v.vendor_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td id="addr-{{ item.buy_id }}" style="color: #666; max-width: 150px;">{{
+                        item.vendor_address }}</td>
+                    <td>
+                        <div class="status-nodes" style="font-size: 0.5rem;">
+                            <div class="node {% if item.is_source_confirmed == 1 or item.is_source_confirmed == '1' %}active{% endif %}"
+                                title="货源确认">
+                                <input type="checkbox" {% if item.is_source_confirmed==1 or item.is_source_confirmed=='1'
+                                    %}checked{% endif %}
+                                    onchange="toggleNode('{{ item.buy_id }}', 'is_source_confirmed', this.checked)">
+                                <span>货源</span>
+                            </div>
+                            <div class="node {% if item.is_ordered == 1 or item.is_ordered == '1' %}active{% endif %}"
+                                title="下单确认">
+                                <input type="checkbox" {% if item.is_ordered==1 or item.is_ordered=='1' %}checked{% endif %}
+                                    onchange="toggleNode('{{ item.buy_id }}', 'is_ordered', this.checked)">
+                                <span>下单</span>
+                            </div>
+                            <div class="node {% if item.is_instock == 1 or item.is_instock == '1' %}active{% endif %}"
+                                title="入库确认">
+                                <input type="checkbox" {% if item.is_instock==1 or item.is_instock=='1' %}checked{% endif %}
+                                    onchange="toggleNode('{{ item.buy_id }}', 'is_instock', this.checked)">
+                                <span>入库</span>
+                            </div>
+                            <div class="node {% if item.is_shipped == 1 or item.is_shipped == '1' %}active{% endif %}"
+                                title="发货确认">
+                                <input type="checkbox" {% if item.is_shipped==1 or item.is_shipped=='1' %}checked{% endif %}
+                                    onchange="toggleNode('{{ item.buy_id }}', 'is_shipped', this.checked)">
+                                <span>发货</span>
+                            </div>
                         </div>
-                        <div class="node {% if item.is_ordered == 1 or item.is_ordered == '1' %}active{% endif %}"
-                            title="下单确认">
-                            <input type="checkbox" {% if item.is_ordered==1 or item.is_ordered=='1' %}checked{% endif %}
-                                onchange="toggleNode('{{ item.buy_id }}', 'is_ordered', this.checked)">
-                            <span>下单</span>
-                        </div>
-                        <div class="node {% if item.is_instock == 1 or item.is_instock == '1' %}active{% endif %}"
-                            title="入库确认">
-                            <input type="checkbox" {% if item.is_instock==1 or item.is_instock=='1' %}checked{% endif %}
-                                onchange="toggleNode('{{ item.buy_id }}', 'is_instock', this.checked)">
-                            <span>入库</span>
-                        </div>
-                        <div class="node {% if item.is_shipped == 1 or item.is_shipped == '1' %}active{% endif %}"
-                            title="发货确认">
-                            <input type="checkbox" {% if item.is_shipped==1 or item.is_shipped=='1' %}checked{% endif %}
-                                onchange="toggleNode('{{ item.buy_id }}', 'is_shipped', this.checked)">
-                            <span>发货</span>
-                        </div>
-                    </div>
-                </td>
-                <td>
-                    <button class="btn" style="color: red; padding: 2px 8px;"
-                        onclick="deleteBuy('{{ item.buy_id }}')">删除</button>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
+                    </td>
+                    <td>
+                        <button class="btn" style="color: red; padding: 1px 4px; font-size: 0.55rem;"
+                            onclick="deleteBuy('{{ item.buy_id }}')">删除</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 
 <div class="pagination" style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: center;">
     {% if page is defined and page > 1 %}

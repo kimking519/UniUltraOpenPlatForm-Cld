@@ -93,34 +93,59 @@
 
     .data-table {
         width: 100%;
-        border-collapse: separate;
-        border-spacing: 0;
-        font-size: 0.85rem;
+        border-collapse: collapse;
+        font-size: 0.6rem;
     }
 
     .data-table th {
         background: linear-gradient(180deg, var(--bg-glass) 0%, rgba(241, 245, 249, 0.5) 100%);
-        padding: 0.875rem 1rem;
+        padding: 0.4rem 0.5rem;
         text-align: left;
-        font-size: 0.75rem;
+        font-size: 0.55rem;
         font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.03em;
         color: var(--text-muted);
-        border-bottom: var(--border);
+        border-bottom: 1px solid var(--border);
+        border-right: 1px solid rgba(148, 163, 184, 0.1);
         white-space: nowrap;
         position: sticky;
         top: 0;
         z-index: 10;
     }
 
+    .data-table th:last-child {
+        border-right: none;
+    }
+
     .data-table td {
-        padding: 0.875rem 1rem;
-        border-bottom: var(--border-light);
+        padding: 0.35rem 0.4rem;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+        border-right: 1px solid rgba(148, 163, 184, 0.06);
+    }
+
+    .data-table td:last-child {
+        border-right: none;
+    }
+
+    .data-table tbody tr:nth-child(odd) {
+        background: rgba(241, 245, 249, 0.3);
+    }
+
+    .data-table tbody tr:nth-child(even) {
+        background: var(--card-bg);
     }
 
     .data-table tbody tr:hover {
-        background: rgba(99, 102, 241, 0.04);
+        background: rgba(99, 102, 241, 0.06);
+    }
+
+    [data-theme="dark"] .data-table tbody tr:nth-child(odd) {
+        background: rgba(30, 41, 59, 0.5);
+    }
+
+    [data-theme="dark"] .data-table tbody tr:nth-child(even) {
+        background: rgba(30, 41, 59, 0.3);
     }
 
     [data-theme="dark"] .data-table tbody tr:hover {
@@ -227,27 +252,27 @@
             <thead>
                 <tr>
                     {% if current_user.rule == '3' %}
-                    <th style="width: 40px; min-width: 40px; text-align: center;"><input type="checkbox" id="selectAll"
+                    <th style="width: 30px; text-align: center;"><input type="checkbox" id="selectAll"
                             onclick="toggleAll(this)"></th>
                     {% endif %}
-                    <th style="min-width: 120px;">需求日期</th>
-                    <th style="min-width: 140px;">需求编号</th>
-                    <th style="min-width: 120px;">客户名称</th>
-                    <th style="min-width: 150px;">询价型号</th>
-                    <th style="min-width: 150px;">报价型号</th>
-                    <th style="min-width: 100px;">询价品牌</th>
-                    <th style="min-width: 80px;">需求数量</th>
-                    <th style="min-width: 80px;">报价数量</th>
-                    <th style="min-width: 100px;">目标价(¥)</th>
-                    <th style="min-width: 100px;">成本价(¥)</th>
-                    <th style="min-width: 100px;">批号</th>
-                    <th style="min-width: 100px;">交期</th>
-                    <th style="min-width: 100px;">状态</th>
-                    <th style="min-width: 80px;">已转</th>
-                    <th style="min-width: 250px;">需求组合信息</th>
-                    <th style="min-width: 150px;">备注</th>
+                    <th>需求日期</th>
+                    <th>需求编号</th>
+                    <th>客户名称</th>
+                    <th>报价型号</th>
+                    <th>询价品牌</th>
+                    <th>报价数量</th>
+                    <th>成本价(¥)</th>
+                    <th>批号</th>
+                    <th>交期</th>
+                    <th>需求组合信息</th>
+                    <th>备注</th>
+                    <th>状态</th>
+                    <th>已转</th>
+                    <th>询价型号</th>
+                    <th>目标价(¥)</th>
+                    <th>需求数量</th>
                     {% if current_user.rule == '3' %}
-                    <th class="sticky-action" style="min-width: 100px;">操作</th>
+                    <th class="sticky-action">操作</th>
                     {% endif %}
                 </tr>
             </thead>
@@ -265,24 +290,21 @@
                     <td ondblclick="makeEditableSelect(this, '{{ row.quote_id }}', 'cli_id', '{{ row.cli_id }}')">
                         <span>{{ row.cli_name }}</span>
                     </td>
-                    <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'inquiry_mpn')"><span>{{ row.inquiry_mpn
-                            }}</span></td>
                     <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'quoted_mpn')"><span>{{ row.quoted_mpn
                             }}</span></td>
                     <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'inquiry_brand')"><span>{{
                             row.inquiry_brand }}</span></td>
-                    <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'inquiry_qty', 'number')"><span>{{
-                            row.inquiry_qty }}</span></td>
                     <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'actual_qty', 'number')"><span>{{
                             row.actual_qty }}</span></td>
-                    <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'target_price_rmb', 'number')"><span>{{
-                            row.target_price_rmb }}</span></td>
                     <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'cost_price_rmb', 'number')"><span>{{
                             row.cost_price_rmb }}</span></td>
                     <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'date_code')"><span>{{ row.date_code
                             }}</span></td>
                     <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'delivery_date')"><span>{{
                             row.delivery_date }}</span></td>
+                    <td style="color: var(--secondary);">{{ row.combined_info }}</td>
+                    <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'remark')"><span>{{ row.remark }}</span>
+                    </td>
                     <td ondblclick="makeStatusEditable(this, '{{ row.quote_id }}', '{{ row.status }}')">
                         <span
                             class="badge {% if row.status == '已报价' %}badge-success{% elif row.status == '缺货' %}badge-warning{% else %}badge-info{% endif %}">
@@ -295,38 +317,45 @@
                             {{ row.is_transferred }}
                         </span>
                     </td>
-                    <td style="color: var(--secondary); font-size: 0.85rem;">{{ row.combined_info }}</td>
-                    <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'remark')"><span>{{ row.remark }}</span>
-                    </td>
+                    <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'inquiry_mpn')"><span>{{ row.inquiry_mpn
+                            }}</span></td>
+                    <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'target_price_rmb', 'number')"><span>{{
+                            row.target_price_rmb }}</span></td>
+                    <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'inquiry_qty', 'number')"><span>{{
+                            row.inquiry_qty }}</span></td>
                     {% else %}
                     <td>{{ row.cli_name }}</td>
-                    <td>{{ row.inquiry_mpn }}</td>
                     <td>{{ row.quoted_mpn }}</td>
                     <td>{{ row.inquiry_brand }}</td>
-                    <td>{{ row.inquiry_qty }}</td>
-                    <td>{{ row.target_price_rmb }}</td>
+                    <td>{{ row.actual_qty }}</td>
                     <td>{{ row.cost_price_rmb }}</td>
-                    <td>{{ row.is_transferred }}</td>
-                    <td style="color: var(--secondary); font-size: 0.85rem;">{{ row.combined_info }}</td>
+                    <td>{{ row.date_code }}</td>
+                    <td>{{ row.delivery_date }}</td>
+                    <td style="color: var(--secondary);">{{ row.combined_info }}</td>
                     <td>{{ row.remark }}</td>
+                    <td>{{ row.status }}</td>
+                    <td>{{ row.is_transferred }}</td>
+                    <td>{{ row.inquiry_mpn }}</td>
+                    <td>{{ row.target_price_rmb }}</td>
+                    <td>{{ row.inquiry_qty }}</td>
                     {% endif %}
 
                     {% if current_user.rule == '3' %}
                     <td style="position: sticky; right: 0; background: white; z-index: 1;">
-                        <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                        <div style="display: flex; gap: 0.3rem; justify-content: center;">
                             <button class="action-btn action-btn-primary"
                                 onclick="transToOffer('{{ row.quote_id }}')"
                                 title="转为报价单"
-                                style="padding: 0.5rem 0.6rem; min-width: 36px;">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                style="padding: 0.3rem 0.4rem; min-width: 24px;">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
                                 </svg>
                             </button>
                             <button class="action-btn action-btn-danger"
                                 onclick="deleteRow('{{ row.quote_id }}')"
                                 title="删除"
-                                style="padding: 0.5rem 0.6rem; min-width: 36px;">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                style="padding: 0.3rem 0.4rem; min-width: 24px;">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                                 </svg>
                             </button>
@@ -336,7 +365,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="13" style="text-align: center; color: var(--secondary); padding: 2rem;">暂无需求记录，请添加新需求。
+                    <td colspan="17" style="text-align: center; color: var(--secondary); padding: 2rem;">暂无需求记录，请添加新需求。
                     </td>
                 </tr>
                 {% endfor %}
