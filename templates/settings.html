@@ -299,6 +299,34 @@
             <div id="restore-status"></div>
         </div>
 
+        <!-- UI Settings Section -->
+        <div class="settings-section">
+            <div class="section-header">
+                <div class="section-icon primary">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+                    </svg>
+                </div>
+                <div>
+                    <div class="section-title">界面设置</div>
+                </div>
+            </div>
+            <p class="section-desc">
+                自定义界面外观参数，包括字体大小、行高、圆角等。
+            </p>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: var(--bg-glass); border-radius: var(--radius); margin-bottom: 1rem;">
+                <div>
+                    <div style="font-weight: 500; color: var(--text-main); font-size: 0.9rem;">显示设计调节面板</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">在页面右侧显示设计参数调节工具</div>
+                </div>
+                <label class="switch" style="transform: scale(1.1);">
+                    <input type="checkbox" id="toggle-design-adjuster" onchange="toggleDesignAdjusterSetting(this.checked)">
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+
         <!-- About Section -->
         <div class="settings-section">
             <div class="section-header">
@@ -499,5 +527,28 @@
             statusDiv.style.display = 'flex';
         }
     }
+
+    // 设计调节面板开关
+    function toggleDesignAdjusterSetting(show) {
+        localStorage.setItem('showDesignAdjuster', show);
+        if (typeof setShowDesignAdjuster === 'function') {
+            setShowDesignAdjuster(show);
+        }
+        // 显示提示
+        const statusDiv = document.getElementById('restore-status');
+        statusDiv.className = 'success';
+        statusDiv.innerText = show ? '设计调节面板已启用，刷新页面生效' : '设计调节面板已隐藏';
+        statusDiv.style.display = 'flex';
+        setTimeout(() => statusDiv.style.display = 'none', 2000);
+    }
+
+    // 初始化开关状态
+    document.addEventListener('DOMContentLoaded', function() {
+        const showAdjuster = localStorage.getItem('showDesignAdjuster');
+        const toggle = document.getElementById('toggle-design-adjuster');
+        if (toggle) {
+            toggle.checked = showAdjuster === 'true';
+        }
+    });
 </script>
 {% endblock %}

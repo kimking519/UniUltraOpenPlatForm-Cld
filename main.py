@@ -61,8 +61,12 @@ def get_backup_root():
 def do_backup():
     """执行备份操作（内部函数，无权限检查）"""
     backup_root = get_backup_root()
-    date_str = datetime.now().strftime("%Y%m%d%H%M")
+    date_str = datetime.now().strftime("%Y%m%d%H")  # 精确到小时
     backup_dir = os.path.join(backup_root, f"backup_{date_str}")
+
+    # 确保备份根目录存在
+    if not os.path.exists(backup_root):
+        os.makedirs(backup_root, exist_ok=True)
 
     # If exists, delete and recreate
     if os.path.exists(backup_dir):
@@ -102,12 +106,7 @@ def start_auto_backup():
     backup_thread = threading.Thread(target=auto_backup_task, daemon=True)
     backup_thread.start()
     print("[系统] 自动备份服务已启动，每30分钟执行一次")
-    # 启动时立即执行一次备份
-    try:
-        count, backup_dir = do_backup()
-        print(f"[启动备份] 成功备份 {count} 个数据库文件到 {backup_dir}")
-    except Exception as e:
-        print(f"[启动备份] 失败: {str(e)}")
+    # 注意：自动备份线程会立即执行第一次备份，不需要在这里重复执行
 
 async def get_current_user(request: Request, emp_id: str = Cookie(None), rule: str = Cookie(None), account: str = Cookie(None)):
     # 0. 开发模式：跳过认证
@@ -450,7 +449,7 @@ async def order_update_api(order_id: str = Form(...), field: str = Form(...), va
                 # price_kwr = price_rmb * krw_rate (韩元)
                 # price_usd = price_rmb * usd_rate (美元)
                 price_kwr = round(val * krw_rate, 1) if krw_rate else 0
-                price_usd = round(val * usd_rate, 2) if usd_rate else 0
+                price_usd = round(val * usd_rate, 3) if usd_rate else 0
 
                 # 同时更新三个价格字段
                 success, msg = update_order(order_id, {
@@ -888,6 +887,54 @@ async def offer_batch_delete_api(request: Request, current_user: dict = Depends(
     ids = data.get("ids", [])
     success, msg = batch_delete_offer(ids)
     return {"success": success, "message": msg}
+
+@app.post("/api/offer/batch_price_increase")
+async def offer_batch_price_increase_api(request: Request, current_user: dict = Depends(login_required)):
+    """按比例加价：新报价RMB = 成本价 × (1 + 比例%)，同时更新KWR和USD"""
+    if current_user['rule'] != '3' and current_user['rule'] != '0':
+        return {"success": False, "message": "无权限执行此操作"}
+
+    data = await request.json()
+    ids = data.get("ids", [])
+    ratio = data.get("ratio", 15)  # 默认15%
+
+    if not ids:
+        return {"success": False, "message": "未选择任何记录"}
+
+    from Sills.base import get_db_connection
+
+    updated_count = 0
+    with get_db_connection() as conn:
+        # 获取最新汇率
+        try:
+            krw_row = conn.execute("SELECT exchange_rate FROM uni_daily WHERE currency_code=2 ORDER BY record_date DESC LIMIT 1").fetchone()
+            usd_row = conn.execute("SELECT exchange_rate FROM uni_daily WHERE currency_code=1 ORDER BY record_date DESC LIMIT 1").fetchone()
+            krw_rate = float(krw_row[0]) if krw_row else 180.0
+            usd_rate = float(usd_row[0]) if usd_row else 7.0
+        except:
+            krw_rate = 180.0
+            usd_rate = 7.0
+
+        # 批量更新：新报价RMB = 成本价 × (1 + ratio/100)
+        for offer_id in ids:
+            # 获取当前记录的成本价
+            row = conn.execute("SELECT cost_price_rmb FROM uni_offer WHERE offer_id=?", (offer_id,)).fetchone()
+            if row and row[0]:
+                cost_price = float(row[0])
+                new_offer_rmb = cost_price * (1 + ratio / 100)
+                new_price_kwr = round(new_offer_rmb * krw_rate, 1)  # KWR保留1位小数
+                new_price_usd = round(new_offer_rmb / usd_rate, 3)  # USD保留3位小数
+
+                conn.execute("""
+                    UPDATE uni_offer
+                    SET offer_price_rmb=?, price_kwr=?, price_usd=?
+                    WHERE offer_id=?
+                """, (new_offer_rmb, new_price_kwr, new_price_usd, offer_id))
+                updated_count += 1
+
+        conn.commit()
+
+    return {"success": True, "updated_count": updated_count, "message": f"成功更新 {updated_count} 条报价"}
 
 @app.post("/api/offer/batch_send_email")
 async def offer_batch_send_email_api(request: Request, current_user: dict = Depends(login_required)):

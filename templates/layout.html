@@ -56,15 +56,15 @@
             text-decoration: none;
             transition: all 0.2s ease;
             font-weight: 500;
-            font-size: 1.35rem;
+            font-size: 1.15rem;
             position: relative;
             margin: 0.125rem 0.75rem;
             border-radius: 8px;
         }
 
         .menu-item .menu-icon {
-            width: 30px;
-            height: 30px;
+            width: 26px;
+            height: 26px;
             opacity: 0.7;
             transition: opacity 0.2s ease;
         }
@@ -103,7 +103,7 @@
 
         .menu-section {
             padding: 1rem 1.5rem 0.5rem;
-            font-size: 1.05rem;
+            font-size: 0.9rem;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.1em;
@@ -470,12 +470,28 @@
                 </button>
 
                 <!-- Notifications -->
-                <button class="navbar-action" title="通知">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                <div class="navbar-action" style="font-size: 0.8rem; color: var(--text-muted); padding: 0.5rem 0.75rem; background: var(--bg-glass); border-radius: 6px;">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px; margin-right: 0.3rem;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                     </svg>
-                    <span class="badge-dot"></span>
-                </button>
+                    <span id="system-env">Windows</span>
+                </div>
+
+                <script>
+                    // 检测系统环境
+                    document.addEventListener('DOMContentLoaded', function() {
+                        var envSpan = document.getElementById('system-env');
+                        if (navigator.platform.indexOf('Win') !== -1) {
+                            envSpan.textContent = 'Windows';
+                        } else if (navigator.platform.indexOf('Linux') !== -1) {
+                            envSpan.textContent = 'Linux';
+                        } else if (navigator.platform.indexOf('Mac') !== -1) {
+                            envSpan.textContent = 'macOS';
+                        } else {
+                            envSpan.textContent = navigator.platform;
+                        }
+                    });
+                </script>
 
                 <!-- User Dropdown -->
                 <div class="user-dropdown">
@@ -606,6 +622,158 @@
 
     <!-- Global UI Components -->
     <div id="toast-container" style="position: fixed; top: 1.5rem; right: 1.5rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.75rem;"></div>
+
+    <!-- Design Adjuster Panel -->
+    <div id="design-adjuster" class="design-adjuster" style="display: none;">
+        <div class="design-adjuster-toggle" onclick="toggleDesignAdjuster()">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+            </svg>
+        </div>
+        <div class="design-adjuster-panel" id="design-panel">
+            <div class="design-panel-header">
+                <h4>设计调节</h4>
+                <button onclick="toggleDesignAdjuster()" style="background: none; border: none; cursor: pointer; padding: 4px;">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="design-panel-content">
+                <div class="design-control">
+                    <label>字体大小 <span id="font-size-value">14px</span></label>
+                    <input type="range" id="font-size-slider" min="12" max="24" value="14" oninput="updateDesign()">
+                </div>
+                <div class="design-control">
+                    <label>行高 <span id="line-height-value">1.5</span></label>
+                    <input type="range" id="line-height-slider" min="10" max="20" value="15" oninput="updateDesign()">
+                </div>
+                <div class="design-control">
+                    <label>卡片圆角 <span id="border-radius-value">12px</span></label>
+                    <input type="range" id="border-radius-slider" min="0" max="20" value="12" oninput="updateDesign()">
+                </div>
+                <div class="design-control">
+                    <label>内边距 <span id="padding-value">16px</span></label>
+                    <input type="range" id="padding-slider" min="8" max="32" value="16" oninput="updateDesign()">
+                </div>
+                <div class="design-control">
+                    <label>动画速度 <span id="transition-value">0.3s</span></label>
+                    <input type="range" id="transition-slider" min="1" max="10" value="3" oninput="updateDesign()">
+                </div>
+            </div>
+            <div class="design-panel-footer">
+                <button class="btn btn-primary btn-sm" onclick="copyDesignCSS()">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                    </svg>
+                    复制CSS参数
+                </button>
+                <button class="btn btn-ghost btn-sm" onclick="resetDesign()">重置</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .design-adjuster {
+            position: fixed;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+        }
+        .design-adjuster-toggle {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+            border-radius: 12px 0 0 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: white;
+            box-shadow: -2px 0 10px rgba(99, 102, 241, 0.3);
+            transition: all 0.3s ease;
+        }
+        .design-adjuster-toggle:hover {
+            width: 48px;
+            background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
+        }
+        .design-adjuster-panel {
+            display: none;
+            width: 280px;
+            background: var(--card-bg);
+            border: var(--glass-border);
+            border-radius: 12px 0 0 12px;
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+        }
+        .design-adjuster-panel.show {
+            display: block;
+        }
+        .design-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+            border-bottom: 1px solid var(--border);
+        }
+        .design-panel-header h4 {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+        .design-panel-content {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .design-control label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+        .design-control label span {
+            font-weight: 600;
+            color: var(--primary);
+        }
+        .design-control input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: var(--border);
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .design-control input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(99, 102, 241, 0.4);
+        }
+        .design-panel-footer {
+            padding: 12px 16px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 8px;
+        }
+        .design-panel-footer .btn {
+            flex: 1;
+            font-size: 12px;
+        }
+        [data-theme="dark"] .design-adjuster-panel {
+            background: rgba(30, 41, 59, 0.95);
+        }
+    </style>
 
     <div id="loading-overlay" class="loading-overlay">
         <div class="loading-spinner-lg"></div>
@@ -801,7 +969,127 @@
             Toast.init();
             Loading.init();
             Connection.init();
+            initDesignAdjuster();
         });
+
+        // ============================================
+        // Design Adjuster
+        // ============================================
+        function initDesignAdjuster() {
+            // Check if design adjuster should be shown
+            const showAdjuster = localStorage.getItem('showDesignAdjuster');
+            if (showAdjuster === 'true') {
+                document.getElementById('design-adjuster').style.display = 'flex';
+            }
+            // Load saved values
+            loadDesignValues();
+        }
+
+        function toggleDesignAdjuster() {
+            const panel = document.getElementById('design-panel');
+            panel.classList.toggle('show');
+        }
+
+        function updateDesign() {
+            const fontSize = document.getElementById('font-size-slider').value;
+            const lineHeight = document.getElementById('line-height-slider').value / 10;
+            const borderRadius = document.getElementById('border-radius-slider').value;
+            const padding = document.getElementById('padding-slider').value;
+            const transition = document.getElementById('transition-slider').value / 10;
+
+            // Update display values
+            document.getElementById('font-size-value').textContent = fontSize + 'px';
+            document.getElementById('line-height-value').textContent = lineHeight.toFixed(1);
+            document.getElementById('border-radius-value').textContent = borderRadius + 'px';
+            document.getElementById('padding-value').textContent = padding + 'px';
+            document.getElementById('transition-value').textContent = transition.toFixed(1) + 's';
+
+            // Apply CSS variables (直接设置style.css中定义的变量)
+            document.documentElement.style.setProperty('--font-size', fontSize + 'px');
+            document.documentElement.style.setProperty('--line-height', lineHeight);
+            document.documentElement.style.setProperty('--border-radius', borderRadius + 'px');
+            document.documentElement.style.setProperty('--padding', padding + 'px');
+            document.documentElement.style.setProperty('--transition', transition + 's');
+
+            // Apply to body
+            document.body.style.fontSize = fontSize + 'px';
+            document.body.style.lineHeight = lineHeight;
+
+            // Save to localStorage
+            localStorage.setItem('designValues', JSON.stringify({
+                fontSize, lineHeight, borderRadius, padding, transition
+            }));
+        }
+
+        function loadDesignValues() {
+            const saved = localStorage.getItem('designValues');
+            if (saved) {
+                const values = JSON.parse(saved);
+                document.getElementById('font-size-slider').value = values.fontSize;
+                document.getElementById('line-height-slider').value = values.lineHeight * 10;
+                document.getElementById('border-radius-slider').value = values.borderRadius;
+                document.getElementById('padding-slider').value = values.padding;
+                document.getElementById('transition-slider').value = values.transition * 10;
+                updateDesign();
+            }
+        }
+
+        function copyDesignCSS() {
+            const fontSize = document.getElementById('font-size-slider').value;
+            const lineHeight = (document.getElementById('line-height-slider').value / 10).toFixed(1);
+            const borderRadius = document.getElementById('border-radius-slider').value;
+            const padding = document.getElementById('padding-slider').value;
+            const transition = (document.getElementById('transition-slider').value / 10).toFixed(1);
+
+            const css = `/* Design Parameters */
+:root {
+    --font-size: ${fontSize}px;
+    --line-height: ${lineHeight};
+    --border-radius: ${borderRadius}px;
+    --padding: ${padding}px;
+    --transition: ${transition}s;
+}
+
+body {
+    font-size: ${fontSize}px;
+    line-height: ${lineHeight};
+}
+
+.card, .data-card {
+    border-radius: ${borderRadius}px;
+    padding: ${padding}px;
+}
+
+* {
+    transition-duration: ${transition}s;
+}`;
+
+            navigator.clipboard.writeText(css).then(() => {
+                Toast.success('CSS参数已复制到剪贴板');
+            }).catch(() => {
+                Toast.error('复制失败，请手动复制');
+            });
+        }
+
+        function resetDesign() {
+            document.getElementById('font-size-slider').value = 14;
+            document.getElementById('line-height-slider').value = 15;
+            document.getElementById('border-radius-slider').value = 12;
+            document.getElementById('padding-slider').value = 16;
+            document.getElementById('transition-slider').value = 3;
+            updateDesign();
+            Toast.info('设计参数已重置');
+        }
+
+        function setShowDesignAdjuster(show) {
+            const adjuster = document.getElementById('design-adjuster');
+            if (show) {
+                adjuster.style.display = 'flex';
+            } else {
+                adjuster.style.display = 'none';
+            }
+            localStorage.setItem('showDesignAdjuster', show);
+        }
     </script>
 </body>
 

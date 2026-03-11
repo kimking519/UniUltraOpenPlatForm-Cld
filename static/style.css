@@ -8,6 +8,13 @@
    1. CSS VARIABLES - Light Mode (Default)
    ============================================ */
 :root {
+    /* Design Parameters (可由设计调节面板动态修改) */
+    --font-size: 14px;
+    --line-height: 1.5;
+    --border-radius: 12px;
+    --padding: 16px;
+    --transition: 0.3s;
+
     /* Primary Colors - Gradient Ready */
     --primary: #6366F1;
     --primary-hover: #4F46E5;
@@ -723,7 +730,8 @@ select {
     transform: rotate(180deg);
 }
 
-.dropdown-menu {
+/* User dropdown menu only - 不影响页面操作按钮下拉菜单 */
+.user-dropdown .dropdown-menu {
     position: absolute;
     top: 100%;
     right: 0;
@@ -742,6 +750,8 @@ select {
     z-index: var(--z-dropdown);
     padding: 0.5rem 0;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .user-dropdown:hover .dropdown-menu {
@@ -750,7 +760,8 @@ select {
     transform: translateY(0) scale(1);
 }
 
-.dropdown-item {
+/* User dropdown items */
+.user-dropdown .dropdown-item {
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -761,12 +772,12 @@ select {
     transition: all var(--transition-fast);
 }
 
-.dropdown-item:hover {
+.user-dropdown .dropdown-item:hover {
     background: rgba(99, 102, 241, 0.1);
     color: var(--primary);
 }
 
-.dropdown-item.logout:hover {
+.user-dropdown .dropdown-item.logout:hover {
     background: rgba(239, 68, 68, 0.1);
     color: #EF4444;
 }
@@ -1326,13 +1337,17 @@ input:checked + .slider:before {
     background: linear-gradient(180deg, var(--bg-glass) 0%, rgba(241, 245, 249, 0.5) 100%);
     padding: 0.875rem 1rem;
     text-align: left;
-    font-size: 0.75rem;
-    font-weight: 600;
+    font-size: 0.9rem;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--text-muted);
+    color: #1a1a1a;
     border-bottom: var(--border);
     white-space: nowrap;
+}
+
+[data-theme="dark"] .data-table th {
+    color: var(--text-muted);
 }
 
 .data-table th:first-child {

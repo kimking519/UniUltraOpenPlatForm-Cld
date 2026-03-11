@@ -158,9 +158,14 @@ def add_offer(data, emp_id, conn=None):
                 try: actual_qty = int(actual_qty)
                 except: actual_qty = inquiry_qty
 
+            # quoted_qty: 优先使用 quoted_qty，如果没有则使用 actual_qty（从需求管理转报价时）
             quoted_qty = data.get('quoted_qty')
             if not quoted_qty or str(quoted_qty).strip() == "" or str(quoted_qty) == "0":
-                quoted_qty = inquiry_qty
+                # 从需求管理转报价时，actual_qty 就是报价数量
+                if actual_qty and str(actual_qty) != "0":
+                    quoted_qty = actual_qty
+                else:
+                    quoted_qty = inquiry_qty
             else:
                 try: quoted_qty = int(quoted_qty)
                 except: quoted_qty = inquiry_qty
