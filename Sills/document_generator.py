@@ -594,6 +594,21 @@ def _generate_pi_kr_excel(orders, template_dir, output_path):
     except:
         pass
 
+    # ---- 5.5 复制 template2 的图片 ----
+    # 复制 template2 中的图片到 template1，并调整位置
+    for img in ws2._images:
+        from copy import deepcopy
+        new_img = deepcopy(img)
+        # 获取图片原始位置
+        if hasattr(img, 'anchor') and hasattr(img.anchor, '_from'):
+            # 计算新的行位置
+            original_row = img.anchor._from.row
+            if original_row >= template2_start_row - 1:  # 图片在 template2_start_row 之后
+                new_row = insert_start_row + (original_row - (template2_start_row - 1))
+                # 更新图片位置
+                new_img.anchor._from.row = new_row
+        ws1.add_image(new_img)
+
     # ---- 6. 保存文件 ----
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     wb1.save(output_path)
@@ -1081,6 +1096,19 @@ def _generate_pi_us_excel(orders, template_dir, output_path):
         ws1.merge_cells(f"A{total_row}:G{total_row}")
     except:
         pass
+
+    # ---- 5.5 复制 template2 的图片 ----
+    for img in ws2._images:
+        from copy import deepcopy
+        new_img = deepcopy(img)
+        # 获取图片原始位置
+        if hasattr(img, 'anchor') and hasattr(img.anchor, '_from'):
+            original_row = img.anchor._from.row
+            new_row = insert_start_row + original_row
+            new_img.anchor._from.row = new_row
+        ws1.add_image(new_img)
+
+    # ---- 6. 保存文件 ----
 
     # ---- 6. 保存文件 ----
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
