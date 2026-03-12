@@ -614,6 +614,11 @@ def _generate_pi_kr_excel(orders, template_dir, output_path):
         ws1.add_image(new_img)
 
     # ---- 6. 保存文件 ----
+    # 设置打印范围 (到 THANK YOU FOR YOUR BUSINESS! 行)
+    # KR-2 模板中 THANK YOU 在 Row 29，相对于 template2_start_row(11) 的偏移是 18
+    thank_you_row = insert_start_row + 18  # THANK YOU FOR YOUR BUSINESS! 所在行
+    ws1.print_area = f"$A$1:$H${thank_you_row}"
+
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     wb1.save(output_path)
     wb1.close()
@@ -1116,8 +1121,11 @@ def _generate_pi_us_excel(orders, template_dir, output_path):
         ws1.add_image(new_img)
 
     # ---- 6. 保存文件 ----
+    # 设置打印范围 (到 THANK YOU FOR YOUR BUSINESS! 行)
+    # US-2 模板中 THANK YOU 在 Row 19，相对于 Row 1 的偏移是 18
+    thank_you_row = insert_start_row + 18  # THANK YOU FOR YOUR BUSINESS! 所在行
+    ws1.print_area = f"$A$1:$H${thank_you_row}"
 
-    # ---- 6. 保存文件 ----
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     wb1.save(output_path)
     wb1.close()
