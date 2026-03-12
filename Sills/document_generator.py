@@ -354,7 +354,7 @@ def _generate_ci_us_excel(orders, template_dir, output_path):
 
 def generate_pi(order_ids, output_base=None, template_dir=None):
     """
-    生成 Proforma Invoice
+    生成 Proforma Invoice (KRW版本) - 双模板拼接方式
 
     Args:
         order_ids: 订单ID列表
@@ -395,7 +395,7 @@ def generate_pi(order_ids, output_base=None, template_dir=None):
     invoice_no = now.strftime("UNI%Y%m%d%H%M%S")
 
     output_dir = os.path.join(output_base, cli_name, date_dir)
-    output_filename = f"Proforma Invoice_{cli_name}_{invoice_no}.xlsx"
+    output_filename = f"Proforma Invoice_{cli_name}_{invoice_no}_KR.xlsx"
     output_path = os.path.join(output_dir, output_filename)
 
     # 获取汇率
@@ -414,10 +414,201 @@ def generate_pi(order_ids, output_base=None, template_dir=None):
             price_kwr = float(price_kwr)
         order["calculated_price_kwr"] = price_kwr
 
-    return _generate_pi_excel(orders, template_dir, output_path)
+    return _generate_pi_kr_excel(orders, template_dir, output_path)
 
 
-def _generate_pi_excel(orders, template_dir, output_path):
+def _generate_pi_kr_excel(orders, template_dir, output_path):
+    """
+    生成PI-KR Excel文件 - 双模板拼接方式
+
+    模板1 (KR-1): 头部信息 + 数据表
+    模板2 (KR-2): TOTAL AMOUNT + TERMS & CONDITIONS + 付款信息
+    """
+    from openpyxl.utils import get_column_letter
+    from copy import copy
+
+    data_count = len(orders)
+    first_order = orders[0]
+    now = datetime.now()
+
+    # 模板文件路径
+    template1_path = os.path.join(template_dir, "Proforma_Invoice_TAEJU_UNI2025110502_KR - 1.xlsx")
+    template2_path = os.path.join(template_dir, "Proforma_Invoice_TAEJU_UNI2025110502_KR - 2.xlsx")
+
+    # 检查新模板是否存在
+    use_new_template = os.path.exists(template1_path) and os.path.exists(template2_path)
+
+    if not use_new_template:
+        # 回退到旧模板
+        return _generate_pi_excel_legacy(orders, template_dir, output_path)
+
+    # 加载模板
+    wb1 = openpyxl.load_workbook(template1_path)
+    ws1 = wb1.active
+
+    wb2 = openpyxl.load_workbook(template2_path)
+    ws2 = wb2.active
+
+    # ---- 1. 填写头部信息 ----
+    # Row 8: Invoice No. (D8)
+    ws1.cell(8, 4).value = now.strftime("UNI%Y%m%d%H")
+    # Row 9: Date (D9)
+    ws1.cell(9, 4).value = now.strftime("%Y-%m-%d")
+
+    # Row 12-16: 客户信息
+    cli_name_en = first_order.get("cli_name_en", "") or first_order.get("cli_name", "")
+    ws1.cell(12, 3).value = cli_name_en
+    ws1.cell(13, 3).value = first_order.get("contact_name", "") or ""
+    ws1.cell(14, 3).value = first_order.get("email", "") or ""
+    ws1.cell(15, 3).value = first_order.get("phone", "") or ""
+    ws1.cell(16, 3).value = first_order.get("address", "") or ""
+
+    # ---- 2. 处理数据行 ----
+    # KR-1 模板: Row 18=表头, Row 19-20=示例数据
+    header_row = 18
+    first_data_row = 19
+    template_data_rows = 2  # 模板中有2行示例数据
+
+    # 调整行数
+    rows_diff = data_count - template_data_rows
+    if rows_diff > 0:
+        # 插入新行
+        ws1.insert_rows(first_data_row + template_data_rows, rows_diff)
+        # 复制样式
+        style_row = first_data_row  # 使用第一行作为样式模板
+        for i in range(rows_diff):
+            new_row = first_data_row + template_data_rows + i
+            for col in range(1, 9):
+                src_cell = ws1.cell(row=style_row, column=col)
+                dest_cell = ws1.cell(row=new_row, column=col)
+                if src_cell.has_style:
+                    dest_cell.font = copy(src_cell.font)
+                    dest_cell.border = copy(src_cell.border)
+                    dest_cell.fill = copy(src_cell.fill)
+                    dest_cell.alignment = copy(src_cell.alignment)
+    elif rows_diff < 0:
+        # 删除多余行
+        ws1.delete_rows(first_data_row + data_count, -rows_diff)
+
+    # 取消数据行的合并单元格
+    merged_to_remove = []
+    for merged_range in list(ws1.merged_cells.ranges):
+        if first_data_row <= merged_range.min_row < first_data_row + data_count:
+            merged_to_remove.append(merged_range)
+    for merged_range in merged_to_remove:
+        try:
+            ws1.unmerge_cells(str(merged_range))
+        except:
+            pass
+
+    # 写入数据
+    for idx, order in enumerate(orders):
+        row = first_data_row + idx
+
+        ws1.cell(row, 1).value = idx + 1
+        ws1.cell(row, 2).value = order.get("inquiry_mpn", "") or ""
+        ws1.cell(row, 3).value = order.get("inquiry_brand", "") or ""
+        ws1.cell(row, 4).value = order.get("date_code", "") or ""
+
+        qty = order.get("quoted_qty") or order.get("inquiry_qty") or ""
+        ws1.cell(row, 5).value = qty
+        if qty:
+            ws1.cell(row, 5).number_format = '#,##0'
+
+        ws1.cell(row, 6).value = order.get("delivery_date", "") or ""
+
+        price_kwr = order.get("calculated_price_kwr", "") or ""
+        ws1.cell(row, 7).value = price_kwr
+        if price_kwr:
+            ws1.cell(row, 7).number_format = '#,##0'
+
+        if qty and price_kwr:
+            ws1.cell(row, 8).value = f"=G{row}*E{row}"
+            ws1.cell(row, 8).number_format = '#,##0'
+
+    # ---- 3. 计算 Total 行位置 ----
+    last_data_row = first_data_row + data_count - 1
+
+    # ---- 4. 拼接 template2 内容 ----
+    # template2 从 Row 11 开始是 TOTAL AMOUNT, 空行, TERMS & CONDITIONS 等
+    # 跳过 Row 1-10 的头部信息
+    template2_start_row = 11  # TOTAL AMOUNT 所在行
+    insert_start_row = last_data_row + 2  # 数据行后空一行
+
+    # 复制 template2 的所有行到 template1
+    for src_row_idx in range(template2_start_row, ws2.max_row + 1):
+        dest_row_idx = insert_start_row + (src_row_idx - template2_start_row)
+
+        # 插入新行
+        ws1.insert_rows(dest_row_idx)
+
+        for src_col in range(1, 9):
+            src_cell = ws2.cell(row=src_row_idx, column=src_col)
+            dest_cell = ws1.cell(row=dest_row_idx, column=src_col)
+
+            if src_cell.value is not None:
+                dest_cell.value = src_cell.value
+
+            # 复制样式
+            if src_cell.has_style:
+                dest_cell.font = copy(src_cell.font)
+                dest_cell.border = copy(src_cell.border)
+                dest_cell.fill = copy(src_cell.fill)
+                dest_cell.number_format = src_cell.number_format
+                dest_cell.alignment = copy(src_cell.alignment)
+
+    # 处理 template2 的合并单元格（只处理从 template2_start_row 开始的）
+    for merged_range in ws2.merged_cells.ranges:
+        # 只处理 Row 11 及之后的合并单元格
+        if merged_range.min_row >= template2_start_row:
+            new_min_row = insert_start_row + (merged_range.min_row - template2_start_row)
+            new_max_row = insert_start_row + (merged_range.max_row - template2_start_row)
+            try:
+                ws1.merge_cells(
+                    start_row=new_min_row,
+                    start_column=merged_range.min_col,
+                    end_row=new_max_row,
+                    end_column=merged_range.max_col
+                )
+            except:
+                pass
+
+    # ---- 5. 更新 TOTAL AMOUNT 行的公式 ----
+    # template2 Row 11 是 TOTAL AMOUNT，公式需要更新
+    total_row = insert_start_row
+
+    # 取消 TOTAL 行的合并单元格
+    for merged_range in list(ws1.merged_cells.ranges):
+        if merged_range.min_row == total_row:
+            try:
+                ws1.unmerge_cells(str(merged_range))
+            except:
+                pass
+
+    ws1.cell(total_row, 8).value = f"=SUM(H{first_data_row}:H{last_data_row})"
+    ws1.cell(total_row, 8).number_format = '#,##0'
+
+    # 重新合并 TOTAL 行
+    try:
+        ws1.merge_cells(f"A{total_row}:G{total_row}")
+    except:
+        pass
+
+    # ---- 6. 保存文件 ----
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    wb1.save(output_path)
+    wb1.close()
+    wb2.close()
+
+    return True, {
+        "excel_path": output_path,
+        "invoice_no": now.strftime("UNI%Y%m%d%H"),
+        "cli_name": first_order.get("cli_name", ""),
+        "count": data_count
+    }
+
+
+def _generate_pi_excel_legacy(orders, template_dir, output_path):
     """生成PI Excel文件"""
     data_count = len(orders)
     first_order = orders[0]
@@ -710,33 +901,211 @@ def generate_pi_us(order_ids, output_base=None, template_dir=None):
 
 
 def _generate_pi_us_excel(orders, template_dir, output_path):
-    """生成PI-US Excel文件"""
+    """
+    生成PI-US Excel文件 - 双模板拼接方式
+
+    模板1 (US-1): 头部信息 + 数据表
+    模板2 (US-2): Total Amount + TERMS & CONDITIONS + 付款信息
+    """
+    from openpyxl.utils import get_column_letter
+    from copy import copy
+
     data_count = len(orders)
     first_order = orders[0]
     now = datetime.now()
 
-    # 查找US模板文件
-    template_path = None
-    if os.path.isdir(template_dir):
-        # 优先使用US专用模板
-        preferred_template = "Proforma_Invoice_TAEJU_UNI2025110502_US.xlsx"
-        preferred_path = os.path.join(template_dir, preferred_template)
-        if os.path.exists(preferred_path):
-            template_path = preferred_path
-        else:
+    # 模板文件路径
+    template1_path = os.path.join(template_dir, "Proforma_Invoice_TAEJU_UNI2025110502_US - 1.xlsx")
+    template2_path = os.path.join(template_dir, "Proforma_Invoice_TAEJU_UNI2025110502_US - 2.xlsx")
+
+    # 检查新模板是否存在
+    use_new_template = os.path.exists(template1_path) and os.path.exists(template2_path)
+
+    if not use_new_template:
+        # 回退到旧模板
+        template_path = None
+        if os.path.isdir(template_dir):
             for f in os.listdir(template_dir):
-                if f.endswith(".xlsx") and not f.startswith("~") and "_US" in f:
+                if f.endswith(".xlsx") and not f.startswith("~") and "_US.xlsx" in f and "- " not in f:
                     template_path = os.path.join(template_dir, f)
                     break
+        if not template_path or not os.path.exists(template_path):
+            return False, f"US模板文件不存在于 {template_dir}"
+        return _generate_pi_us_excel_legacy(orders, template_path, output_path)
 
-    if not template_path or not os.path.exists(template_path):
-        return False, f"US模板文件不存在于 {template_dir}"
+    # 加载模板
+    wb1 = openpyxl.load_workbook(template1_path)
+    ws1 = wb1.active
+
+    wb2 = openpyxl.load_workbook(template2_path)
+    ws2 = wb2.active
+
+    # ---- 1. 填写头部信息 ----
+    # Row 8: Invoice No. (D8)
+    ws1.cell(8, 4).value = now.strftime("UNI%Y%m%d%H")
+    # Row 9: Date (D9)
+    ws1.cell(9, 4).value = now.strftime("%Y-%m-%d")
+
+    # Row 12-16: 客户信息
+    cli_name_en = first_order.get("cli_name_en", "") or first_order.get("cli_name", "")
+    ws1.cell(12, 3).value = cli_name_en
+    ws1.cell(13, 3).value = first_order.get("contact_name", "") or ""
+    ws1.cell(14, 3).value = first_order.get("email", "") or ""
+    ws1.cell(15, 3).value = first_order.get("phone", "") or ""
+    ws1.cell(16, 3).value = first_order.get("address", "") or ""
+
+    # ---- 2. 处理数据行 ----
+    # US-1 模板: Row 18=表头, Row 19=示例数据 (只有1行)
+    header_row = 18
+    first_data_row = 19
+    template_data_rows = 1  # US模板只有1行示例数据
+
+    # 调整行数
+    rows_diff = data_count - template_data_rows
+    if rows_diff > 0:
+        # 插入新行
+        ws1.insert_rows(first_data_row + template_data_rows, rows_diff)
+        # 复制样式
+        style_row = first_data_row  # 使用第一行作为样式模板
+        for i in range(rows_diff):
+            new_row = first_data_row + template_data_rows + i
+            for col in range(1, 9):
+                src_cell = ws1.cell(row=style_row, column=col)
+                dest_cell = ws1.cell(row=new_row, column=col)
+                if src_cell.has_style:
+                    dest_cell.font = copy(src_cell.font)
+                    dest_cell.border = copy(src_cell.border)
+                    dest_cell.fill = copy(src_cell.fill)
+                    dest_cell.alignment = copy(src_cell.alignment)
+    elif rows_diff < 0:
+        # 删除多余行
+        ws1.delete_rows(first_data_row + data_count, -rows_diff)
+
+    # 取消数据行的合并单元格
+    merged_to_remove = []
+    for merged_range in list(ws1.merged_cells.ranges):
+        if first_data_row <= merged_range.min_row < first_data_row + data_count:
+            merged_to_remove.append(merged_range)
+    for merged_range in merged_to_remove:
+        try:
+            ws1.unmerge_cells(str(merged_range))
+        except:
+            pass
+
+    # 写入数据
+    for idx, order in enumerate(orders):
+        row = first_data_row + idx
+
+        ws1.cell(row, 1).value = idx + 1
+        ws1.cell(row, 2).value = order.get("inquiry_mpn", "") or ""
+        ws1.cell(row, 3).value = order.get("inquiry_brand", "") or ""
+        ws1.cell(row, 4).value = order.get("date_code", "") or ""
+
+        qty = order.get("quoted_qty") or order.get("inquiry_qty") or ""
+        ws1.cell(row, 5).value = qty
+        if qty:
+            ws1.cell(row, 5).number_format = '#,##0'
+
+        ws1.cell(row, 6).value = order.get("delivery_date", "") or ""
+
+        price_usd = order.get("calculated_price_usd", "") or ""
+        ws1.cell(row, 7).value = price_usd
+        if price_usd:
+            ws1.cell(row, 7).number_format = '#,##0.000'
+
+        if qty and price_usd:
+            ws1.cell(row, 8).value = f"=G{row}*E{row}"
+            ws1.cell(row, 8).number_format = '#,##0.000'
+
+    # ---- 3. 计算 Total 行位置 ----
+    last_data_row = first_data_row + data_count - 1
+
+    # ---- 4. 拼接 template2 内容 ----
+    # template2 从 Row 1 开始是 Total Amount, 空行, TERMS & CONDITIONS 等
+    insert_start_row = last_data_row + 2  # 数据行后空一行
+
+    # 复制 template2 的所有行到 template1
+    for src_row_idx in range(1, ws2.max_row + 1):
+        dest_row_idx = insert_start_row + src_row_idx - 1
+
+        # 插入新行 (除了第一行)
+        if src_row_idx > 1:
+            ws1.insert_rows(dest_row_idx)
+
+        for src_col in range(1, 9):
+            src_cell = ws2.cell(row=src_row_idx, column=src_col)
+            dest_cell = ws1.cell(row=dest_row_idx, column=src_col)
+
+            if src_cell.value is not None:
+                dest_cell.value = src_cell.value
+
+            # 复制样式
+            if src_cell.has_style:
+                dest_cell.font = copy(src_cell.font)
+                dest_cell.border = copy(src_cell.border)
+                dest_cell.fill = copy(src_cell.fill)
+                dest_cell.number_format = src_cell.number_format
+                dest_cell.alignment = copy(src_cell.alignment)
+
+    # 处理 template2 的合并单元格
+    for merged_range in ws2.merged_cells.ranges:
+        new_min_row = merged_range.min_row + insert_start_row - 1
+        new_max_row = merged_range.max_row + insert_start_row - 1
+        try:
+            ws1.merge_cells(
+                start_row=new_min_row,
+                start_column=merged_range.min_col,
+                end_row=new_max_row,
+                end_column=merged_range.max_col
+            )
+        except:
+            pass
+
+    # ---- 5. 更新 Total Amount 行的公式 ----
+    # template2 Row 1 是 Total Amount，公式需要更新
+    total_row = insert_start_row
+
+    # 取消 Total 行的合并单元格
+    for merged_range in list(ws1.merged_cells.ranges):
+        if merged_range.min_row == total_row:
+            try:
+                ws1.unmerge_cells(str(merged_range))
+            except:
+                pass
+
+    ws1.cell(total_row, 8).value = f"=SUM(H{first_data_row}:H{last_data_row})"
+    ws1.cell(total_row, 8).number_format = '#,##0.000'
+
+    # 重新合并 Total 行
+    try:
+        ws1.merge_cells(f"A{total_row}:G{total_row}")
+    except:
+        pass
+
+    # ---- 6. 保存文件 ----
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    wb1.save(output_path)
+    wb1.close()
+    wb2.close()
+
+    return True, {
+        "excel_path": output_path,
+        "invoice_no": now.strftime("UNI%Y%m%d%H"),
+        "cli_name": first_order.get("cli_name", ""),
+        "count": data_count
+    }
+
+
+def _generate_pi_us_excel_legacy(orders, template_path, output_path):
+    """旧版PI-US生成逻辑 - 兼容旧版本模板"""
+    data_count = len(orders)
+    first_order = orders[0]
+    now = datetime.now()
 
     wb = openpyxl.load_workbook(template_path)
     ws = wb.active
 
-    # ---- 1. 填写头部信息 ----
-    # 根据US模板结构: D8=Invoice No, D9=Date
+    # 填写头部信息
     ws.cell(8, 4).value = now.strftime("UNI%Y%m%d%H")
     ws.cell(9, 4).value = now.strftime("%Y-%m-%d")
 
@@ -747,16 +1116,13 @@ def _generate_pi_us_excel(orders, template_dir, output_path):
     ws.cell(15, 3).value = first_order.get("phone", "") or ""
     ws.cell(16, 3).value = first_order.get("address", "") or ""
 
-    # ---- 2. 处理数据行 ----
-    # US模板结构: Row 18=表头, Row 19=数据行, Row 20=Total (A20:G20 merged), Row 21=空, Row 22=TERMS
+    # 处理数据行
     header_row = 18
     first_data_row = 19
-    template_data_rows = 1  # US模板只有1行示例数据
+    template_data_rows = 1
 
-    # 调整行数
     rows_diff = data_count - template_data_rows
     if rows_diff > 0:
-        # 在 Row 20 插入新行（Total 行会自动下移）
         ws.insert_rows(20, rows_diff)
         for i in range(rows_diff):
             new_row = 20 + i
@@ -764,7 +1130,7 @@ def _generate_pi_us_excel(orders, template_dir, output_path):
 
     actual_total_row = first_data_row + data_count
 
-    # 取消数据行的合并单元格（关键：在写入数据前）
+    # 取消数据行的合并单元格
     merged_to_remove = []
     for merged_range in list(ws.merged_cells.ranges):
         min_row = merged_range.min_row
@@ -776,7 +1142,7 @@ def _generate_pi_us_excel(orders, template_dir, output_path):
         except:
             pass
 
-    # 写入数据 (US模板列结构: A=#, B=Part No., C=Manufacturer, D=D/C, E=Qty, F=L/T, G=Unit Price USD, H=Total USD)
+    # 写入数据
     for idx, order in enumerate(orders):
         row = first_data_row + idx
 
@@ -792,7 +1158,6 @@ def _generate_pi_us_excel(orders, template_dir, output_path):
 
         ws.cell(row, 6).value = order.get("delivery_date", "") or ""
 
-        # USD价格
         price_usd = order.get("calculated_price_usd", "") or ""
         ws.cell(row, 7).value = price_usd
         if price_usd:
@@ -802,13 +1167,14 @@ def _generate_pi_us_excel(orders, template_dir, output_path):
             ws.cell(row, 8).value = f"=G{row}*E{row}"
             ws.cell(row, 8).number_format = '#,##0.000'
 
-    # 更新 TOTAL 行 - 只更新公式，保留模板原有的文字
+    # 更新 TOTAL 行
     last_data_row = actual_total_row - 1
     ws.cell(actual_total_row, 8).value = f"=SUM(H{first_data_row}:H{last_data_row})"
     ws.cell(actual_total_row, 8).number_format = '#,##0.000'
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     wb.save(output_path)
+    wb.close()
 
     return True, {
         "excel_path": output_path,
