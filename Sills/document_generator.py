@@ -600,25 +600,9 @@ def _generate_pi_excel(orders, template_dir, output_path):
     # 更新 TOTAL 行
     last_data_row = actual_total_row - 1
 
-    # 取消 TOTAL 行的合并单元格
-    merged_to_unmerge = []
-    for merged_range in list(ws.merged_cells.ranges):
-        if merged_range.min_row == actual_total_row:
-            merged_to_unmerge.append(merged_range)
-    for merged_range in merged_to_unmerge:
-        try:
-            ws.unmerge_cells(str(merged_range))
-        except:
-            pass
-
-    ws.cell(actual_total_row, 1).value = "Total Amount:"
+    # 只更新公式，保留模板原有的文字
     ws.cell(actual_total_row, 8).value = f"=SUM(H{first_data_row}:H{last_data_row})"
     ws.cell(actual_total_row, 8).number_format = '#,##0'
-
-    try:
-        ws.merge_cells(f"A{actual_total_row}:G{actual_total_row}")
-    except:
-        pass
 
     ws.print_area = f"$A$1:$H${ws.max_row}"
 
@@ -818,25 +802,10 @@ def _generate_pi_us_excel(orders, template_dir, output_path):
             ws.cell(row, 8).value = f"=G{row}*E{row}"
             ws.cell(row, 8).number_format = '#,##0.000'
 
-    # 更新 TOTAL 行
+    # 更新 TOTAL 行 - 只更新公式，保留模板原有的文字
     last_data_row = actual_total_row - 1
-
-    # 取消 TOTAL 行的合并单元格
-    for merged_range in list(ws.merged_cells.ranges):
-        if merged_range.min_row == actual_total_row:
-            try:
-                ws.unmerge_cells(str(merged_range))
-            except:
-                pass
-
-    ws.cell(actual_total_row, 1).value = "Total Amount:"
     ws.cell(actual_total_row, 8).value = f"=SUM(H{first_data_row}:H{last_data_row})"
     ws.cell(actual_total_row, 8).number_format = '#,##0.000'
-
-    try:
-        ws.merge_cells(f"A{actual_total_row}:G{actual_total_row}")
-    except:
-        pass
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     wb.save(output_path)
