@@ -596,17 +596,21 @@ def _generate_pi_kr_excel(orders, template_dir, output_path):
 
     # ---- 5.5 复制 template2 的图片 ----
     # 复制 template2 中的图片到 template1，并调整位置
+    row_offset = insert_start_row - (template2_start_row - 1)  # 行偏移量
     for img in ws2._images:
         from copy import deepcopy
         new_img = deepcopy(img)
         # 获取图片原始位置
         if hasattr(img, 'anchor') and hasattr(img.anchor, '_from'):
-            # 计算新的行位置
-            original_row = img.anchor._from.row
-            if original_row >= template2_start_row - 1:  # 图片在 template2_start_row 之后
-                new_row = insert_start_row + (original_row - (template2_start_row - 1))
-                # 更新图片位置
-                new_img.anchor._from.row = new_row
+            # 更新起始位置
+            original_from_row = img.anchor._from.row
+            if original_from_row >= template2_start_row - 1:
+                new_img.anchor._from.row = original_from_row + row_offset
+            # 更新结束位置 (TwoCellAnchor)
+            if hasattr(img.anchor, 'to'):
+                original_to_row = img.anchor.to.row
+                if original_to_row >= template2_start_row - 1:
+                    new_img.anchor.to.row = original_to_row + row_offset
         ws1.add_image(new_img)
 
     # ---- 6. 保存文件 ----
@@ -1098,14 +1102,17 @@ def _generate_pi_us_excel(orders, template_dir, output_path):
         pass
 
     # ---- 5.5 复制 template2 的图片 ----
+    row_offset = insert_start_row - 1  # 行偏移量 (template2 从 Row 1 开始)
     for img in ws2._images:
         from copy import deepcopy
         new_img = deepcopy(img)
-        # 获取图片原始位置
         if hasattr(img, 'anchor') and hasattr(img.anchor, '_from'):
-            original_row = img.anchor._from.row
-            new_row = insert_start_row + original_row
-            new_img.anchor._from.row = new_row
+            original_from_row = img.anchor._from.row
+            new_img.anchor._from.row = original_from_row + row_offset
+            # 更新结束位置 (TwoCellAnchor)
+            if hasattr(img.anchor, 'to'):
+                original_to_row = img.anchor.to.row
+                new_img.anchor.to.row = original_to_row + row_offset
         ws1.add_image(new_img)
 
     # ---- 6. 保存文件 ----
