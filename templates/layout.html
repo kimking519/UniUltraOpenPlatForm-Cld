@@ -324,6 +324,37 @@
                 display: none;
             }
         }
+
+        /* 复制按钮样式 */
+        .copyable-cell {
+            position: relative;
+            cursor: default;
+        }
+        .copy-btn {
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0;
+            transition: opacity 0.2s;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 2px 4px;
+            cursor: pointer;
+            font-size: 10px;
+            line-height: 1;
+        }
+        .copyable-cell:hover .copy-btn {
+            opacity: 1;
+        }
+        .copy-btn:hover {
+            background: #4f46e5;
+        }
+        .copy-btn:active {
+            transform: translateY(-50%) scale(0.95);
+        }
     </style>
 </head>
 
@@ -1089,6 +1120,30 @@ body {
                 adjuster.style.display = 'none';
             }
             localStorage.setItem('showDesignAdjuster', show);
+        }
+
+        /* 复制到剪贴板功能 */
+        function copyToClipboard(text, btn) {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = btn.textContent;
+                btn.textContent = '✓';
+                btn.style.background = '#10b981';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = '';
+                }, 800);
+            }).catch(err => {
+                console.error('复制失败:', err);
+                // Fallback
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                btn.textContent = '✓';
+                setTimeout(() => { btn.textContent = '复制'; }, 800);
+            });
         }
     </script>
 </body>

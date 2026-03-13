@@ -189,10 +189,6 @@
         background: #ffffff;
     }
 
-    .data-table tbody tr:hover {
-        background: rgba(99, 102, 241, 0.1);
-    }
-
     [data-theme="dark"] .data-table th {
         background: linear-gradient(180deg, rgba(51, 65, 85, 0.9) 0%, rgba(30, 41, 59, 0.9) 100%);
         border-bottom: 2px solid #475569;
@@ -210,10 +206,6 @@
 
     [data-theme="dark"] .data-table tbody tr:nth-child(even) {
         background: rgba(30, 41, 59, 0.3);
-    }
-
-    [data-theme="dark"] .data-table tbody tr:hover {
-        background: rgba(99, 102, 241, 0.15);
     }
 </style>
 
@@ -348,7 +340,7 @@
                             value="{{ row.offer_id }}"></td>
                     {% endif %}
                     <td>{{ row.offer_date }}</td>
-                    <td>{{ row.offer_id }}</td>
+                    <td class="copyable-cell">{{ row.offer_id }}<button class="copy-btn" onclick="copyToClipboard('{{ row.offer_id }}', this)">复制</button></td>
                     <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'quote_id')"><span>{{ row.quote_id
                             }}</span></td>
                     <td>{{ row.cli_name }}</td>
@@ -361,10 +353,10 @@
                     <td>{{ row.vendor_name }}</td>
                     {% endif %}
 
-                    <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'inquiry_mpn')"><span>{{ row.inquiry_mpn
-                            }}</span></td>
-                    <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'quoted_mpn')"><span>{{ row.quoted_mpn
-                            }}</span></td>
+                    <td class="copyable-cell" ondblclick="makeEditable(this, '{{ row.offer_id }}', 'inquiry_mpn')"><span>{{ row.inquiry_mpn
+                            }}</span><button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard('{{ row.inquiry_mpn }}', this)">复制</button></td>
+                    <td class="copyable-cell" ondblclick="makeEditable(this, '{{ row.offer_id }}', 'quoted_mpn')"><span>{{ row.quoted_mpn
+                            }}</span><button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard('{{ row.quoted_mpn }}', this)">复制</button></td>
                     <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'quoted_brand')"><span>{{ row.quoted_brand
                             }}</span></td>
                     <td ondblclick="makeEditable(this, '{{ row.offer_id }}', 'quoted_qty', 'number')"><span>{{
@@ -738,8 +730,10 @@
                         body: kwrFormData
                     });
 
-                    // 刷新页面显示最新数据
-                    setTimeout(() => window.location.reload(), 500);
+                    // 局部更新显示
+                    td.innerHTML = `<span>${newValue}</span>`;
+                    td.style.backgroundColor = '#dcfce7';
+                    setTimeout(() => td.style.backgroundColor = 'transparent', 1000);
                 } else {
                     alert('更新失败：' + data.message);
                     td.innerHTML = `<span>${originalValue}</span>`;
@@ -818,9 +812,9 @@
                 if (data.success) {
                     // USD/KWR 修改时不自动更新 RMB（按用户需求）
                     td.innerHTML = `<span style="color:var(--primary);">${newValue}</span>`;
-
-                    // 刷新页面显示最新数据
-                    setTimeout(() => window.location.reload(), 500);
+                    // 局部更新，高亮显示
+                    td.style.backgroundColor = '#dcfce7';
+                    setTimeout(() => td.style.backgroundColor = 'transparent', 1000);
                 } else {
                     alert('更新失败：' + data.message);
                     td.innerHTML = `<span style="color:var(--primary);">${originalValue}</span>`;

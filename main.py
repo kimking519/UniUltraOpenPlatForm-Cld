@@ -411,7 +411,9 @@ async def cli_page(request: Request, page: int = 1, search: str = "", current_us
 
 @app.post("/cli/add")
 async def cli_add(
-    cli_name: str = Form(...), region: str = Form("韩国"), credit_level: str = Form("A"),
+    cli_name: str = Form(...), cli_full_name: str = Form(""), cli_name_en: str = Form(""),
+    contact_name: str = Form(""), address: str = Form(""),
+    region: str = Form("韩国"), credit_level: str = Form("A"),
     margin_rate: float = Form(10.0), emp_id: str = Form(...), website: str = Form(""),
     payment_terms: str = Form(""), email: str = Form(""), phone: str = Form(""),
     remark: str = Form(""), current_user: dict = Depends(login_required)
@@ -419,7 +421,9 @@ async def cli_add(
     if current_user['rule'] not in ['3', '0']:
         return RedirectResponse(url="/cli", status_code=303)
     data = {
-        "cli_name": cli_name, "region": region, "credit_level": credit_level,
+        "cli_name": cli_name, "cli_full_name": cli_full_name, "cli_name_en": cli_name_en,
+        "contact_name": contact_name, "address": address,
+        "region": region, "credit_level": credit_level,
         "margin_rate": margin_rate, "emp_id": emp_id, "website": website,
         "payment_terms": payment_terms, "email": email, "phone": phone, "remark": remark
     }

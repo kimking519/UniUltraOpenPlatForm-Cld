@@ -459,7 +459,6 @@ th {
 td {
     padding: 1rem;
     border-bottom: var(--border-light);
-    transition: background var(--transition-fast);
 }
 
 /* Zebra stripes */
@@ -469,15 +468,6 @@ tr:nth-child(even) td {
 
 [data-theme="dark"] tr:nth-child(even) td {
     background: rgba(99, 102, 241, 0.05);
-}
-
-/* Row hover */
-tr:hover td {
-    background: rgba(99, 102, 241, 0.05);
-}
-
-[data-theme="dark"] tr:hover td {
-    background: rgba(99, 102, 241, 0.1);
 }
 
 tr:last-child td {
@@ -1364,18 +1354,6 @@ input:checked + .slider:before {
     font-size: 0.875rem;
     color: var(--text-main);
     transition: background var(--transition-fast);
-}
-
-.data-table tbody tr {
-    transition: all var(--transition-fast);
-}
-
-.data-table tbody tr:hover {
-    background: rgba(99, 102, 241, 0.04);
-}
-
-[data-theme="dark"] .data-table tbody tr:hover {
-    background: rgba(99, 102, 241, 0.08);
 }
 
 .data-table tbody tr:last-child td {

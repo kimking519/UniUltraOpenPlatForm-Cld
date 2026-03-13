@@ -189,10 +189,6 @@
         background: #ffffff;
     }
 
-    .data-table tbody tr:hover {
-        background: rgba(99, 102, 241, 0.1);
-    }
-
     [data-theme="dark"] .data-table th {
         background: linear-gradient(180deg, rgba(51, 65, 85, 0.9) 0%, rgba(30, 41, 59, 0.9) 100%);
         border-bottom: 2px solid #475569;
@@ -210,10 +206,6 @@
 
     [data-theme="dark"] .data-table tbody tr:nth-child(even) {
         background: rgba(30, 41, 59, 0.3);
-    }
-
-    [data-theme="dark"] .data-table tbody tr:hover {
-        background: rgba(99, 102, 241, 0.15);
     }
 
     .sticky-action {
@@ -344,14 +336,14 @@
                             value="{{ row.quote_id }}"></td>
                     {% endif %}
                     <td>{{ row.quote_date }}</td>
-                    <td>{{ row.quote_id }}</td>
+                    <td class="copyable-cell">{{ row.quote_id }}<button class="copy-btn" onclick="copyToClipboard('{{ row.quote_id }}', this)">复制</button></td>
 
                     {% if current_user.rule == '3' or current_user.rule == '0' %}
                     <td ondblclick="makeEditableSelect(this, '{{ row.quote_id }}', 'cli_id', '{{ row.cli_id }}')">
                         <span>{{ row.cli_name }}</span>
                     </td>
-                    <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'quoted_mpn')"><span>{{ row.quoted_mpn
-                            }}</span></td>
+                    <td class="copyable-cell" ondblclick="makeEditable(this, '{{ row.quote_id }}', 'quoted_mpn')"><span>{{ row.quoted_mpn
+                            }}</span><button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard('{{ row.quoted_mpn }}', this)">复制</button></td>
                     <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'inquiry_brand')"><span>{{
                             row.inquiry_brand }}</span></td>
                     <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'actual_qty', 'number')"><span>{{
@@ -362,7 +354,7 @@
                             }}</span></td>
                     <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'delivery_date')"><span>{{
                             row.delivery_date }}</span></td>
-                    <td style="color: var(--secondary);">{{ row.combined_info }}</td>
+                    <td style="color: var(--secondary);" class="copyable-cell">{{ row.combined_info }}<button class="copy-btn" onclick="copyToClipboard('{{ row.combined_info }}', this)">复制</button></td>
                     <td ondblclick="makeEditable(this, '{{ row.quote_id }}', 'remark')"><span>{{ row.remark }}</span>
                     </td>
                     <td ondblclick="makeStatusEditable(this, '{{ row.quote_id }}', '{{ row.status }}')">
