@@ -1,0 +1,2105 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .mail-container {
+        display: grid;
+        grid-template-columns: 250px 1fr 450px;
+        gap: 1rem;
+        height: calc(100vh - 120px);
+    }
+
+    /* Gmail-style 3-column layout */
+    .mail-container.detail-closed {
+        grid-template-columns: 250px 1fr 0px;
+    }
+
+    .mail-container.detail-closed .mail-detail-panel {
+        display: none;
+    }
+
+    .mail-sidebar {
+        background: var(--card-bg);
+        border-radius: var(--radius-lg);
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        height: 100%;
+    }
+
+    .mail-sidebar-header {
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 1rem;
+    }
+
+    .compose-btn {
+        width: 100%;
+        padding: 0.75rem;
+        background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+        color: white;
+        border: none;
+        border-radius: var(--radius);
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .compose-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .folder-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        flex: 1;
+    }
+
+    .folder-item {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        border-radius: var(--radius);
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-bottom: 0.25rem;
+    }
+
+    .folder-item:hover {
+        background: var(--bg-hover);
+    }
+
+    .folder-item.active {
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+        color: var(--primary);
+    }
+
+    .folder-item svg {
+        width: 20px;
+        height: 20px;
+        margin-right: 0.75rem;
+    }
+
+    .folder-badge {
+        margin-left: auto;
+        background: var(--primary);
+        color: white;
+        font-size: 0.75rem;
+        padding: 0.125rem 0.5rem;
+        border-radius: 10px;
+    }
+
+    .mail-main {
+        display: flex;
+        flex-direction: column;
+        background: var(--card-bg);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+    }
+
+    .mail-toolbar {
+        display: flex;
+        align-items: center;
+        padding: 1rem;
+        border-bottom: 1px solid var(--border);
+        gap: 0.75rem;
+    }
+
+    .mail-toolbar input[type="text"] {
+        flex: 1;
+        padding: 0.5rem 1rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--bg-main);
+        color: var(--text-main);
+    }
+
+    .toolbar-btn {
+        padding: 0.5rem 1rem;
+        background: var(--bg-main);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        color: var(--text-main);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+    }
+
+    .toolbar-btn:hover {
+        background: var(--bg-hover);
+    }
+
+    .toolbar-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .mail-list {
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    .mail-item {
+        display: grid;
+        grid-template-columns: 200px 1fr 120px;
+        gap: 1rem;
+        padding: 1rem;
+        border-bottom: 1px solid var(--border);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .mail-item:hover {
+        background: var(--bg-hover);
+    }
+
+    .mail-item.unread {
+        font-weight: 600;
+    }
+
+    .mail-sender {
+        color: var(--text-main);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .mail-subject {
+        color: var(--text-main);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .mail-preview {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .mail-date {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        text-align: right;
+    }
+
+    .mail-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 300px;
+        color: var(--text-muted);
+    }
+
+    .mail-empty svg {
+        width: 64px;
+        height: 64px;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    .pagination {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 1rem;
+        border-top: 1px solid var(--border);
+    }
+
+    .pagination button {
+        padding: 0.5rem 1rem;
+        border: 1px solid var(--border);
+        background: var(--card-bg);
+        border-radius: var(--radius);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .pagination button:hover:not(:disabled) {
+        background: var(--bg-hover);
+    }
+
+    .pagination button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .pagination span {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+    }
+
+    /* Modal Styles */
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal.active {
+        display: flex;
+    }
+
+    /* Gmail-style Compose Panel - Right Side */
+    .compose-panel {
+        display: none;
+        position: fixed;
+        bottom: 0;
+        right: 1rem;
+        width: 480px;
+        min-width: 320px;
+        max-width: calc(100vw - 2rem);
+        height: 500px;
+        min-height: 300px;
+        max-height: calc(100vh - 4rem);
+        background: var(--card-bg);
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+        flex-direction: column;
+        overflow: hidden;
+        resize: both;
+    }
+
+    .compose-panel.active {
+        display: flex;
+        animation: slideUp 0.2s ease-out;
+    }
+
+    /* Resize handle indicator */
+    .compose-panel::after {
+        content: '';
+        position: absolute;
+        bottom: 2px;
+        right: 2px;
+        width: 12px;
+        height: 12px;
+        background: linear-gradient(135deg, transparent 50%, var(--text-muted) 50%);
+        pointer-events: none;
+        opacity: 0.5;
+    }
+
+    /* Drag drop zone */
+    .drop-zone {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(99, 102, 241, 0.1);
+        border: 2px dashed #6366F1;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        pointer-events: none;
+    }
+
+    .drop-zone.active {
+        display: flex;
+    }
+
+    .drop-zone-text {
+        font-size: 1.1rem;
+        color: #6366F1;
+        font-weight: 500;
+    }
+
+    .compose-panel-body.drag-over {
+        position: relative;
+    }
+
+    @keyframes slideUp {
+        from {
+            transform: translateY(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    .compose-panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        background: linear-gradient(135deg, #404040 0%, #2d2d2d 100%);
+        color: white;
+        cursor: move;
+    }
+
+    .compose-panel-header h3 {
+        font-size: 0.95rem;
+        font-weight: 500;
+        margin: 0;
+    }
+
+    .compose-panel-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .compose-panel-btn {
+        width: 28px;
+        height: 28px;
+        border: none;
+        background: transparent;
+        color: white;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: background 0.2s;
+    }
+
+    .compose-panel-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .compose-panel-body {
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .compose-field {
+        display: flex;
+        align-items: center;
+        padding: 0.5rem 1rem;
+        border-bottom: 1px solid var(--border);
+        min-height: 42px;
+    }
+
+    .compose-field-label {
+        width: 60px;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        flex-shrink: 0;
+    }
+
+    .compose-field input {
+        flex: 1;
+        border: none;
+        background: transparent;
+        font-size: 0.9rem;
+        color: var(--text-main);
+        outline: none;
+    }
+
+    .compose-field input::placeholder {
+        color: var(--text-muted);
+    }
+
+    .compose-body-wrapper {
+        flex: 1;
+        padding: 0.75rem 1rem;
+        min-height: 200px;
+    }
+
+    .compose-body-wrapper textarea {
+        width: 100%;
+        height: 100%;
+        min-height: 200px;
+        border: none;
+        background: transparent;
+        font-size: 0.9rem;
+        color: var(--text-main);
+        resize: none;
+        outline: none;
+        line-height: 1.5;
+    }
+
+    .compose-body-wrapper textarea::placeholder {
+        color: var(--text-muted);
+    }
+
+    .compose-attachments {
+        padding: 0.5rem 1rem;
+        border-top: 1px solid var(--border);
+        display: none;
+    }
+
+    .compose-attachments.has-files {
+        display: block;
+    }
+
+    .attachment-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .attachment-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.375rem 0.75rem;
+        background: var(--bg-main);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        font-size: 0.8rem;
+    }
+
+    .attachment-item .remove {
+        cursor: pointer;
+        opacity: 0.5;
+        font-size: 1rem;
+    }
+
+    .attachment-item .remove:hover {
+        opacity: 1;
+    }
+
+    .compose-panel-footer {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        border-top: 1px solid var(--border);
+        background: var(--bg-main);
+        gap: 0.5rem;
+    }
+
+    .btn-send {
+        padding: 0.5rem 1.5rem;
+        background: linear-gradient(135deg, #0b57d0 0%, #0842a0 100%);
+        color: white;
+        border: none;
+        border-radius: var(--radius);
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-send:hover {
+        box-shadow: 0 2px 8px rgba(11, 87, 208, 0.3);
+    }
+
+    .btn-attachment {
+        width: 36px;
+        height: 36px;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.2s;
+    }
+
+    .btn-attachment:hover {
+        background: var(--bg-hover);
+        color: var(--text-main);
+    }
+
+    .btn-delete-draft {
+        margin-left: auto;
+        width: 36px;
+        height: 36px;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.2s;
+    }
+
+    .btn-delete-draft:hover {
+        background: #fef2f2;
+        color: #EF4444;
+    }
+
+    /* CC/BCC Toggle */
+    .field-toggle {
+        font-size: 0.75rem;
+        color: var(--primary);
+        cursor: pointer;
+        padding: 0.25rem 0.5rem;
+        border-radius: var(--radius);
+        transition: background 0.2s;
+    }
+
+    .field-toggle:hover {
+        background: var(--bg-hover);
+    }
+
+    .compose-field.hidden {
+        display: none;
+    }
+
+    .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .modal-header h2 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-main);
+    }
+
+    .modal-close {
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.2s;
+    }
+
+    .modal-close:hover {
+        background: var(--bg-hover);
+        color: var(--text-main);
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: #fff;
+        font-weight: 500;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--bg-main);
+        color: var(--text-main);
+        font-size: 0.9rem;
+    }
+
+    .form-group textarea {
+        min-height: 200px;
+        resize: vertical;
+    }
+
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        padding: 1rem 1.5rem;
+        border-top: 1px solid var(--border);
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border-radius: var(--radius);
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+        color: white;
+        border: none;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .btn-secondary {
+        background: transparent;
+        color: var(--text-main);
+        border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+        background: var(--bg-hover);
+    }
+
+    /* Email Detail */
+    .email-detail-header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .email-detail-subject {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-main);
+        margin-bottom: 0.75rem;
+    }
+
+    .email-detail-meta {
+        display: flex;
+        gap: 2rem;
+        color: var(--text-muted);
+        font-size: 0.9rem;
+    }
+
+    .email-detail-body {
+        color: var(--text-main);
+        line-height: 1.6;
+        white-space: pre-wrap;
+    }
+
+    .email-actions {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+    }
+
+    /* Relations Section */
+    .relations-section {
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+    }
+
+    .relations-section h4 {
+        font-size: 0.9rem;
+        color: var(--text-muted);
+        margin-bottom: 0.75rem;
+    }
+
+    .relation-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .relation-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.375rem 0.75rem;
+        background: var(--bg-main);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        font-size: 0.85rem;
+    }
+
+    .relation-tag .remove {
+        cursor: pointer;
+        opacity: 0.5;
+    }
+
+    .relation-tag .remove:hover {
+        opacity: 1;
+    }
+
+    .add-relation-form {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+    }
+
+    .add-relation-form select {
+        padding: 0.5rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--bg-main);
+        color: var(--text-main);
+    }
+
+    /* Sync Status */
+    .sync-status {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+    }
+
+    .sync-status.syncing {
+        color: var(--primary);
+    }
+
+    .sync-status.error {
+        color: #EF4444;
+    }
+
+    .settings-link {
+        position: absolute;
+        bottom: 1rem;
+        left: 1rem;
+        right: 1rem;
+    }
+
+    .settings-link a {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1rem;
+        color: var(--text-muted);
+        text-decoration: none;
+        border-radius: var(--radius);
+        transition: all 0.2s;
+    }
+
+    .settings-link a:hover {
+        background: var(--bg-hover);
+        color: var(--text-main);
+    }
+</style>
+
+<div class="page-header">
+    <h1>
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        </svg>
+        邮件中心
+    </h1>
+    <div class="sync-status" id="syncStatus">
+        <span id="syncText">就绪</span>
+    </div>
+</div>
+
+<div class="mail-container">
+    <!-- Sidebar -->
+    <div class="mail-sidebar">
+        <div class="mail-sidebar-header">
+            <button class="compose-btn" onclick="openComposePanel()">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                写邮件
+            </button>
+        </div>
+        <ul class="folder-list">
+            <li class="folder-item active" data-folder="inbox" onclick="switchFolder('inbox')">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+                </svg>
+                收件箱
+                <span class="folder-badge" id="inboxBadge">0</span>
+            </li>
+            <li class="folder-item" data-folder="sent" onclick="switchFolder('sent')">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                </svg>
+                已发送
+            </li>
+        </ul>
+        <div class="settings-link">
+            <a href="#" onclick="openSettingsModal(event)">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                邮件设置
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="mail-main">
+        <div class="mail-toolbar">
+            <input type="text" id="searchInput" placeholder="搜索邮件..." onkeyup="searchEmails(event)" autocomplete="off">
+            <button class="toolbar-btn" onclick="syncEmails()">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                同步
+            </button>
+        </div>
+
+        <div class="mail-list" id="mailList">
+            <!-- Email list will be loaded here -->
+        </div>
+
+        <div class="pagination" id="pagination">
+            <!-- Pagination will be loaded here -->
+        </div>
+    </div>
+
+    <!-- Gmail-style Detail Panel (Right Side) -->
+    <div class="mail-detail-panel" id="mailDetailPanel">
+        <div class="detail-panel-header">
+            <button class="detail-panel-close" onclick="closeDetailPanel()">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="detail-panel-content">
+            <div class="email-detail-header">
+                <div class="email-detail-subject" id="detailSubject"></div>
+                <div class="email-detail-meta">
+                    <span>发件人: <strong id="detailFrom"></strong></span>
+                    <span>时间: <strong id="detailDate"></strong></span>
+                </div>
+            </div>
+            <div class="email-detail-body" id="detailBody"></div>
+
+            <!-- Relations Section -->
+            <div class="relations-section">
+                <h4>关联客户/订单</h4>
+                <div class="relation-tags" id="relationTags"></div>
+                <div class="add-relation-form">
+                    <select id="relationType">
+                        <option value="cli">客户</option>
+                        <option value="order">订单</option>
+                    </select>
+                    <select id="relationRef">
+                        <!-- Options loaded dynamically -->
+                    </select>
+                    <button class="btn btn-secondary" onclick="addRelation()">添加关联</button>
+                </div>
+            </div>
+
+            <div class="email-actions">
+                <button class="btn btn-primary" onclick="replyEmail()">回复</button>
+                <button class="btn btn-secondary" onclick="analyzeEmail()">AI 分析</button>
+                <button class="btn btn-secondary" onclick="suggestReply()">AI 建议回复</button>
+                <button class="btn btn-secondary" style="margin-left: auto; color: #EF4444;" onclick="deleteCurrentEmail()">删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gmail-style Compose Panel (Right Side) -->
+<div class="compose-panel" id="composePanel">
+    <div class="compose-panel-header">
+        <h3>新邮件</h3>
+        <div class="compose-panel-actions">
+            <button class="compose-panel-btn" onclick="minimizeComposePanel()" title="最小化">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+                </svg>
+            </button>
+            <button class="compose-panel-btn" onclick="closeComposePanel()" title="关闭">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+    <div class="compose-panel-body" id="composePanelBody">
+        <!-- Drag Drop Zone -->
+        <div class="drop-zone" id="dropZone">
+            <span class="drop-zone-text">拖放文件到此处添加附件</span>
+        </div>
+        <div class="compose-field">
+            <span class="compose-field-label">收件人</span>
+            <input type="text" id="composeTo" placeholder="email@example.com">
+            <span class="field-toggle" onclick="toggleCcField()">抄送</span>
+        </div>
+        <div class="compose-field hidden" id="ccField">
+            <span class="compose-field-label">抄送</span>
+            <input type="text" id="composeCc" placeholder="cc@example.com">
+        </div>
+        <div class="compose-field">
+            <span class="compose-field-label">主题</span>
+            <input type="text" id="composeSubject" placeholder="邮件主题">
+        </div>
+        <div class="compose-body-wrapper">
+            <textarea id="composeBody" placeholder="邮件内容..."></textarea>
+        </div>
+        <div class="compose-attachments" id="attachmentsArea">
+            <div class="attachment-list" id="attachmentList"></div>
+        </div>
+    </div>
+    <div class="compose-panel-footer">
+        <button class="btn-send" onclick="sendEmail()">发送</button>
+        <button class="btn-attachment" onclick="document.getElementById('fileInput').click()" title="添加附件">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+            </svg>
+        </button>
+        <input type="file" id="fileInput" multiple hidden onchange="handleFileSelect(event)">
+        <button class="btn-delete-draft" onclick="closeComposePanel()" title="删除草稿">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+        </button>
+    </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal" id="detailModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>邮件详情</h2>
+            <button class="modal-close" onclick="closeModal('detailModal')">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="email-detail-header">
+                <div class="email-detail-subject" id="detailSubject"></div>
+                <div class="email-detail-meta">
+                    <span>发件人: <strong id="detailFrom"></strong></span>
+                    <span>时间: <strong id="detailDate"></strong></span>
+                </div>
+            </div>
+            <div class="email-detail-body" id="detailBody"></div>
+
+            <!-- Relations Section -->
+            <div class="relations-section">
+                <h4>关联客户/订单</h4>
+                <div class="relation-tags" id="relationTags"></div>
+                <div class="add-relation-form">
+                    <select id="relationType">
+                        <option value="cli">客户</option>
+                        <option value="order">订单</option>
+                    </select>
+                    <select id="relationRef">
+                        <!-- Options loaded dynamically -->
+                    </select>
+                    <button class="btn btn-secondary" onclick="addRelation()">添加关联</button>
+                </div>
+            </div>
+
+            <div class="email-actions">
+                <button class="btn btn-primary" onclick="replyEmail()">回复</button>
+                <button class="btn btn-secondary" onclick="analyzeEmail()">AI 分析</button>
+                <button class="btn btn-secondary" onclick="suggestReply()">AI 建议回复</button>
+                <button class="btn btn-secondary" style="margin-left: auto; color: #EF4444;" onclick="deleteCurrentEmail()">删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal" id="settingsModal">
+    <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+            <h2>邮件设置</h2>
+            <button class="modal-close" onclick="closeModal('settingsModal')">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <!-- 同步间隔设置（独立区域） -->
+            <div class="settings-section" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border);">
+                <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #fff;">同步设置</h3>
+                <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-bottom: 0;">
+                    <label style="margin-bottom: 0; color: white;">同步间隔</label>
+                    <input type="number" id="syncInterval" value="30" min="1" max="60" style="width: 80px;">
+                    <span style="color: white;">分钟</span>
+                    <button class="btn btn-secondary" style="margin-left: auto;" onclick="saveSyncInterval()">保存间隔</button>
+                </div>
+            </div>
+
+            <!-- 账户管理区域 -->
+            <div class="settings-section">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="margin: 0; font-size: 14px; color: #fff;">邮件账户</h3>
+                    <button class="btn btn-primary" onclick="openAddAccountModal()">+ 添加账户</button>
+                </div>
+
+                <!-- 账户列表 -->
+                <div id="accountList" class="account-list">
+                    <!-- 动态加载 -->
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('settingsModal')">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- Account Edit Modal -->
+<div class="modal" id="accountModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="accountModalTitle">添加账户</h2>
+            <button class="modal-close" onclick="closeModal('accountModal')">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="editAccountId">
+            <div class="form-group">
+                <label>账户名称</label>
+                <input type="text" id="accountName" placeholder="例如：工作邮箱">
+            </div>
+            <div class="form-group">
+                <label>邮箱类型</label>
+                <select id="mailType" onchange="fillMailPresets()">
+                    <option value="">请选择...</option>
+                    <option value="netease_qiye">网易企业邮箱</option>
+                    <option value="qq_qiye">QQ企业邮箱</option>
+                    <option value="gmail">Gmail</option>
+                    <option value="outlook">Outlook</option>
+                    <option value="custom">自定义</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>SMTP 服务器</label>
+                <input type="text" id="smtpServer" placeholder="smtp.example.com">
+            </div>
+            <div class="form-group">
+                <label>SMTP 端口</label>
+                <input type="number" id="smtpPort" value="587">
+            </div>
+            <div class="form-group">
+                <label>IMAP 服务器</label>
+                <input type="text" id="imapServer" placeholder="imap.example.com">
+            </div>
+            <div class="form-group">
+                <label>IMAP 端口</label>
+                <input type="number" id="imapPort" value="993">
+            </div>
+            <div class="form-group">
+                <label>用户名</label>
+                <input type="text" id="mailUsername" placeholder="your@email.com">
+            </div>
+            <div class="form-group">
+                <label>密码</label>
+                <input type="password" id="mailPassword" placeholder="********">
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="useTls" checked> 使用 TLS
+                </label>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('accountModal')">取消</button>
+            <button class="btn btn-primary" onclick="saveAccount()">保存</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.account-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.account-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+}
+.account-item.current {
+    border-color: #6366F1;
+    background: rgba(99, 102, 241, 0.05);
+}
+.account-info {
+    flex: 1;
+}
+.account-name {
+    font-weight: 600;
+    color: #fff;
+}
+.account-email {
+    font-size: 12px;
+    color: rgba(255,255,255,0.7);
+}
+.account-current-badge {
+    background: #6366F1;
+    color: white;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 10px;
+}
+.account-actions {
+    display: flex;
+    gap: 5px;
+}
+.account-actions .btn {
+    padding: 5px 10px;
+    font-size: 12px;
+}
+.btn-switch {
+    background: #10B981;
+    color: white;
+}
+.btn-switch:hover {
+    background: #059669;
+}
+.btn-edit {
+    background: #6366F1;
+    color: white;
+}
+.btn-delete {
+    background: #EF4444;
+    color: white;
+}
+</style>
+
+<script>
+    // State
+    let currentFolder = 'inbox';
+    let currentPage = 1;
+    let currentMailId = null;
+    let clients = [];
+    let orders = [];
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        loadEmails();
+        loadClients();
+        loadOrders();
+        loadSettings();
+    });
+
+    // Load emails
+    async function loadEmails() {
+        const isSent = currentFolder === 'sent' ? 1 : 0;
+        const search = document.getElementById('searchInput').value;
+
+        try {
+            const response = await fetch(`/api/mail/list?page=${currentPage}&limit=20&is_sent=${isSent}${search ? '&search=' + encodeURIComponent(search) : ''}`);
+            const data = await response.json();
+
+            renderEmailList(data.items);
+            renderPagination(data);
+            updateBadge(data.total_count);
+        } catch (error) {
+            console.error('Load emails error:', error);
+        }
+    }
+
+    // Render email list
+    function renderEmailList(emails) {
+        const container = document.getElementById('mailList');
+
+        if (emails.length === 0) {
+            container.innerHTML = `
+                <div class="mail-empty">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                    <p>暂无邮件</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = emails.map(email => `
+            <div class="mail-item" onclick="openEmail(${email.id})">
+                <div class="mail-sender">${escapeHtml(email.from_addr)}</div>
+                <div>
+                    <div class="mail-subject">${escapeHtml(email.subject || '(无主题)')}</div>
+                    <div class="mail-preview">${escapeHtml(email.content_preview || '')}</div>
+                </div>
+                <div class="mail-date">${formatDate(email.created_at)}</div>
+            </div>
+        `).join('');
+    }
+
+    // Render pagination
+    function renderPagination(data) {
+        const container = document.getElementById('pagination');
+
+        if (data.total_pages <= 1) {
+            container.innerHTML = '';
+            return;
+        }
+
+        container.innerHTML = `
+            <button onclick="goToPage(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>上一页</button>
+            <span>第 ${currentPage} / ${data.total_pages} 页</span>
+            <button onclick="goToPage(${currentPage + 1})" ${currentPage >= data.total_pages ? 'disabled' : ''}>下一页</button>
+        `;
+    }
+
+    // Update badge
+    function updateBadge(count) {
+        const badge = document.getElementById('inboxBadge');
+        badge.textContent = count > 99 ? '99+' : count;
+    }
+
+    // Switch folder
+    function switchFolder(folder) {
+        currentFolder = folder;
+        currentPage = 1;
+
+        // Update UI
+        document.querySelectorAll('.folder-item').forEach(el => el.classList.remove('active'));
+        document.querySelector(`[data-folder="${folder}"]`).classList.add('active');
+
+        loadEmails();
+    }
+
+    // Go to page
+    function goToPage(page) {
+        currentPage = page;
+        loadEmails();
+    }
+
+    // Search emails
+    function searchEmails(event) {
+        if (event.key === 'Enter') {
+            currentPage = 1;
+            loadEmails();
+        }
+    }
+
+    // Sync emails
+    async function syncEmails() {
+        const statusEl = document.getElementById('syncStatus');
+        const textEl = document.getElementById('syncText');
+
+        statusEl.classList.add('syncing');
+        textEl.textContent = '同步中...';
+
+        try {
+            const response = await fetch('/api/mail/sync', { method: 'POST' });
+            const data = await response.json();
+
+            if (data.status === 'started' || data.status === 'completed') {
+                textEl.textContent = data.message || '同步完成';
+                setTimeout(() => {
+                    statusEl.classList.remove('syncing');
+                    textEl.textContent = '就绪';
+                    loadEmails();
+                }, 2000);
+            } else if (data.status === 'already_running') {
+                textEl.textContent = '同步进行中...';
+            } else {
+                statusEl.classList.remove('syncing');
+                statusEl.classList.add('error');
+                textEl.textContent = data.message || '同步失败';
+            }
+        } catch (error) {
+            statusEl.classList.remove('syncing');
+            statusEl.classList.add('error');
+            textEl.textContent = '同步失败';
+        }
+    }
+
+    // Open email detail
+    async function openEmail(id) {
+        currentMailId = id;
+
+        try {
+            const response = await fetch(`/api/mail/${id}`);
+            const email = await response.json();
+
+            document.getElementById('detailSubject').textContent = email.subject || '(无主题)';
+            document.getElementById('detailFrom').textContent = email.from_addr;
+            document.getElementById('detailDate').textContent = formatDate(email.received_at || email.created_at);
+            document.getElementById('detailBody').textContent = email.content || email.html_content || '(无内容)';
+
+            // Load relations
+            loadRelations(id);
+
+            // Show detail panel (Gmail style)
+            document.querySelector('.mail-container').classList.remove('detail-closed');
+        } catch (error) {
+            console.error('Load email error:', error);
+        }
+    }
+
+    // Close detail panel
+    function closeDetailPanel() {
+        document.querySelector('.mail-container').classList.add('detail-closed');
+        currentMailId = null;
+    }
+
+    // Load relations
+    async function loadRelations(mailId) {
+        try {
+            const response = await fetch(`/api/mail/${mailId}/relations`);
+            const relations = await response.json();
+
+            const container = document.getElementById('relationTags');
+            container.innerHTML = relations.map(rel => `
+                <span class="relation-tag">
+                    ${rel.ref_type === 'cli' ? '客户' : '订单'}: ${rel.cli_name || rel.order_no || rel.ref_id}
+                    <span class="remove" onclick="removeRelation(${rel.id})">×</span>
+                </span>
+            `).join('');
+        } catch (error) {
+            console.error('Load relations error:', error);
+        }
+    }
+
+    // Add relation
+    async function addRelation() {
+        if (!currentMailId) return;
+
+        const refType = document.getElementById('relationType').value;
+        const refId = document.getElementById('relationRef').value;
+
+        if (!refId) {
+            alert('请选择要关联的项目');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/mail/${currentMailId}/relate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ref_type: refType, ref_id: refId })
+            });
+
+            if (response.ok) {
+                loadRelations(currentMailId);
+            }
+        } catch (error) {
+            console.error('Add relation error:', error);
+        }
+    }
+
+    // Remove relation
+    async function removeRelation(relationId) {
+        try {
+            const response = await fetch(`/api/mail/relation/${relationId}`, { method: 'DELETE' });
+            if (response.ok) {
+                loadRelations(currentMailId);
+            }
+        } catch (error) {
+            console.error('Remove relation error:', error);
+        }
+    }
+
+    // Load clients for relation selector
+    async function loadClients() {
+        try {
+            const response = await fetch('/api/cli/list');
+            const data = await response.json();
+            clients = data.items || [];
+            updateRelationOptions();
+        } catch (error) {
+            console.error('Load clients error:', error);
+        }
+    }
+
+    // Load orders for relation selector
+    async function loadOrders() {
+        try {
+            const response = await fetch('/api/order/list');
+            const data = await response.json();
+            orders = data.items || [];
+            updateRelationOptions();
+        } catch (error) {
+            console.error('Load orders error:', error);
+        }
+    }
+
+    // Update relation options based on type
+    function updateRelationOptions() {
+        const type = document.getElementById('relationType').value;
+        const select = document.getElementById('relationRef');
+
+        const items = type === 'cli' ? clients : orders;
+        select.innerHTML = '<option value="">请选择...</option>' +
+            items.map(item => `<option value="${type === 'cli' ? item.cli_id : item.order_id}">${type === 'cli' ? item.cli_name : item.order_no}</option>`).join('');
+    }
+
+    // Event listener for relation type change
+    document.getElementById('relationType').addEventListener('change', updateRelationOptions);
+
+    // Send email
+    async function sendEmail() {
+        const to = document.getElementById('composeTo').value;
+        const cc = document.getElementById('composeCc').value;
+        const subject = document.getElementById('composeSubject').value;
+        const body = document.getElementById('composeBody').value;
+
+        if (!to || !subject) {
+            alert('请填写收件人和主题');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/mail/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ to, cc, subject, body })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert('邮件发送成功');
+                closeComposePanel();
+                if (currentFolder === 'sent') {
+                    loadEmails();
+                }
+            } else {
+                alert('发送失败: ' + (result.error || '未知错误'));
+            }
+        } catch (error) {
+            alert('发送失败: ' + error.message);
+        }
+    }
+
+    // Delete email
+    async function deleteCurrentEmail() {
+        if (!currentMailId || !confirm('确定要删除这封邮件吗？')) return;
+
+        try {
+            const response = await fetch(`/api/mail/${currentMailId}`, { method: 'DELETE' });
+            if (response.ok) {
+                closeDetailPanel();
+                loadEmails();
+            }
+        } catch (error) {
+            console.error('Delete email error:', error);
+        }
+    }
+
+    // Reply email
+    function replyEmail() {
+        const from = document.getElementById('detailFrom').textContent;
+        const subject = document.getElementById('detailSubject').textContent;
+
+        closeDetailPanel();
+        openComposePanel(from, 'Re: ' + subject, '');
+    }
+
+    // AI analyze
+    async function analyzeEmail() {
+        if (!currentMailId) return;
+
+        try {
+            const response = await fetch(`/api/mail/${currentMailId}/analyze`, { method: 'POST' });
+            const result = await response.json();
+            alert('AI 分析结果:\n' + JSON.stringify(result, null, 2));
+        } catch (error) {
+            alert('AI 分析功能暂不可用');
+        }
+    }
+
+    // AI suggest reply
+    async function suggestReply() {
+        if (!currentMailId) return;
+
+        try {
+            const response = await fetch(`/api/mail/${currentMailId}/suggest-reply`, { method: 'POST' });
+            const result = await response.json();
+            alert('AI 建议回复:\n' + result.reply);
+        } catch (error) {
+            alert('AI 建议功能暂不可用');
+        }
+    }
+
+    // Mail presets for common providers
+    const mailPresets = {
+        netease_qiye: {
+            smtp_server: 'smtp.qiye.163.com',
+            smtp_port: 465,
+            imap_server: 'imap.qiye.163.com',
+            imap_port: 993,
+            use_tls: true
+        },
+        qq_qiye: {
+            smtp_server: 'smtp.exmail.qq.com',
+            smtp_port: 465,
+            imap_server: 'imap.exmail.qq.com',
+            imap_port: 993,
+            use_tls: true
+        },
+        gmail: {
+            smtp_server: 'smtp.gmail.com',
+            smtp_port: 587,
+            imap_server: 'imap.gmail.com',
+            imap_port: 993,
+            use_tls: true
+        },
+        outlook: {
+            smtp_server: 'smtp.office365.com',
+            smtp_port: 587,
+            imap_server: 'outlook.office365.com',
+            imap_port: 993,
+            use_tls: true
+        }
+    };
+
+    // Fill mail presets based on selected type
+    function fillMailPresets() {
+        const type = document.getElementById('mailType').value;
+        if (type && mailPresets[type]) {
+            const preset = mailPresets[type];
+            document.getElementById('smtpServer').value = preset.smtp_server;
+            document.getElementById('smtpPort').value = preset.smtp_port;
+            document.getElementById('imapServer').value = preset.imap_server;
+            document.getElementById('imapPort').value = preset.imap_port;
+            document.getElementById('useTls').checked = preset.use_tls;
+        }
+    }
+
+    // Load settings (accounts list + sync interval)
+    async function loadSettings() {
+        // Load sync interval
+        try {
+            const response = await fetch('/api/mail/sync-interval');
+            if (response.ok) {
+                const data = await response.json();
+                document.getElementById('syncInterval').value = data.interval || 30;
+            }
+        } catch (error) {
+            console.error('Load sync interval error:', error);
+        }
+
+        // Load accounts list
+        await loadAccounts();
+    }
+
+    // Load accounts list
+    async function loadAccounts() {
+        try {
+            const response = await fetch('/api/mail/accounts');
+            if (response.ok) {
+                const data = await response.json();
+                renderAccountList(data.accounts || data);
+            }
+        } catch (error) {
+            console.error('Load accounts error:', error);
+        }
+    }
+
+    // Render account list
+    function renderAccountList(accounts) {
+        const container = document.getElementById('accountList');
+
+        if (!accounts || accounts.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 20px; color: var(--text-secondary);">
+                    暂无邮件账户，请添加
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = accounts.map(account => `
+            <div class="account-item ${account.is_current ? 'current' : ''}">
+                <div class="account-info">
+                    <div class="account-name">
+                        ${escapeHtml(account.account_name || '未命名账户')}
+                        ${account.is_current ? '<span class="account-current-badge">当前</span>' : ''}
+                    </div>
+                    <div class="account-email">${escapeHtml(account.username || '')}</div>
+                </div>
+                <div class="account-actions">
+                    ${!account.is_current ? `<button class="btn btn-switch" onclick="switchAccount(${account.id})">切换</button>` : ''}
+                    <button class="btn btn-edit" onclick="editAccount(${account.id})">编辑</button>
+                    <button class="btn btn-delete" onclick="deleteAccount(${account.id})">删除</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Save sync interval only
+    async function saveSyncInterval() {
+        const interval = parseInt(document.getElementById('syncInterval').value) || 30;
+
+        try {
+            const response = await fetch('/api/mail/sync-interval', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ interval: interval })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert('同步间隔已保存');
+            } else {
+                alert('保存失败: ' + (result.message || '未知错误'));
+            }
+        } catch (error) {
+            alert('保存失败: ' + error.message);
+        }
+    }
+
+    // Open add account modal
+    function openAddAccountModal() {
+        document.getElementById('editAccountId').value = '';
+        document.getElementById('accountModalTitle').textContent = '添加账户';
+        document.getElementById('accountName').value = '';
+        document.getElementById('mailType').value = '';
+        document.getElementById('smtpServer').value = '';
+        document.getElementById('smtpPort').value = '587';
+        document.getElementById('imapServer').value = '';
+        document.getElementById('imapPort').value = '993';
+        document.getElementById('mailUsername').value = '';
+        document.getElementById('mailPassword').value = '';
+        document.getElementById('useTls').checked = true;
+        openModal('accountModal');
+    }
+
+    // Edit account
+    async function editAccount(accountId) {
+        try {
+            const response = await fetch(`/api/mail/account/${accountId}`);
+            if (response.ok) {
+                const account = await response.json();
+                document.getElementById('editAccountId').value = account.id;
+                document.getElementById('accountModalTitle').textContent = '编辑账户';
+                document.getElementById('accountName').value = account.account_name || '';
+                document.getElementById('smtpServer').value = account.smtp_server || '';
+                document.getElementById('smtpPort').value = account.smtp_port || 587;
+                document.getElementById('imapServer').value = account.imap_server || '';
+                document.getElementById('imapPort').value = account.imap_port || 993;
+                document.getElementById('mailUsername').value = account.username || '';
+                document.getElementById('mailPassword').value = ''; // 不显示密码
+                document.getElementById('useTls').checked = account.use_tls !== 0;
+                document.getElementById('mailType').value = ''; // 重置类型选择
+                openModal('accountModal');
+            }
+        } catch (error) {
+            alert('加载账户信息失败: ' + error.message);
+        }
+    }
+
+    // Save account (add or update)
+    async function saveAccount() {
+        const accountId = document.getElementById('editAccountId').value;
+        const config = {
+            account_name: document.getElementById('accountName').value || '新账户',
+            smtp_server: document.getElementById('smtpServer').value,
+            smtp_port: parseInt(document.getElementById('smtpPort').value) || 587,
+            imap_server: document.getElementById('imapServer').value,
+            imap_port: parseInt(document.getElementById('imapPort').value) || 993,
+            username: document.getElementById('mailUsername').value,
+            password: document.getElementById('mailPassword').value,
+            use_tls: document.getElementById('useTls').checked ? 1 : 0
+        };
+
+        // 如果是更新操作，将 id 加入请求体
+        if (accountId) {
+            config.id = parseInt(accountId);
+        }
+
+        // 显示保存中状态
+        const saveBtn = document.querySelector('#accountModal .modal-footer button:last-child');
+        const originalText = saveBtn.textContent;
+        saveBtn.textContent = '验证连接中...';
+        saveBtn.disabled = true;
+
+        try {
+            const url = accountId ? '/api/mail/account/update' : '/api/mail/account/add';
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert(accountId ? '账户更新成功' : '账户添加成功');
+                closeModal('accountModal');
+                await loadAccounts();
+            } else {
+                alert('保存失败: ' + (result.message || '未知错误'));
+            }
+        } catch (error) {
+            alert('保存失败: ' + error.message);
+        } finally {
+            saveBtn.textContent = originalText;
+            saveBtn.disabled = false;
+        }
+    }
+
+    // Switch current account
+    async function switchAccount(accountId) {
+        try {
+            const response = await fetch('/api/mail/account/switch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ account_id: accountId })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                await loadAccounts();
+                alert('已切换到新账户');
+            } else {
+                alert('切换失败: ' + (result.message || '未知错误'));
+            }
+        } catch (error) {
+            alert('切换失败: ' + error.message);
+        }
+    }
+
+    // Delete account
+    async function deleteAccount(accountId) {
+        if (!confirm('确定要删除此账户吗？')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/mail/account/${accountId}`, {
+                method: 'DELETE'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                await loadAccounts();
+            } else {
+                alert('删除失败: ' + (result.message || '未知错误'));
+            }
+        } catch (error) {
+            alert('删除失败: ' + error.message);
+        }
+    }
+
+    // Modal helpers
+    function openModal(id) {
+        document.getElementById(id).classList.add('active');
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).classList.remove('active');
+    }
+
+    function openComposeModal() {
+        document.getElementById('composeTo').value = '';
+        document.getElementById('composeSubject').value = '';
+        document.getElementById('composeBody').value = '';
+        openModal('composeModal');
+    }
+
+    function openSettingsModal(e) {
+        e.preventDefault();
+        loadSettings();
+        openModal('settingsModal');
+    }
+
+    // Utility functions
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('zh-CN', {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    // ============ Compose Panel Functions ============
+    let selectedFiles = [];
+    let isComposePanelMinimized = false;
+
+    // Toggle CC field visibility
+    function toggleCcField() {
+        const ccField = document.getElementById('ccField');
+        ccField.classList.toggle('hidden');
+    }
+
+    // Open compose panel (Gmail style)
+    function openComposePanel(to = '', subject = '', body = '') {
+        const panel = document.getElementById('composePanel');
+        document.getElementById('composeTo').value = to;
+        document.getElementById('composeCc').value = '';
+        document.getElementById('composeSubject').value = subject;
+        document.getElementById('composeBody').value = body;
+
+        // Reset CC field to hidden
+        document.getElementById('ccField').classList.add('hidden');
+
+        // Reset attachments
+        selectedFiles = [];
+        updateAttachmentList();
+
+        // Reset minimized state
+        isComposePanelMinimized = false;
+        panel.classList.remove('minimized');
+
+        // Load saved position and size
+        loadComposePanelPosition();
+        loadComposePanelSize();
+
+        // Show panel with animation
+        panel.classList.add('active');
+    }
+
+    // Close compose panel
+    function closeComposePanel() {
+        const panel = document.getElementById('composePanel');
+        panel.classList.remove('active');
+        panel.classList.remove('minimized');
+        selectedFiles = [];
+        isComposePanelMinimized = false;
+    }
+
+    // Minimize compose panel
+    function minimizeComposePanel() {
+        const panel = document.getElementById('composePanel');
+        isComposePanelMinimized = !isComposePanelMinimized;
+        panel.classList.toggle('minimized');
+    }
+
+    // Handle file selection
+    function handleFileSelect(event) {
+        const files = Array.from(event.target.files);
+        selectedFiles = selectedFiles.concat(files);
+        updateAttachmentList();
+        // Reset input to allow selecting same file again
+        event.target.value = '';
+    }
+
+    // Update attachment list display
+    function updateAttachmentList() {
+        const container = document.getElementById('attachmentList');
+        if (!container) return;
+
+        if (selectedFiles.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        container.innerHTML = selectedFiles.map((file, index) => `
+            <div class="attachment-item">
+                <span class="attachment-name">${escapeHtml(file.name)}</span>
+                <span class="attachment-size">(${formatFileSize(file.size)})</span>
+                <button type="button" class="attachment-remove" onclick="removeAttachment(${index})">×</button>
+            </div>
+        `).join('');
+    }
+
+    // Remove attachment
+    function removeAttachment(index) {
+        selectedFiles.splice(index, 1);
+        updateAttachmentList();
+    }
+
+    // Format file size
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    // Trigger file input click
+    function triggerFileInput() {
+        document.getElementById('fileInput').click();
+    }
+
+    // ============ Panel Drag & Position Memory ============
+    let isDragging = false;
+    let dragOffset = { x: 0, y: 0 };
+
+    // Initialize drag on panel header
+    function initComposePanelDrag() {
+        const header = document.querySelector('.compose-panel-header');
+        const panel = document.getElementById('composePanel');
+
+        header.addEventListener('mousedown', (e) => {
+            if (e.target.closest('button')) return; // Don't drag when clicking buttons
+            isDragging = true;
+            const rect = panel.getBoundingClientRect();
+            dragOffset.x = e.clientX - rect.left;
+            dragOffset.y = e.clientY - rect.top;
+            panel.style.transition = 'none'; // Disable transition during drag
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const panel = document.getElementById('composePanel');
+
+            // Calculate new position
+            let newX = e.clientX - dragOffset.x;
+            let newY = e.clientY - dragOffset.y;
+
+            // Keep panel within viewport
+            const maxX = window.innerWidth - 50;
+            const maxY = window.innerHeight - 50;
+            newX = Math.max(0, Math.min(newX, maxX));
+            newY = Math.max(0, Math.min(newY, maxY));
+
+            panel.style.left = newX + 'px';
+            panel.style.top = newY + 'px';
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                const panel = document.getElementById('composePanel');
+                panel.style.transition = '';
+                // Save position to localStorage
+                saveComposePanelPosition();
+            }
+        });
+    }
+
+    // Save panel position to localStorage
+    function saveComposePanelPosition() {
+        const panel = document.getElementById('composePanel');
+        const position = {
+            left: panel.style.left,
+            top: panel.style.top
+        };
+        localStorage.setItem('composePanelPosition', JSON.stringify(position));
+    }
+
+    // Load panel position from localStorage
+    function loadComposePanelPosition() {
+        const panel = document.getElementById('composePanel');
+        const saved = localStorage.getItem('composePanelPosition');
+        if (saved) {
+            try {
+                const position = JSON.parse(saved);
+                if (position.left && position.top) {
+                    panel.style.left = position.left;
+                    panel.style.top = position.top;
+                    panel.style.right = 'auto';
+                    panel.style.bottom = 'auto';
+                }
+            } catch (e) {}
+        }
+    }
+
+    // ============ Panel Size Memory ============
+    function initComposePanelResize() {
+        const panel = document.getElementById('composePanel');
+
+        // Create ResizeObserver to detect size changes
+        const resizeObserver = new ResizeObserver((entries) => {
+            for (let entry of entries) {
+                const { width, height } = entry.contentRect;
+                // Only save if panel is active (visible)
+                if (panel.classList.contains('active') && width > 0 && height > 0) {
+                    saveComposePanelSize(width, height);
+                }
+            }
+        });
+        resizeObserver.observe(panel);
+
+        // Load saved size on init
+        loadComposePanelSize();
+    }
+
+    // Save panel size to localStorage
+    function saveComposePanelSize(width, height) {
+        localStorage.setItem('composePanelSize', JSON.stringify({ width, height }));
+    }
+
+    // Load panel size from localStorage
+    function loadComposePanelSize() {
+        const panel = document.getElementById('composePanel');
+        const saved = localStorage.getItem('composePanelSize');
+        if (saved) {
+            try {
+                const size = JSON.parse(saved);
+                if (size.width && size.height) {
+                    panel.style.width = size.width + 'px';
+                    panel.style.height = size.height + 'px';
+                }
+            } catch (e) {}
+        }
+    }
+
+    // ============ Drag & Drop Attachments ============
+    function initDragDropAttachments() {
+        const dropZone = document.getElementById('dropZone');
+        const panelBody = document.getElementById('composePanelBody');
+
+        if (!dropZone || !panelBody) return;
+
+        // Prevent default drag behaviors on document
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            panelBody.addEventListener(eventName, preventDefaults, false);
+        });
+
+        // Highlight drop zone when dragging over
+        ['dragenter', 'dragover'].forEach(eventName => {
+            panelBody.addEventListener(eventName, () => {
+                dropZone.classList.add('active');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            panelBody.addEventListener(eventName, () => {
+                dropZone.classList.remove('active');
+            }, false);
+        });
+
+        // Handle dropped files
+        panelBody.addEventListener('drop', handleDrop, false);
+    }
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+
+        if (files.length > 0) {
+            const newFiles = Array.from(files);
+            selectedFiles = selectedFiles.concat(newFiles);
+            updateAttachmentList();
+        }
+    }
+
+    // ============ Initialize on Page Load ============
+    document.addEventListener('DOMContentLoaded', () => {
+        initComposePanelDrag();
+        initComposePanelResize();
+        initDragDropAttachments();
+    });
+</script>
+{% endblock %}

@@ -14,6 +14,18 @@ from Sills.db_quote import get_quote_list, add_quote, batch_import_quote_text, d
 from Sills.db_offer import get_offer_list, add_offer, batch_import_offer_text, update_offer, delete_offer, batch_delete_offer, batch_convert_from_quote
 from Sills.db_order import get_order_list, add_order, update_order_status, update_order, delete_order, batch_import_order, batch_delete_order, batch_convert_from_offer, get_order_by_id
 from Sills.db_buy import get_buy_list, add_buy, update_buy_node, update_buy, delete_buy, batch_import_buy, batch_delete_buy, batch_convert_from_order
+from Sills.db_mail import (
+    get_mail_list, get_mail_by_id, save_email, delete_email,
+    create_mail_relation, get_mail_relations, remove_mail_relation,
+    get_mail_config, is_sync_locked,
+    # 多账户管理
+    get_all_mail_accounts, get_mail_account_by_id, add_mail_account,
+    update_mail_account, switch_current_account, delete_mail_account,
+    # 同步间隔设置
+    get_sync_interval, set_sync_interval
+)
+from Sills.mail_service import sync_inbox, sync_inbox_async, send_email_now
+from Sills.ai_service import intent_recognizer, smart_replier
 
 from typing import Optional
 import uvicorn
@@ -540,6 +552,22 @@ async def cli_delete_api(cli_id: str = Form(...), current_user: dict = Depends(l
         return {"success": False, "message": "仅管理员可删除"}
     success, msg = delete_cli(cli_id)
     return {"success": success, "message": msg}
+
+@app.get("/api/cli/list")
+async def cli_list_api(current_user: dict = Depends(get_current_user)):
+    """获取客户列表API（用于邮件关联选择器）"""
+    if not current_user:
+        return {"success": False, "message": "未登录", "items": []}
+    items, total = get_cli_list(page=1, page_size=1000)
+    return {"success": True, "items": items, "total": total}
+
+@app.get("/api/order/list")
+async def order_list_api(current_user: dict = Depends(get_current_user)):
+    """获取订单列表API（用于邮件关联选择器）"""
+    if not current_user:
+        return {"success": False, "message": "未登录", "items": []}
+    items, total = get_order_list(page=1, page_size=1000)
+    return {"success": True, "items": items, "total": total}
 
 # ---------------- Quote Module ----------------
 @app.get("/quote", response_class=HTMLResponse)
@@ -1832,5 +1860,447 @@ async def api_backup_delete(backup_path: str = Form(...), current_user: dict = D
     except Exception as e:
         return {"success": False, "message": f"删除失败: {str(e)}"}
 
+
+# ==================== SmartMail 邮件模块路由 ====================
+
+@app.get("/mail", response_class=HTMLResponse)
+async def mail_page(request: Request, current_user: dict = Depends(login_required)):
+    """邮件中心页面"""
+    return templates.TemplateResponse("mail.html", {
+        "request": request,
+        "active_page": "mail",
+        "current_user": current_user
+    })
+
+
+@app.get("/api/mail/list")
+async def api_mail_list(
+    folder: str = "inbox",
+    page: int = 1,
+    page_size: int = 20,
+    current_user: dict = Depends(login_required)
+):
+    """获取邮件列表"""
+    is_sent = 1 if folder == "sent" else 0
+    result = get_mail_list(page=page, limit=page_size, is_sent=is_sent)
+    return result
+
+
+@app.post("/api/mail/send")
+async def api_mail_send(
+    to: str = Form(...),
+    subject: str = Form(...),
+    body: str = Form(default=""),
+    html_body: str = Form(default=""),
+    current_user: dict = Depends(login_required)
+):
+    """发送邮件"""
+    if not to or not subject:
+        return {"success": False, "message": "收件人和主题不能为空"}
+
+    result = send_email_now(to=to, subject=subject, body=body, html_body=html_body)
+
+    if result["success"]:
+        return {"success": True, "message": "邮件发送成功", "message_id": result.get("message_id")}
+    else:
+        return {"success": False, "message": f"发送失败: {result.get('error', '未知错误')}"}
+
+
+@app.post("/api/mail/sync")
+async def api_mail_sync(current_user: dict = Depends(login_required)):
+    """同步邮件（后台异步）"""
+    if is_sync_locked():
+        return {"success": False, "message": "同步任务正在进行中，请稍后"}
+
+    result = sync_inbox_async()
+    return {"success": True, "message": "同步任务已启动"}
+
+
+@app.get("/api/mail/sync/status")
+async def api_mail_sync_status(current_user: dict = Depends(login_required)):
+    """获取同步状态"""
+    locked = is_sync_locked()
+    return {
+        "success": True,
+        "syncing": locked,
+        "status": "syncing" if locked else "idle"
+    }
+
+
+@app.get("/api/mail/config")
+async def api_mail_config_get(current_user: dict = Depends(login_required)):
+    """获取邮件配置"""
+    config = get_mail_config()
+    if config:
+        # 隐藏密码
+        config["password"] = "******" if config.get("password") else ""
+    return {
+        "success": True,
+        "config": config
+    }
+
+
+@app.post("/api/mail/config")
+async def api_mail_config_update(
+    request: Request,
+    current_user: dict = Depends(login_required)
+):
+    """更新邮件配置（含连接验证）"""
+    from pydantic import BaseModel
+    from Sills.mail_service import IMAPClient
+
+    class MailConfigRequest(BaseModel):
+        imap_server: str = ""
+        imap_port: int = 993
+        smtp_server: str = ""
+        smtp_port: int = 587
+        username: str = ""
+        password: str = ""
+        use_tls: int = 1
+        sync_interval: int = 5
+
+    try:
+        data = await request.json()
+        config_data = MailConfigRequest(**data)
+    except Exception as e:
+        return {"success": False, "message": f"请求数据格式错误: {str(e)}"}
+
+    # 验证必填字段
+    if not config_data.imap_server or not config_data.smtp_server or not config_data.username:
+        return {"success": False, "message": "服务器地址和用户名不能为空"}
+
+    # 验证IMAP连接（如果提供了密码）
+    if config_data.password and config_data.password != "******":
+        test_config = {
+            'imap_server': config_data.imap_server,
+            'imap_port': config_data.imap_port,
+            'username': config_data.username,
+            'password': config_data.password,
+            'use_tls': config_data.use_tls
+        }
+        try:
+            imap_client = IMAPClient(test_config)
+            imap_client.connect()
+            imap_client.disconnect()
+        except Exception as e:
+            return {"success": False, "message": f"IMAP连接验证失败: {str(e)}"}
+
+    config = {
+        "imap_server": config_data.imap_server,
+        "imap_port": config_data.imap_port,
+        "smtp_server": config_data.smtp_server,
+        "smtp_port": config_data.smtp_port,
+        "username": config_data.username,
+        "use_tls": config_data.use_tls,
+        "sync_interval": config_data.sync_interval
+    }
+
+    # 只有提供了新密码才更新
+    if config_data.password and config_data.password != "******":
+        config["password"] = config_data.password
+
+    try:
+        result = update_mail_config(config)
+        if result:
+            return {"success": True, "message": "设置保存成功"}
+        else:
+            return {"success": False, "message": "保存失败"}
+    except ValueError as e:
+        # 加密密钥未配置
+        return {"success": False, "message": f"系统配置错误: {str(e)}"}
+    except Exception as e:
+        return {"success": False, "message": f"保存失败: {str(e)}"}
+
+
+@app.get("/api/mail/accounts")
+async def api_mail_accounts_list(current_user: dict = Depends(login_required)):
+    """获取所有邮件账户列表"""
+    accounts = get_all_mail_accounts()
+    return {
+        "success": True,
+        "accounts": accounts
+    }
+
+
+@app.get("/api/mail/account/current")
+async def api_mail_account_current(current_user: dict = Depends(login_required)):
+    """获取当前邮件账户配置"""
+    config = get_mail_config()
+    if config:
+        # 隐藏密码
+        config['password'] = '******' if config.get('password') else ''
+    return {
+        "success": True,
+        "config": config
+    }
+
+
+@app.get("/api/mail/account/{account_id}")
+async def api_mail_account_get(account_id: int, current_user: dict = Depends(login_required)):
+    """获取指定邮件账户配置"""
+    config = get_mail_account_by_id(account_id)
+    if not config:
+        return {"success": False, "message": "账户不存在"}
+
+    # 隐藏密码
+    config['password'] = '******' if config.get('password') else ''
+    return {
+        "success": True,
+        "config": config
+    }
+
+
+@app.get("/api/mail/sync-interval")
+async def api_mail_sync_interval_get(current_user: dict = Depends(login_required)):
+    """获取同步间隔设置"""
+    interval = get_sync_interval()
+    return {
+        "success": True,
+        "interval": interval
+    }
+
+
+@app.post("/api/mail/sync-interval")
+async def api_mail_sync_interval_set(
+    request: Request,
+    current_user: dict = Depends(login_required)
+):
+    """设置同步间隔"""
+    try:
+        data = await request.json()
+        interval = data.get('interval', 30)
+        if not isinstance(interval, int) or interval < 1:
+            return {"success": False, "message": "同步间隔必须为正整数"}
+
+        set_sync_interval(interval)
+        return {"success": True, "message": f"同步间隔已设置为 {interval} 分钟"}
+    except Exception as e:
+        return {"success": False, "message": f"设置失败: {str(e)}"}
+
+
+@app.post("/api/mail/account/add")
+async def api_mail_account_add(
+    request: Request,
+    current_user: dict = Depends(login_required)
+):
+    """添加新邮件账户（含连接验证）"""
+    from Sills.mail_service import IMAPClient
+
+    try:
+        data = await request.json()
+
+        # 验证必填字段
+        if not data.get('imap_server') or not data.get('smtp_server') or not data.get('username'):
+            return {"success": False, "message": "服务器地址和用户名不能为空"}
+
+        # 验证IMAP连接（如果提供了密码）
+        if data.get('password') and data['password'] != "******":
+            test_config = {
+                'imap_server': data.get('imap_server'),
+                'imap_port': data.get('imap_port', 993),
+                'username': data.get('username'),
+                'password': data['password'],
+                'use_tls': data.get('use_tls', 1)
+            }
+            try:
+                imap_client = IMAPClient(test_config)
+                imap_client.connect()
+                imap_client.disconnect()
+            except Exception as e:
+                return {"success": False, "message": f"IMAP连接验证失败: {str(e)}"}
+
+        account_id = add_mail_account(data)
+        return {
+            "success": True,
+            "message": "账户添加成功",
+            "account_id": account_id
+        }
+
+    except ValueError as e:
+        return {"success": False, "message": f"系统配置错误: {str(e)}"}
+    except Exception as e:
+        return {"success": False, "message": f"添加失败: {str(e)}"}
+
+
+@app.post("/api/mail/account/update")
+async def api_mail_account_update(
+    request: Request,
+    current_user: dict = Depends(login_required)
+):
+    """更新邮件账户（含连接验证）"""
+    from Sills.mail_service import IMAPClient
+
+    try:
+        data = await request.json()
+        account_id = data.get('id')
+
+        if not account_id:
+            return {"success": False, "message": "账户ID不能为空"}
+
+        # 验证必填字段
+        if not data.get('imap_server') or not data.get('smtp_server') or not data.get('username'):
+            return {"success": False, "message": "服务器地址和用户名不能为空"}
+
+        # 验证IMAP连接（如果提供了新密码）
+        if data.get('password') and data['password'] != "******":
+            test_config = {
+                'imap_server': data.get('imap_server'),
+                'imap_port': data.get('imap_port', 993),
+                'username': data.get('username'),
+                'password': data['password'],
+                'use_tls': data.get('use_tls', 1)
+            }
+            try:
+                imap_client = IMAPClient(test_config)
+                imap_client.connect()
+                imap_client.disconnect()
+            except Exception as e:
+                return {"success": False, "message": f"IMAP连接验证失败: {str(e)}"}
+
+        result = update_mail_account(account_id, data)
+        if result:
+            return {"success": True, "message": "账户更新成功"}
+        else:
+            return {"success": False, "message": "更新失败"}
+
+    except ValueError as e:
+        return {"success": False, "message": f"系统配置错误: {str(e)}"}
+    except Exception as e:
+        return {"success": False, "message": f"更新失败: {str(e)}"}
+
+
+@app.post("/api/mail/account/switch")
+async def api_mail_account_switch(
+    request: Request,
+    current_user: dict = Depends(login_required)
+):
+    """切换当前邮件账户"""
+    try:
+        data = await request.json()
+        account_id = data.get('account_id')
+
+        if not account_id:
+            return {"success": False, "message": "账户ID不能为空"}
+
+        result = switch_current_account(account_id)
+        if result:
+            return {"success": True, "message": "已切换到新账户"}
+        else:
+            return {"success": False, "message": "切换失败，账户不存在"}
+
+    except Exception as e:
+        return {"success": False, "message": f"切换失败: {str(e)}"}
+
+
+@app.delete("/api/mail/account/{account_id}")
+async def api_mail_account_delete(
+    account_id: int,
+    current_user: dict = Depends(login_required)
+):
+    """删除邮件账户"""
+    try:
+        result = delete_mail_account(account_id)
+        if result.get('success'):
+            return {"success": True, "message": result.get('message', '删除成功')}
+        else:
+            return {"success": False, "message": result.get('message', '删除失败')}
+    except Exception as e:
+        return {"success": False, "message": f"删除失败: {str(e)}"}
+
+
+@app.get("/api/mail/{mail_id}")
+async def api_mail_detail(mail_id: int, current_user: dict = Depends(login_required)):
+    """获取邮件详情"""
+    email = get_mail_by_id(mail_id)
+    if not email:
+        raise HTTPException(status_code=404, detail="邮件不存在")
+
+    # 获取关联信息
+    relations = get_mail_relations(mail_id)
+
+    return {
+        "success": True,
+        "email": email,
+        "relations": relations
+    }
+
+
+@app.post("/api/mail/{mail_id}/relate")
+async def api_mail_relate(
+    mail_id: int,
+    entity_type: str = Form(...),
+    entity_id: str = Form(...),
+    current_user: dict = Depends(login_required)
+):
+    """关联邮件到客户或订单"""
+    if entity_type not in ["client", "order"]:
+        return {"success": False, "message": "无效的实体类型"}
+
+    result = create_mail_relation(mail_id, entity_type, entity_id)
+    return result
+
+
+@app.delete("/api/mail/{mail_id}/relate/{relation_id}")
+async def api_mail_unrelate(
+    mail_id: int,
+    relation_id: int,
+    current_user: dict = Depends(login_required)
+):
+    """移除邮件关联"""
+    result = remove_mail_relation(relation_id)
+    return result
+
+
+@app.delete("/api/mail/{mail_id}")
+async def api_mail_delete(mail_id: int, current_user: dict = Depends(login_required)):
+    """删除邮件"""
+    result = delete_email(mail_id)
+    return result
+
+
+@app.get("/api/mail/{mail_id}/analyze")
+async def api_mail_analyze(mail_id: int, current_user: dict = Depends(login_required)):
+    """AI 分析邮件"""
+    email = get_mail_by_id(mail_id)
+    if not email:
+        raise HTTPException(status_code=404, detail="邮件不存在")
+
+    content = email.get("content", "") or email.get("html_content", "")
+    subject = email.get("subject", "")
+
+    result = intent_recognizer.analyze(content, subject)
+    return {
+        "success": True,
+        "analysis": result
+    }
+
+
+@app.get("/api/mail/{mail_id}/suggest-reply")
+async def api_mail_suggest_reply(mail_id: int, current_user: dict = Depends(login_required)):
+    """AI 建议回复"""
+    email = get_mail_by_id(mail_id)
+    if not email:
+        raise HTTPException(status_code=404, detail="邮件不存在")
+
+    content = email.get("content", "") or email.get("html_content", "")
+    sender = email.get("from_addr", "")
+
+    # 解析发件人名称
+    sender_name = ""
+    if sender:
+        from email.utils import parseaddr
+        sender_name, _ = parseaddr(sender)
+
+    reply = smart_replier.generate_reply(content, {"client_name": sender_name})
+    return {
+        "success": True,
+        "suggested_reply": reply
+    }
+
+# ==================== SmartMail 路由结束 ====================
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    # 根据环境选择端口: Windows=8001, WSL=8000
+    env = get_server_env()
+    port = 8001 if env == "Windows" else 8000
+    uvicorn.run("main:app", host="127.0.0.1", port=port, reload=True)

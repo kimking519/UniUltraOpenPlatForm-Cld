@@ -13,6 +13,7 @@ import pytest
 import os
 import sys
 import time
+import platform
 from datetime import datetime
 
 # 添加项目根目录
@@ -24,7 +25,9 @@ from playwright.sync_api import Page, expect, sync_playwright
 # 测试配置
 # ============================================================
 
-BASE_URL = "http://127.0.0.1:8000"
+# 根据环境选择端口: Windows=8001, WSL=8000
+_is_windows = platform.system() == "Windows"
+BASE_URL = "http://127.0.0.1:8001" if _is_windows else "http://127.0.0.1:8000"
 ADMIN_ACCOUNT = "Admin"
 ADMIN_PASSWORD = "uni519"
 

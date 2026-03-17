@@ -324,6 +324,62 @@ def init_db():
         FOREIGN KEY (vendor_id) REFERENCES uni_vendor(vendor_id)
     );
 
+    -- 邮件系统表
+    CREATE TABLE IF NOT EXISTS uni_mail (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        subject TEXT,
+        from_addr TEXT NOT NULL,
+        to_addr TEXT NOT NULL,
+        content TEXT,
+        html_content TEXT,
+        received_at DATETIME,
+        sent_at DATETIME,
+        is_sent INTEGER DEFAULT 0,
+        message_id TEXT,
+        account_id INTEGER,
+        sync_status TEXT DEFAULT 'completed',
+        sync_error TEXT,
+        created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+        FOREIGN KEY (account_id) REFERENCES mail_config(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS uni_mail_rel (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        mail_id INTEGER NOT NULL,
+        ref_type TEXT NOT NULL,
+        ref_id TEXT NOT NULL,
+        created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+        FOREIGN KEY (mail_id) REFERENCES uni_mail(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS mail_config (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_name TEXT DEFAULT '默认账户',
+        smtp_server TEXT,
+        smtp_port INTEGER DEFAULT 587,
+        imap_server TEXT,
+        imap_port INTEGER DEFAULT 993,
+        username TEXT,
+        password TEXT,
+        use_tls INTEGER DEFAULT 1,
+        is_current INTEGER DEFAULT 0 CHECK(is_current IN (0,1)),
+        created_at DATETIME DEFAULT (datetime('now', 'localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS mail_sync_lock (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        locked_at DATETIME,
+        locked_by TEXT,
+        expires_at DATETIME
+    );
+
+    -- 全局设置表（存储同步间隔等系统配置）
+    CREATE TABLE IF NOT EXISTS global_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at DATETIME DEFAULT (datetime('now', 'localtime'))
+    );
+
     -- 性能优化索引
     CREATE INDEX IF NOT EXISTS idx_cli_name ON uni_cli(cli_name);
     CREATE INDEX IF NOT EXISTS idx_cli_emp ON uni_cli(emp_id);
@@ -351,6 +407,15 @@ def init_db():
 
     CREATE INDEX IF NOT EXISTS idx_emp_account ON uni_emp(account);
     CREATE INDEX IF NOT EXISTS idx_emp_rule ON uni_emp(rule);
+
+    -- 邮件系统索引
+    CREATE INDEX IF NOT EXISTS idx_mail_received ON uni_mail(received_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_mail_sent ON uni_mail(sent_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_mail_from ON uni_mail(from_addr);
+    CREATE INDEX IF NOT EXISTS idx_mail_sync_status ON uni_mail(sync_status);
+    CREATE INDEX IF NOT EXISTS idx_mail_account ON uni_mail(account_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_mail_message_id ON uni_mail(message_id) WHERE message_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_mail_rel_ref ON uni_mail_rel(ref_type, ref_id);
     """
 
     with get_db_connection() as conn:
@@ -359,6 +424,14 @@ def init_db():
             INSERT OR IGNORE INTO uni_emp (emp_id, emp_name, account, password, rule)
             VALUES ('000', '超级管理员', 'Admin', '088426ba2d6e02949f54ef1e62a2aa73', '3')
         """)
+
+        # 迁移：为已有数据库添加 account_id 列（用户隔离）
+        try:
+            conn.execute("ALTER TABLE uni_mail ADD COLUMN account_id INTEGER REFERENCES mail_config(id) ON DELETE SET NULL")
+            print("[DB] 迁移完成：uni_mail 添加 account_id 列")
+        except sqlite3.OperationalError:
+            pass  # 列已存在，忽略
+
         conn.commit()
     # 初始化后清除缓存
     clear_cache()
