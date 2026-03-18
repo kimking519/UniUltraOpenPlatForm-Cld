@@ -657,7 +657,7 @@ async def quote_import_csv(csv_file: UploadFile = File(...), current_user: dict 
     return RedirectResponse(url=f"/quote?import_success={success_count}&errors={len(errors)}{err_msg}", status_code=303)
 
 @app.post("/api/quote/update")
-async def quote_update_api(quote_id: str = Form(...), field: str = Form(...), value: str = Form(...), current_user: dict = Depends(login_required)):
+async def quote_update_api(quote_id: str = Form(...), field: str = Form(...), value: str = Form(default=""), current_user: dict = Depends(login_required)):
     if current_user['rule'] not in ['3', '0']:
         return {"success": False, "message": "无修改权限"}
         
@@ -1880,9 +1880,12 @@ async def api_mail_list(
     page_size: int = 20,
     current_user: dict = Depends(login_required)
 ):
-    """获取邮件列表"""
+    """获取邮件列表（用户隔离）"""
     is_sent = 1 if folder == "sent" else 0
-    result = get_mail_list(page=page, limit=page_size, is_sent=is_sent)
+    # 获取当前邮件账户ID
+    config = get_mail_config()
+    account_id = config.get('id') if config else None
+    result = get_mail_list(page=page, limit=page_size, is_sent=is_sent, account_id=account_id)
     return result
 
 

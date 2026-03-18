@@ -37,6 +37,15 @@ def get_mail_list(page: int = 1, limit: int = 20, is_sent: int = 0,
         count_query += " AND account_id = ?"
         params.append(account_id)
         count_params.append(account_id)
+    else:
+        # 没有指定账户ID时返回空结果
+        return {
+            "items": [],
+            "total_count": 0,
+            "page": page,
+            "page_size": limit,
+            "total_pages": 0
+        }
 
     if search:
         query += " AND (subject LIKE ? OR from_addr LIKE ? OR to_addr LIKE ?)"

@@ -839,7 +839,7 @@
                 if (data.success) {
                     window.location.reload();
                 } else {
-                    alert('更新失败: ' + data.message);
+                    alert('更新失败: ' + (data.message || data.msg || '未知错误'));
                     td.innerHTML = originalBadge;
                 }
             });
@@ -872,7 +872,7 @@
                         window.location.reload(); // Reload to refresh combined info
                     }, 500);
                 } else {
-                    alert('更新失败: ' + data.message);
+                    alert('更新失败: ' + (data.message || data.msg || '未知错误'));
                     td.innerHTML = `<span>${normalizedOriginalValue}</span>`;
                 }
             });
@@ -886,7 +886,7 @@
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) window.location.reload();
-                    else alert('删除失败: ' + data.message);
+                    else alert('删除失败: ' + (data.message || data.msg || '未知错误'));
                 });
         }
     }
@@ -911,7 +911,7 @@
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) window.location.reload();
-                    else alert('批量删除失败: ' + data.message);
+                    else alert('批量删除失败: ' + (data.message || data.msg || '未知错误'));
                 });
         }
     }
@@ -933,10 +933,10 @@
 
             const data = await response.json();
             if (data.success) {
-                alert(data.message);
+                alert(data.message || data.msg || '操作完成');
                 window.location.href = '/offer';
             } else {
-                alert('转换失败: ' + data.message);
+                alert('转换失败: ' + (data.message || data.msg || '未知错误'));
             }
         } catch (error) {
             console.error('Error:', error);
@@ -970,7 +970,7 @@
                 a.remove();
                 window.URL.revokeObjectURL(url);
             } else {
-                alert('导出失败: ' + data.message);
+                alert('导出失败: ' + (data.message || data.msg || '未知错误'));
             }
         } catch (error) {
             console.error('Error:', error);
@@ -993,7 +993,7 @@
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) window.location.reload();
-                    else alert('批量复制失败: ' + data.message);
+                    else alert('批量复制失败: ' + (data.message || data.msg || '未知错误'));
                 });
         }
     }
@@ -1044,7 +1044,7 @@
                         element.innerHTML = '';
                         element.appendChild(span);
                     } else {
-                        alert('更新失败: ' + data.message);
+                        alert('更新失败: ' + (data.message || data.msg || '未知错误'));
                         element.innerHTML = '';
                         element.appendChild(span);
                     }
@@ -1068,12 +1068,12 @@
 
             const data = await response.json();
             if (data.success) {
-                showToast(data.message, 'success');
+                showToast(data.message || data.msg || '操作成功', 'success');
                 setTimeout(() => {
                     window.location.href = '/offer';
                 }, 1000);
             } else {
-                showToast('转换失败：' + data.message, 'error');
+                showToast('转换失败：' + (data.message || data.msg || '未知错误'), 'error');
             }
         } catch (error) {
             console.error('Error:', error);
