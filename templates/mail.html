@@ -750,11 +750,47 @@
         color: var(--text-main);
     }
 
+    /* Sync Progress Bar */
+    .sync-progress-container {
+        position: relative;
+        width: 100%;
+        max-width: 200px;
+    }
+
+    .sync-progress-bar {
+        width: 100%;
+        height: 6px;
+        background: var(--bg-main);
+        border-radius: 3px;
+        overflow: hidden;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+
+    .sync-progress-bar.active {
+        opacity: 1;
+    }
+
+    .sync-progress-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #6366F1 0%, #8B5CF6 100%);
+        border-radius: 3px;
+        transition: width 0.3s ease;
+    }
+
+    .sync-progress-text {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 2px;
+        text-align: center;
+    }
+
     /* Sync Status */
     .sync-status {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.75rem;
         font-size: 0.85rem;
         color: var(--text-muted);
     }
@@ -765,6 +801,10 @@
 
     .sync-status.error {
         color: #EF4444;
+    }
+
+    .sync-status.error .sync-progress-fill {
+        background: #EF4444;
     }
 
     .settings-link {
@@ -799,6 +839,12 @@
         邮件中心
     </h1>
     <div class="sync-status" id="syncStatus">
+        <div class="sync-progress-container">
+            <div class="sync-progress-bar" id="syncProgressBar">
+                <div class="sync-progress-fill" id="syncProgressFill"></div>
+            </div>
+            <div class="sync-progress-text" id="syncProgressText"></div>
+        </div>
         <span id="syncText">就绪</span>
     </div>
 </div>
@@ -1198,6 +1244,10 @@
         loadClients();
         loadOrders();
         loadSettings();
+        initComposePanelDrag();
+        initComposePanelResize();
+        initDragDropAttachments();
+        initPasteAttachments();
     });
 
     // Load emails
@@ -1297,31 +1347,62 @@
     async function syncEmails() {
         const statusEl = document.getElementById('syncStatus');
         const textEl = document.getElementById('syncText');
+        const progressBar = document.getElementById('syncProgressBar');
+        const progressFill = document.getElementById('syncProgressFill');
+        const progressText = document.getElementById('syncProgressText');
 
         statusEl.classList.add('syncing');
         textEl.textContent = '同步中...';
 
+        // Show and animate progress bar
+        progressBar.classList.add('active');
+        progressFill.style.width = '0%';
+        progressText.textContent = '连接中...';
+
+        // Simulate progress stages
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            if (progress < 90) {
+                progress += Math.random() * 15;
+                if (progress > 90) progress = 90;
+                progressFill.style.width = progress + '%';
+            }
+        }, 300);
+
         try {
+            progressText.textContent = '获取邮件...';
             const response = await fetch('/api/mail/sync', { method: 'POST' });
             const data = await response.json();
+
+            clearInterval(progressInterval);
+            progressFill.style.width = '100%';
+            progressText.textContent = '完成';
 
             if (data.status === 'started' || data.status === 'completed') {
                 textEl.textContent = data.message || '同步完成';
                 setTimeout(() => {
                     statusEl.classList.remove('syncing');
+                    progressBar.classList.remove('active');
                     textEl.textContent = '就绪';
+                    progressText.textContent = '';
                     loadEmails();
                 }, 2000);
             } else if (data.status === 'already_running') {
+                progressText.textContent = '进行中';
                 textEl.textContent = '同步进行中...';
             } else {
                 statusEl.classList.remove('syncing');
                 statusEl.classList.add('error');
+                progressBar.classList.remove('active');
+                progressText.textContent = '';
                 textEl.textContent = data.message || '同步失败';
             }
         } catch (error) {
+            clearInterval(progressInterval);
             statusEl.classList.remove('syncing');
             statusEl.classList.add('error');
+            progressBar.classList.remove('active');
+            progressText.textContent = '';
             textEl.textContent = '同步失败';
         }
     }
@@ -2105,11 +2186,49 @@
         }
     }
 
-    // ============ Initialize on Page Load ============
-    document.addEventListener('DOMContentLoaded', () => {
-        initComposePanelDrag();
-        initComposePanelResize();
-        initDragDropAttachments();
-    });
+    // ============ Paste Attachments ============
+    function initPasteAttachments() {
+        const composeBody = document.getElementById('composePanelBody');
+
+        if (!composeBody) return;
+
+        composeBody.addEventListener('paste', handlePaste, false);
+    }
+
+    function handlePaste(e) {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+
+        const files = [];
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+
+            // Handle file types (images, documents, etc.)
+            if (item.kind === 'file') {
+                const file = item.getAsFile();
+                if (file) {
+                    // Generate filename if it's a pasted image without name
+                    if (file.type.startsWith('image/') && (!file.name || file.name === 'image.png')) {
+                        const ext = file.type.split('/')[1] || 'png';
+                        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                        const renamedFile = new File([file], `pasted-image-${timestamp}.${ext}`, { type: file.type });
+                        files.push(renamedFile);
+                    } else {
+                        files.push(file);
+                    }
+                }
+            }
+        }
+
+        if (files.length > 0) {
+            selectedFiles = selectedFiles.concat(files);
+            updateAttachmentList();
+
+            // Show brief notification
+            const dropZone = document.getElementById('dropZone');
+            dropZone.classList.add('active');
+            setTimeout(() => dropZone.classList.remove('active'), 500);
+        }
+    }
 </script>
 {% endblock %}
