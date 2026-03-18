@@ -772,7 +772,7 @@
     function makeEditable(td, quote_id, field, inputType = 'text') {
         if (td.querySelector('input')) return;
         const isSpan = td.querySelector('span') !== null;
-        const originalValue = (isSpan ? td.querySelector('span').innerText : td.innerText).trim();
+        const originalValue = (isSpan ? (td.querySelector('span').innerText || '') : (td.innerText || '')).trim();
         td.innerHTML = `<input type="${inputType}" value="${originalValue}" style="width: 100%; min-width: 80px; padding: 4px; box-sizing: border-box;">`;
         const input = td.querySelector('input');
         input.focus();
@@ -786,7 +786,7 @@
 
     function makeEditableSelect(td, quote_id, field, originalId) {
         if (td.querySelector('select')) return;
-        const originalText = td.querySelector('span').innerText;
+        const originalText = td.querySelector('span').innerText || '';
         td.innerHTML = `<select style="width: 100%; padding: 4px; box-sizing: border-box;">${cliOptions}</select>`;
         const select = td.querySelector('select');
         select.value = originalId;
@@ -859,12 +859,16 @@
         formData.append('field', field);
         formData.append('value', normalizedNewValue);
 
+        // 调试：输出实际发送的数据
+        console.log('Sending update:', { quote_id, field, value: normalizedNewValue });
+
         fetch('/api/quote/update', {
             method: 'POST',
             body: formData
         })
             .then(res => res.json())
             .then(data => {
+                console.log('Response:', data); // 调试：输出响应数据
                 if (data.success) {
                     const display = newText !== null ? newText : normalizedNewValue;
                     td.innerHTML = `<span style="color: green;">${display}</span>`;
