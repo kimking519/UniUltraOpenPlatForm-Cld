@@ -1339,10 +1339,10 @@
             document.getElementById('detailDate').textContent = formatDate(email.received_at || email.created_at);
             document.getElementById('detailBody').textContent = email.content || email.html_content || '(无内容)';
 
-            // 自动填充到写信面板
-            document.getElementById('composeTo').value = email.from_addr || '';
-            document.getElementById('composeSubject').value = email.subject ? 'Re: ' + email.subject : '';
-            document.getElementById('composeBody').value = email.content || email.html_content || '';
+            // 自动打开写信面板并填充数据
+            const replySubject = email.subject ? 'Re: ' + email.subject : '';
+            const replyBody = email.content || email.html_content || '';
+            openComposePanel(email.from_addr || '', replySubject, replyBody);
 
             // Load relations
             loadRelations(id);
