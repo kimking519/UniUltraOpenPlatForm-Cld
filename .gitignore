@@ -55,6 +55,12 @@ secrets/
 .claude/
 .omc/
 
+# Worktrees (git worktree 创建的子目录)
+/add/
+/develop/
+/fix/
+/opt/
+
 # Skills (不上传到 GitHub)
 openclaw_skills/
 *.png
