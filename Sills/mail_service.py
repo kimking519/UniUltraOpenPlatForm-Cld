@@ -315,16 +315,26 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
         emails = imap_client.fetch_emails(limit=50)
 
         saved_count = 0
+        updated_count = 0
         for email_data in emails:
             # 检查是否已存在
             if email_data.get('message_id'):
                 from Sills.db_mail import get_db_connection
                 with get_db_connection() as conn:
                     existing = conn.execute(
-                        "SELECT id FROM uni_mail WHERE message_id = ?",
+                        "SELECT id, account_id FROM uni_mail WHERE message_id = ?",
                         (email_data['message_id'],)
                     ).fetchone()
                     if existing:
+                        existing_id, existing_account_id = existing
+                        # 如果邮件存在但 account_id 为 NULL，更新为当前账户
+                        if existing_account_id is None and current_account_id is not None:
+                            conn.execute(
+                                "UPDATE uni_mail SET account_id = ? WHERE id = ?",
+                                (current_account_id, existing_id)
+                            )
+                            conn.commit()
+                            updated_count += 1
                         continue
 
             # 关联当前账户ID
@@ -338,7 +348,7 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
 
         return {
             "status": "completed",
-            "message": f"Synced {saved_count} new emails"
+            "message": f"Synced {saved_count} new emails, updated {updated_count} existing"
         }
 
     except Exception as e:
