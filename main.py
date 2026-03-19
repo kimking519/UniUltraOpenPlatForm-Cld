@@ -857,7 +857,7 @@ async def offer_add_route(request: Request, current_user: dict = Depends(login_r
             if clip and clip['cost_price_rmb']:
                 margin = float(clip['margin_rate'] or 10.0)
                 cost = float(clip['cost_price_rmb'])
-                data['offer_price_rmb'] = round(cost * (1 + margin / 100.0), 2)
+                data['offer_price_rmb'] = round(cost * (1 + margin / 100.0), 4)
                 if not data.get('cost_price_rmb') or float(data.get('cost_price_rmb')) == 0:
                     data['cost_price_rmb'] = cost
 

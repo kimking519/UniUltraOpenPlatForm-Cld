@@ -69,10 +69,10 @@ def get_offer_list(page=1, page_size=10, search_kw="", start_date="", end_date="
             remark = r.get('remark') or ""
             r['remark'] = remark.replace(' | ', '\n').replace('|', '\n')
 
-            # 报价(RMB)保留2位小数
+            # 报价(RMB)保留4位小数
             try:
                 offer_price = float(r.get('offer_price_rmb') or 0.0)
-                r['offer_price_rmb'] = round(offer_price, 2)
+                r['offer_price_rmb'] = round(offer_price, 4)
             except:
                 r['offer_price_rmb'] = 0.0
 
