@@ -1366,6 +1366,8 @@ def _generate_koquote_excel(offers, template_dir, output_path, exchange_rate_krw
         # 复制样式到新插入的行
         for i in range(rows_to_insert):
             new_row = insert_at + i
+            # 设置行高为20
+            ws1.row_dimensions[new_row].height = 20
             for col in range(2, 10):  # B-I列
                 src_cell = ws1.cell(row=style_template_row, column=col)
                 dest_cell = ws1.cell(row=new_row, column=col)
@@ -1383,8 +1385,35 @@ def _generate_koquote_excel(offers, template_dir, output_path, exchange_rate_krw
     total_qty = 0
     total_amount = 0
 
+    # 定义边框样式
+    from openpyxl.styles import Border, Side
+    no_border = Border()
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    # H列右边无边框（去掉交期和备注之间的实线）
+    h_border = Border(
+        left=Side(style='thin'),
+        right=Side(style=None),  # 无右边框
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    # I列左边无边框
+    i_border = Border(
+        left=Side(style=None),  # 无左边框
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+
     for idx, offer in enumerate(offers):
         row = first_data_row + idx
+
+        # 设置行高为20
+        ws1.row_dimensions[row].height = 20
 
         # 列结构 (新模板):
         # B列: No.
@@ -1429,11 +1458,15 @@ def _generate_koquote_excel(offers, template_dir, output_path, exchange_rate_krw
         # 显式设置数字格式，保留1位小数
         price_cell.number_format = '#,##0.0'
 
-        # 交期
-        ws1.cell(row, 8).value = offer.get("delivery_date", "")      # H: 납기
+        # 交期 - 设置H列边框（无右边框）
+        h_cell = ws1.cell(row, 8)
+        h_cell.value = offer.get("delivery_date", "")      # H: 납기
+        h_cell.border = h_border
 
-        # 备注
-        ws1.cell(row, 9).value = offer.get("remark", "")             # I: 비고
+        # 备注 - 设置I列边框（无左边框）
+        i_cell = ws1.cell(row, 9)
+        i_cell.value = offer.get("remark", "")             # I: 비고
+        i_cell.border = i_border
 
         total_amount += float(price_kwr or 0) * qty
 
