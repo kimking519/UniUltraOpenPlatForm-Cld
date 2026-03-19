@@ -123,12 +123,42 @@ def do_backup():
 
     return len(db_files), backup_dir
 
+def cleanup_old_backups(backup_root, days=3):
+    """清理超过指定天数的备份目录"""
+    if not os.path.exists(backup_root):
+        return 0
+
+    deleted_count = 0
+    cutoff_time = datetime.now().timestamp() - (days * 24 * 60 * 60)
+
+    for item in os.listdir(backup_root):
+        if item.startswith("backup_"):
+            item_path = os.path.join(backup_root, item)
+            if os.path.isdir(item_path):
+                try:
+                    # 获取目录修改时间
+                    mtime = os.path.getmtime(item_path)
+                    if mtime < cutoff_time:
+                        shutil.rmtree(item_path)
+                        deleted_count += 1
+                        print(f"[备份清理] 已删除过期备份: {item}")
+                except Exception as e:
+                    print(f"[备份清理] 删除 {item} 失败: {str(e)}")
+
+    return deleted_count
+
 def auto_backup_task():
     """自动备份定时任务"""
     while True:
         try:
             count, backup_dir = do_backup()
             print(f"[自动备份] 成功备份 {count} 个数据库文件到 {backup_dir}")
+
+            # 清理超过3天的备份
+            backup_root = get_backup_root()
+            deleted = cleanup_old_backups(backup_root, days=3)
+            if deleted > 0:
+                print(f"[自动备份] 已清理 {deleted} 个过期备份")
         except Exception as e:
             print(f"[自动备份] 失败: {str(e)}")
         # 每30分钟执行一次
