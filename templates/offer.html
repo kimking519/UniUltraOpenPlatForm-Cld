@@ -669,20 +669,6 @@
     async function makeEditableRmb(td, offer_id, field, currentValue) {
         if (td.querySelector('input')) return;
 
-        // 获取最新汇率
-        let usdExchangeRate = 7.0;
-        let krwExchangeRate = 180.0;
-        try {
-            const res = await fetch('/api/exchange/rates');
-            const rateData = await res.json();
-            if (rateData.success) {
-                usdExchangeRate = rateData.usd;
-                krwExchangeRate = rateData.krw;
-            }
-        } catch (e) {
-            console.error('Failed to get exchange rate:', e);
-        }
-
         const originalValue = currentValue;
         td.innerHTML = `<input type="number" step="0.0001" value="${originalValue}" style="width: 100%; min-width: 60px; padding: 4px; box-sizing: border-box;">`;
         const input = td.querySelector('input');
@@ -694,7 +680,7 @@
                 return;
             }
 
-            // 保存 RMB
+            // 只更新 offer_price_rmb，后端会自动计算 price_kwr 和 price_usd
             const formData = new FormData();
             formData.append('offer_id', offer_id);
             formData.append('field', field);
@@ -708,33 +694,6 @@
                 const data = await res.json();
 
                 if (data.success) {
-                    td.innerHTML = `<span>${newValue}</span>`;
-
-                    // 自动计算并更新 USD = RMB / USD汇率
-                    const newUsd = parseFloat(newValue) / usdExchangeRate;
-                    const usdFormData = new FormData();
-                    usdFormData.append('offer_id', offer_id);
-                    usdFormData.append('field', 'price_usd');
-                    usdFormData.append('value', newUsd.toFixed(3));
-
-                    await fetch('/api/offer/update', {
-                        method: 'POST',
-                        body: usdFormData
-                    });
-
-                    // 自动计算并更新 KWR = RMB * KRW汇率
-                    const newKwr = parseFloat(newValue) * krwExchangeRate;
-                    const kwrFormData = new FormData();
-                    kwrFormData.append('offer_id', offer_id);
-                    kwrFormData.append('field', 'price_kwr');
-                    kwrFormData.append('value', newKwr.toFixed(1));
-
-                    await fetch('/api/offer/update', {
-                        method: 'POST',
-                        body: kwrFormData
-                    });
-
-                    // 局部更新显示
                     td.innerHTML = `<span>${newValue}</span>`;
                     td.style.backgroundColor = '#dcfce7';
                     setTimeout(() => td.style.backgroundColor = 'transparent', 1000);
