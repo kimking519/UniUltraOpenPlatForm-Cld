@@ -369,3 +369,55 @@ def _get_default_output_base():
 - [ ] 处理 Excel 模板时是否考虑了合并单元格
 - [ ] 输出路径是否使用 `_get_output_base()` 函数（兼容 Windows 和 WSL2）
 - [ ] 环境变量 `UNIULTRA_OUTPUT_DIR` 是否正确使用
+
+---
+
+## 2026-03-19: 报价导出精度丢失问题
+
+### Bug 1: CSV导出报价和成本价只保留2位小数
+
+#### 问题描述
+通过CSV导出按钮，导出来的报价(RMB)和成本价只显示2位小数，丢失了精度。
+
+#### 根本原因
+`main.py:1184-1185` 使用格式化字符串强制截取为2位小数：
+```python
+f"{cost_price_rmb:.2f}",
+f"{offer_price_rmb:.2f}",
+```
+
+#### 修复方案
+直接输出原始数值，不进行格式化截取：
+```python
+cost_price_rmb,
+offer_price_rmb,
+```
+
+---
+
+### Bug 2: Excel报价单KWR价格只保留1位小数
+
+#### 问题描述
+通过生成Excel报价单按钮，导出来的报价(KWR)只显示1位小数，丢失了精度。
+
+#### 根本原因
+`document_generator.py:1424` 使用 `round()` 强制截取为1位小数：
+```python
+price_kwr = round(float(price_rmb) * exchange_rate_krw, 1)
+```
+
+#### 修复方案
+保留完整精度，不进行round截取：
+```python
+price_kwr = float(price_rmb) * exchange_rate_krw
+```
+
+---
+
+### 检查清单
+
+修改导出/文档生成相关代码时，请检查：
+- [ ] 数值输出是否保留了原始精度
+- [ ] 避免使用 `.Nf` 格式化字符串截取小数
+- [ ] 避免使用 `round()` 函数截取小数位数
+- [ ] 确认业务需求是否真的需要截取精度

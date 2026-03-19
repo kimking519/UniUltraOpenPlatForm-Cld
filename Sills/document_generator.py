@@ -1421,7 +1421,7 @@ def _generate_koquote_excel(offers, template_dir, output_path, exchange_rate_krw
         # 单价: offer_price_rmb * 汇率
         price_rmb = offer.get("offer_price_rmb")
         if price_rmb and float(price_rmb or 0) > 0:
-            price_kwr = round(float(price_rmb) * exchange_rate_krw, 1)
+            price_kwr = float(price_rmb) * exchange_rate_krw
         else:
             price_kwr = 0
         ws1.cell(row, 7).value = price_kwr                           # G: 단가
