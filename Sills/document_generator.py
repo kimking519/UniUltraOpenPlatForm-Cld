@@ -1352,11 +1352,7 @@ def _generate_koquote_excel(offers, template_dir, output_path, exchange_rate_krw
         rows_to_delete = template_data_rows - data_count
         ws1.delete_rows(first_data_row + data_count, rows_to_delete)
 
-    # 设置模板中保留的示例行行高为20
-    for row in range(first_data_row, first_data_row + min(data_count, template_data_rows)):
-        ws1.row_dimensions[row].height = 20
-
-    # 如果需要更多行，插入新行并复制样式
+    # 如果需要更多行，插入新行
     if data_count > template_data_rows:
         rows_to_insert = data_count - template_data_rows
         insert_at = first_data_row + template_data_rows
@@ -1370,8 +1366,6 @@ def _generate_koquote_excel(offers, template_dir, output_path, exchange_rate_krw
         # 复制样式到新插入的行
         for i in range(rows_to_insert):
             new_row = insert_at + i
-            # 设置行高为20
-            ws1.row_dimensions[new_row].height = 20
             for col in range(2, 10):  # B-I列
                 src_cell = ws1.cell(row=style_template_row, column=col)
                 dest_cell = ws1.cell(row=new_row, column=col)
@@ -1385,34 +1379,12 @@ def _generate_koquote_excel(offers, template_dir, output_path, exchange_rate_krw
                     dest_cell.protection = copy(src_cell.protection)
                     dest_cell.alignment = copy(src_cell.alignment)
 
-                # 新插入的行，H列右边框和I列左边框设为空
-                if col == 8:  # H列
-                    dest_cell.border = Border(
-                        left=dest_cell.border.left,
-                        right=Side(style=None),  # 无右边框
-                        top=dest_cell.border.top,
-                        bottom=dest_cell.border.bottom
-                    )
-                elif col == 9:  # I列
-                    dest_cell.border = Border(
-                        left=Side(style=None),  # 无左边框
-                        right=dest_cell.border.right,
-                        top=dest_cell.border.top,
-                        bottom=dest_cell.border.bottom
-                    )
-
     # ---- 5. 写入数据 ----
     total_qty = 0
     total_amount = 0
 
-    # 定义边框样式
-    from openpyxl.styles import Border, Side
-
     for idx, offer in enumerate(offers):
         row = first_data_row + idx
-
-        # 设置行高为20
-        ws1.row_dimensions[row].height = 20
 
         # 列结构 (新模板):
         # B列: No.
@@ -1454,28 +1426,12 @@ def _generate_koquote_excel(offers, template_dir, output_path, exchange_rate_krw
             price_kwr = 0
         price_cell = ws1.cell(row, 7)
         price_cell.value = price_kwr                           # G: 단가
-        # 显式设置数字格式，保留1位小数
-        price_cell.number_format = '#,##0.0'
 
-        # 交期 - 设置H列边框（无右边框）
-        h_cell = ws1.cell(row, 8)
-        h_cell.value = offer.get("delivery_date", "")      # H: 납기
-        h_cell.border = Border(
-            left=h_cell.border.left,
-            right=Side(style=None),  # 无右边框
-            top=h_cell.border.top,
-            bottom=h_cell.border.bottom
-        )
+        # 交期
+        ws1.cell(row, 8).value = offer.get("delivery_date", "")      # H: 납기
 
-        # 备注 - 设置I列边框（无左边框）
-        i_cell = ws1.cell(row, 9)
-        i_cell.value = offer.get("remark", "")             # I: 비고
-        i_cell.border = Border(
-            left=Side(style=None),  # 无左边框
-            right=i_cell.border.right,
-            top=i_cell.border.top,
-            bottom=i_cell.border.bottom
-        )
+        # 备注
+        ws1.cell(row, 9).value = offer.get("remark", "")             # I: 비고
 
         total_amount += float(price_kwr or 0) * qty
 
