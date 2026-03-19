@@ -1357,7 +1357,7 @@ def _generate_koquote_excel(offers, template_dir, output_path, exchange_rate_krw
         ws1.row_dimensions[row].height = 20
 
     # 如果需要更多行，插入新行并复制样式
-    elif data_count > template_data_rows:
+    if data_count > template_data_rows:
         rows_to_insert = data_count - template_data_rows
         insert_at = first_data_row + template_data_rows
 
