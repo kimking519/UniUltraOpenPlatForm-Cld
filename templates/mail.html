@@ -1773,10 +1773,32 @@
         const cc = ccRow.style.display !== 'none' ? document.getElementById('detailCc').textContent : '';
         const subject = document.getElementById('detailSubject').textContent;
         const bodyEl = document.getElementById('detailBody');
-        const body = bodyEl.textContent || bodyEl.innerText || '';
+        const dateEl = document.getElementById('detailDate');
+        const date = dateEl ? dateEl.textContent : '';
+
+        // 获取原始内容（保留格式）
+        let originalBody = '';
+        if (bodyEl.innerHTML && bodyEl.innerHTML.trim()) {
+            // 格式化引用内容
+            originalBody = '\n\n\n---------- 转发的邮件 ----------\n';
+            originalBody += `发件人: ${from}\n`;
+            originalBody += `日期: ${date}\n`;
+            originalBody += `主题: ${subject}\n`;
+            originalBody += `收件人: ${to}\n`;
+            if (cc) {
+                originalBody += `抄送: ${cc}\n`;
+            }
+            originalBody += '\n';
+
+            // 获取文本内容
+            const textContent = bodyEl.textContent || bodyEl.innerText || '';
+            // 添加引用标记
+            const lines = textContent.split('\n');
+            originalBody += lines.map(line => '> ' + line).join('\n');
+        }
 
         // 不关闭详情面板，直接打开写信面板
-        openComposePanel(from, 'Re: ' + subject, body, cc);
+        openComposePanel(from, 'Re: ' + subject, originalBody, cc);
     }
 
     // AI analyze
