@@ -76,6 +76,12 @@
             </svg>
             批量导入
         </button>
+        <button class="btn btn-danger btn-sm" onclick="batchDelete()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+            批量删除
+        </button>
         <button class="btn btn-primary btn-sm" onclick="toggleModal('addModal')">
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -91,6 +97,9 @@
         <table class="data-table">
             <thead>
                 <tr>
+                    {% if current_user.rule == '3' or current_user.rule == '0' %}
+                    <th style="width: 40px;"><input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)"></th>
+                    {% endif %}
                     <th>客户编号</th>
                     <th>客户名称</th>
                     <th>公司全名</th>
@@ -114,6 +123,9 @@
             <tbody>
                 {% for item in items %}
                 <tr>
+                    {% if current_user.rule == '3' or current_user.rule == '0' %}
+                    <td><input type="checkbox" class="row-checkbox" value="{{ item.cli_id }}"></td>
+                    {% endif %}
                     <td style="font-weight: 700;">{{ item.cli_id }}</td>
                     <td {% if current_user.rule=='3' or current_user.rule=='0'
                         %}ondblclick="makeEditable(this, '{{ item.cli_id }}', 'cli_name')" {% endif %}>{{ item.cli_name
@@ -164,7 +176,7 @@
                 {% endfor %}
                 {% if not items %}
                 <tr>
-                    <td colspan="{% if current_user.rule == '3' or current_user.rule == '0' %}16{% else %}15{% endif %}"
+                    <td colspan="{% if current_user.rule == '3' or current_user.rule == '0' %}17{% else %}15{% endif %}"
                         style="text-align: center; color: var(--secondary);">暂无数据</td>
                 </tr>
                 {% endif %}
@@ -334,6 +346,38 @@
                 } else {
                     alert('删除失败: ' + data.message);
                 }
+            });
+        }
+    }
+
+    function toggleSelectAll(checkbox) {
+        document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = checkbox.checked);
+    }
+
+    function batchDelete() {
+        const selected = Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => cb.value);
+        if (selected.length === 0) {
+            alert('请先选择要删除的客户');
+            return;
+        }
+        if (confirm(`确定要删除选中的 ${selected.length} 个客户吗？\n注意：如果客户有关联的报价或订单，将无法删除。`)) {
+            fetch('/api/cli/batch_delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: selected })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`成功删除 ${data.deleted_count} 个客户` + (data.failed_count > 0 ? `\n${data.failed_count} 个客户因有关联数据无法删除` : ''));
+                    window.location.reload();
+                } else {
+                    alert('批量删除失败: ' + data.message);
+                }
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                alert('请求失败，请稍后重试');
             });
         }
     }

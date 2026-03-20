@@ -583,6 +583,27 @@ async def cli_delete_api(cli_id: str = Form(...), current_user: dict = Depends(l
     success, msg = delete_cli(cli_id)
     return {"success": success, "message": msg}
 
+@app.post("/api/cli/batch_delete")
+async def cli_batch_delete_api(request: Request, current_user: dict = Depends(login_required)):
+    """批量删除客户"""
+    if current_user['rule'] != '3':
+        return {"success": False, "message": "仅管理员可删除"}
+
+    from Sills.db_cli import batch_delete_cli
+    data = await request.json()
+    cli_ids = data.get('ids', [])
+
+    if not cli_ids:
+        return {"success": False, "message": "未选择记录"}
+
+    deleted_count, failed_count, msg = batch_delete_cli(cli_ids)
+    return {
+        "success": True,
+        "deleted_count": deleted_count,
+        "failed_count": failed_count,
+        "message": msg
+    }
+
 @app.get("/api/cli/list")
 async def cli_list_api(current_user: dict = Depends(get_current_user)):
     """获取客户列表API（用于邮件关联选择器）"""

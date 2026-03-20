@@ -108,3 +108,24 @@ def delete_cli(cli_id):
             return True, "删除成功"
     except Exception as e:
         return False, str(e)
+
+def batch_delete_cli(cli_ids):
+    """批量删除客户，返回成功和失败数量"""
+    if not cli_ids:
+        return 0, 0, "未选择记录"
+
+    deleted_count = 0
+    failed_count = 0
+
+    with get_db_connection() as conn:
+        for cli_id in cli_ids:
+            try:
+                conn.execute("DELETE FROM uni_cli WHERE cli_id = ?", (cli_id,))
+                deleted_count += 1
+            except Exception:
+                # 外键约束导致删除失败
+                failed_count += 1
+
+        conn.commit()
+
+    return deleted_count, failed_count, "批量删除完成"
