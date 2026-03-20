@@ -177,6 +177,21 @@ class IMAPClient:
                 return payload.decode('utf-8', errors='replace')
 
             if msg.is_multipart():
+                # 先收集所有内嵌图片
+                embedded_images = {}  # cid -> base64 data
+                for part in msg.walk():
+                    content_type = part.get_content_type()
+                    content_id = part.get('Content-ID', '')
+                    if content_id and content_type.startswith('image/'):
+                        payload = part.get_payload(decode=True)
+                        if payload:
+                            import base64
+                            b64_data = base64.b64encode(payload).decode('ascii')
+                            # 移除cid两端的尖括号
+                            cid = content_id.strip('<>')
+                            embedded_images[cid] = f"data:{content_type};base64,{b64_data}"
+
+                # 再解析正文
                 for part in msg.walk():
                     content_type = part.get_content_type()
                     if content_type == 'text/plain':
@@ -187,6 +202,23 @@ class IMAPClient:
                         payload = part.get_payload(decode=True)
                         if payload:
                             html_content += decode_payload(payload, part)
+
+                # 替换HTML中的cid引用为base64数据
+                import re
+                for cid, data_url in embedded_images.items():
+                    html_content = re.sub(
+                        rf'src=["\']cid:{re.escape(cid)}["\']',
+                        f'src="{data_url}"',
+                        html_content,
+                        flags=re.IGNORECASE
+                    )
+                    # 也处理不带cid:前缀的情况
+                    html_content = re.sub(
+                        rf'src=["\']cid:{re.escape(cid)}@[^"\']+["\']',
+                        f'src="{data_url}"',
+                        html_content,
+                        flags=re.IGNORECASE
+                    )
             else:
                 payload = msg.get_payload(decode=True)
                 if payload:
