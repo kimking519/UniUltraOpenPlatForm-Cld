@@ -1687,10 +1687,15 @@
     // Reply email
     function replyEmail() {
         const from = document.getElementById('detailFrom').textContent;
+        const to = document.getElementById('detailTo').textContent;
+        const ccRow = document.getElementById('detailCcRow');
+        const cc = ccRow.style.display !== 'none' ? document.getElementById('detailCc').textContent : '';
         const subject = document.getElementById('detailSubject').textContent;
+        const bodyEl = document.getElementById('detailBody');
+        const body = bodyEl.textContent || bodyEl.innerText || '';
 
         closeDetailPanel();
-        openComposePanel(from, 'Re: ' + subject, '');
+        openComposePanel(from, 'Re: ' + subject, body, cc);
     }
 
     // AI analyze
@@ -2057,15 +2062,20 @@
     }
 
     // Open compose panel (Gmail style)
-    function openComposePanel(to = '', subject = '', body = '') {
+    function openComposePanel(to = '', subject = '', body = '', cc = '') {
         const panel = document.getElementById('composePanel');
         document.getElementById('composeTo').value = to;
-        document.getElementById('composeCc').value = '';
+        document.getElementById('composeCc').value = cc;
         document.getElementById('composeSubject').value = subject;
         document.getElementById('composeBody').value = body;
 
-        // Reset CC field to hidden
-        document.getElementById('ccField').classList.add('hidden');
+        // Show CC field if has value
+        const ccField = document.getElementById('ccField');
+        if (cc && cc.trim()) {
+            ccField.classList.remove('hidden');
+        } else {
+            ccField.classList.add('hidden');
+        }
 
         // Reset attachments
         selectedFiles = [];
