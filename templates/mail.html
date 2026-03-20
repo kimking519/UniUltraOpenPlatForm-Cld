@@ -1444,11 +1444,6 @@
                 bodyEl.textContent = email.content || '(无内容)';
             }
 
-            // 自动打开写信面板并填充数据
-            const replySubject = email.subject ? 'Re: ' + email.subject : '';
-            const replyBody = email.content || email.html_content || '';
-            openComposePanel(email.from_addr || '', replySubject, replyBody);
-
             // Load relations
             loadRelations(id);
 
