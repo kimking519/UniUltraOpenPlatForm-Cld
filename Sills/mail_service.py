@@ -199,7 +199,26 @@ class IMAPClient:
         result = []
         for part, charset in decoded_parts:
             if isinstance(part, bytes):
-                result.append(part.decode(charset or 'utf-8', errors='ignore'))
+                # 尝试多种编码方式
+                decoded = None
+                # 优先使用检测到的charset
+                if charset:
+                    try:
+                        decoded = part.decode(charset, errors='replace')
+                    except (LookupError, UnicodeDecodeError):
+                        pass
+                # 如果charset无效或未指定，尝试常见编码
+                if decoded is None:
+                    for enc in ['utf-8', 'euc-kr', 'iso-8859-1', 'gbk', 'gb2312']:
+                        try:
+                            decoded = part.decode(enc, errors='replace')
+                            break
+                        except (LookupError, UnicodeDecodeError):
+                            continue
+                # 最后使用utf-8强制解码
+                if decoded is None:
+                    decoded = part.decode('utf-8', errors='replace')
+                result.append(decoded)
             else:
                 result.append(part)
         return ''.join(result)
