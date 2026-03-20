@@ -266,6 +266,20 @@
         height: 18px;
     }
 
+    .mail-list-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: var(--bg-main);
+        border-bottom: 1px solid var(--border);
+    }
+
+    .select-all-label {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+    }
+
     .mail-list {
         flex: 1;
         overflow-y: auto;
@@ -1055,6 +1069,11 @@
                     </svg>
                     同步
                 </button>
+            </div>
+
+            <div class="mail-list-header">
+                <input type="checkbox" id="selectAll" class="mail-checkbox" onclick="toggleSelectAll()">
+                <span class="select-all-label">全选</span>
             </div>
 
             <div class="mail-list" id="mailList">
@@ -1855,15 +1874,33 @@
         }
     }
 
+    // Toggle select all checkboxes
+    function toggleSelectAll() {
+        const selectAllCheckbox = document.getElementById('selectAll');
+        const checkboxes = document.querySelectorAll('.mail-checkbox');
+        checkboxes.forEach(cb => {
+            cb.checked = selectAllCheckbox.checked;
+        });
+        updateSelectedCount();
+    }
+
     // Update selected count and show/hide batch delete button
     function updateSelectedCount() {
-        const checkboxes = document.querySelectorAll('.mail-checkbox:checked');
-        const count = checkboxes.length;
+        const checkboxes = document.querySelectorAll('.mail-checkbox');
+        const checkedCheckboxes = document.querySelectorAll('.mail-checkbox:checked');
+        const count = checkedCheckboxes.length;
         const btn = document.getElementById('batchDeleteBtn');
         const countSpan = document.getElementById('selectedCount');
+        const selectAllCheckbox = document.getElementById('selectAll');
 
         countSpan.textContent = count;
         btn.style.display = count > 0 ? 'inline-flex' : 'none';
+
+        // Update select all checkbox state
+        if (selectAllCheckbox && checkboxes.length > 0) {
+            selectAllCheckbox.checked = count === checkboxes.length - 1; // -1 because selectAll itself
+            selectAllCheckbox.indeterminate = count > 0 && count < checkboxes.length - 1;
+        }
     }
 
     // Batch delete emails
