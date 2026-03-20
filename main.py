@@ -1953,6 +1953,8 @@ async def api_mail_send(
     current_user: dict = Depends(login_required)
 ):
     """发送邮件"""
+    from Sills.db_mail import get_signature
+
     data = await request.json()
     to = data.get('to', '')
     subject = data.get('subject', '')
@@ -1962,6 +1964,12 @@ async def api_mail_send(
 
     if not to or not subject:
         return {"success": False, "message": "收件人和主题不能为空"}
+
+    # 追加签名
+    signature = get_signature()
+    if signature:
+        body = body + "\n\n" + signature if body else signature
+        html_body = html_body + "<br><br>" + signature.replace('\n', '<br>') if html_body else signature.replace('\n', '<br>')
 
     result = send_email_now(to=to, subject=subject, body=body, html_body=html_body, cc=cc)
 
@@ -1978,6 +1986,7 @@ async def api_mail_send_with_attachments(
 ):
     """发送带附件的邮件"""
     from fastapi import UploadFile, File, Form
+    from Sills.db_mail import get_signature
     import tempfile
     import os
 
@@ -1990,6 +1999,12 @@ async def api_mail_send_with_attachments(
 
     if not to or not subject:
         return {"success": False, "message": "收件人和主题不能为空"}
+
+    # 追加签名
+    signature = get_signature()
+    if signature:
+        body = body + "\n\n" + signature if body else signature
+        html_body = html_body + "<br><br>" + signature.replace('\n', '<br>') if html_body else signature.replace('\n', '<br>')
 
     # 获取所有附件（使用getlist获取多个同名字段）
     attachments = []
@@ -2225,6 +2240,33 @@ async def api_mail_sync_days_set(
 
         set_sync_days(days)
         return {"success": True, "message": f"同步时间范围已设置为 {days} 天"}
+    except Exception as e:
+        return {"success": False, "message": f"设置失败: {str(e)}"}
+
+
+@app.get("/api/mail/signature")
+async def api_mail_signature_get(current_user: dict = Depends(login_required)):
+    """获取邮件签名"""
+    from Sills.db_mail import get_signature
+    signature = get_signature()
+    return {
+        "success": True,
+        "signature": signature
+    }
+
+
+@app.post("/api/mail/signature")
+async def api_mail_signature_set(
+    request: Request,
+    current_user: dict = Depends(login_required)
+):
+    """设置邮件签名"""
+    from Sills.db_mail import set_signature
+    try:
+        data = await request.json()
+        signature = data.get('signature', '')
+        set_signature(signature)
+        return {"success": True, "message": "签名设置成功"}
     except Exception as e:
         return {"success": False, "message": f"设置失败: {str(e)}"}
 

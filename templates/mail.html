@@ -1331,7 +1331,7 @@
             </div>
 
             <!-- 账户管理区域 -->
-            <div class="settings-section">
+            <div class="settings-section" style="margin-top: 20px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <h3 style="margin: 0; font-size: 14px; color: var(--text-main);">邮件账户</h3>
                     <button class="btn btn-primary" onclick="openAddAccountModal()">+ 添加账户</button>
@@ -1341,6 +1341,14 @@
                 <div id="accountList" class="account-list">
                     <!-- 动态加载 -->
                 </div>
+            </div>
+
+            <!-- 签名设置区域 -->
+            <div class="settings-section" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+                <h3 style="margin: 0 0 10px 0; font-size: 14px; color: var(--text-main);">邮件签名</h3>
+                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">签名将自动添加到每封发送的邮件末尾</p>
+                <textarea id="emailSignature" rows="5" placeholder="请输入您的签名，例如：&#10;&#10;此致&#10;敬礼&#10;&#10;张三&#10;xxx公司" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); font-size: 13px; line-height: 1.5; resize: vertical;"></textarea>
+                <button class="btn btn-primary" style="margin-top: 10px;" onclick="saveSignature()">保存签名</button>
             </div>
         </div>
         <div class="modal-footer" style="background: #1e3a5f; border-top: none; padding: 1rem 1.5rem;">
@@ -2276,6 +2284,17 @@
             console.error('Load sync days error:', error);
         }
 
+        // Load signature
+        try {
+            const response = await fetch('/api/mail/signature');
+            if (response.ok) {
+                const data = await response.json();
+                document.getElementById('emailSignature').value = data.signature || '';
+            }
+        } catch (error) {
+            console.error('Load signature error:', error);
+        }
+
         // Load accounts list
         await loadAccounts();
     }
@@ -2367,6 +2386,29 @@
 
             if (result.success) {
                 alert('同步时间范围已保存');
+            } else {
+                alert('保存失败: ' + (result.message || '未知错误'));
+            }
+        } catch (error) {
+            alert('保存失败: ' + error.message);
+        }
+    }
+
+    // Save signature
+    async function saveSignature() {
+        const signature = document.getElementById('emailSignature').value;
+
+        try {
+            const response = await fetch('/api/mail/signature', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ signature: signature })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert('签名已保存');
             } else {
                 alert('保存失败: ' + (result.message || '未知错误'));
             }

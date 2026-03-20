@@ -594,3 +594,28 @@ def set_sync_days(days: int) -> bool:
         """, (str(days),))
         conn.commit()
         return True
+
+
+def get_signature() -> str:
+    """获取邮件签名"""
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT value FROM global_settings WHERE key = 'email_signature'"
+        ).fetchone()
+        if row:
+            return row[0] or ''
+    return ''
+
+
+def set_signature(signature: str) -> bool:
+    """设置邮件签名"""
+    with get_db_connection() as conn:
+        conn.execute("""
+            INSERT INTO global_settings (key, value, updated_at)
+            VALUES ('email_signature', ?, datetime('now', 'localtime'))
+            ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = excluded.updated_at
+        """, (signature,))
+        conn.commit()
+        return True
