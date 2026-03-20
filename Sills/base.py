@@ -343,6 +343,7 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         subject TEXT,
         from_addr TEXT NOT NULL,
+        from_name TEXT,
         to_addr TEXT NOT NULL,
         content TEXT,
         html_content TEXT,
@@ -450,6 +451,13 @@ def init_db():
         try:
             conn.execute("ALTER TABLE uni_mail ADD COLUMN is_read INTEGER DEFAULT 0")
             print("[DB] 迁移完成：uni_mail 添加 is_read 列")
+        except sqlite3.OperationalError:
+            pass  # 列已存在，忽略
+
+        # 迁移：为 uni_mail 添加 from_name 字段
+        try:
+            conn.execute("ALTER TABLE uni_mail ADD COLUMN from_name TEXT")
+            print("[DB] 迁移完成：uni_mail 添加 from_name 列")
         except sqlite3.OperationalError:
             pass  # 列已存在，忽略
 

@@ -104,12 +104,13 @@ def save_email(mail_data: Dict[str, Any]) -> int:
     """
     with get_db_connection() as conn:
         cursor = conn.execute("""
-            INSERT INTO uni_mail (subject, from_addr, to_addr, cc_addr, content, html_content,
+            INSERT INTO uni_mail (subject, from_addr, from_name, to_addr, cc_addr, content, html_content,
                                   received_at, sent_at, is_sent, message_id, sync_status, account_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             mail_data.get('subject'),
             mail_data.get('from_addr'),
+            mail_data.get('from_name'),
             mail_data.get('to_addr'),
             mail_data.get('cc_addr'),
             mail_data.get('content'),

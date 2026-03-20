@@ -127,8 +127,8 @@ class IMAPClient:
             subject = self._decode_header(msg.get('Subject', ''))
 
             # 解析发件人
-            from_addr = self._decode_header(msg.get('From', ''))
-            _, from_email = parseaddr(from_addr)
+            from_header = self._decode_header(msg.get('From', ''))
+            from_name, from_email = parseaddr(from_header)
 
             # 解析收件人
             to_addr = self._decode_header(msg.get('To', ''))
@@ -226,7 +226,8 @@ class IMAPClient:
 
             return {
                 'subject': subject,
-                'from_addr': from_email or from_addr,
+                'from_addr': from_email or from_header,
+                'from_name': from_name or '',
                 'to_addr': to_addr,
                 'cc_addr': cc_addr,
                 'content': content,

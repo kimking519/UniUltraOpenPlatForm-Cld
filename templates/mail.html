@@ -303,6 +303,19 @@
         text-overflow: ellipsis;
     }
 
+    .sender-name {
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .sender-email {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
     .mail-subject {
         color: var(--text-main);
         white-space: nowrap;
@@ -1440,7 +1453,10 @@
         container.innerHTML = emails.map(email => `
             <div class="mail-item ${email.is_read ? '' : 'unread'}" onclick="openEmail(${email.id})">
                 <input type="checkbox" class="mail-checkbox" data-id="${email.id}" onclick="event.stopPropagation()">
-                <div class="mail-sender">${escapeHtml(email.from_addr)}</div>
+                <div class="mail-sender">
+                    <div class="sender-name">${escapeHtml(email.from_name || '')}</div>
+                    <div class="sender-email">${escapeHtml(email.from_addr)}</div>
+                </div>
                 <div>
                     <div class="mail-subject">${escapeHtml(email.subject || '(无主题)')}</div>
                     <div class="mail-preview">${escapeHtml(email.content_preview || '')}</div>
