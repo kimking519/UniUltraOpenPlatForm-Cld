@@ -1707,7 +1707,7 @@
         const bodyEl = document.getElementById('detailBody');
         const body = bodyEl.textContent || bodyEl.innerText || '';
 
-        closeDetailPanel();
+        // 不关闭详情面板，直接打开写信面板
         openComposePanel(from, 'Re: ' + subject, body, cc);
     }
 
