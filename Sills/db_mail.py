@@ -31,10 +31,10 @@ def get_mail_list(page: int = 1, limit: int = 20, is_sent: int = 0,
     query = "SELECT * FROM uni_mail WHERE is_sent = ?"
     count_query = "SELECT COUNT(*) FROM uni_mail WHERE is_sent = ?"
 
-    # 用户隔离：按账户ID过滤（兼容旧数据：account_id IS NULL）
+    # 用户隔离：按账户ID过滤
     if account_id is not None:
-        query += " AND (account_id = ? OR account_id IS NULL)"
-        count_query += " AND (account_id = ? OR account_id IS NULL)"
+        query += " AND account_id = ?"
+        count_query += " AND account_id = ?"
         params.append(account_id)
         count_params.append(account_id)
     else:
