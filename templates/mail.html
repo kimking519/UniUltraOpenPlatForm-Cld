@@ -77,10 +77,42 @@
     }
 
     .detail-panel-header {
-        padding: 0.75rem;
+        padding: 0.75rem 1rem;
         border-bottom: 1px solid var(--border);
         display: flex;
-        justify-content: flex-end;
+        align-items: center;
+        gap: 0.75rem;
+        background: var(--bg-main);
+    }
+
+    .detail-panel-title {
+        flex: 1;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--text-main);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .detail-panel-close {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        flex-shrink: 0;
+    }
+
+    .detail-panel-close:hover {
+        background: var(--bg-hover);
+        color: var(--text-main);
     }
 
     .detail-panel-content {
@@ -1027,11 +1059,12 @@
         <!-- Gmail-style Detail Panel (Right Side) -->
         <div class="mail-detail-panel" id="mailDetailPanel">
         <div class="detail-panel-header">
-            <button class="detail-panel-close" onclick="closeDetailPanel()">
-                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <button class="detail-panel-close" onclick="closeDetailPanel()" title="关闭">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
             </button>
+            <div class="detail-panel-title" id="detailPanelTitle">邮件详情</div>
         </div>
         <div class="detail-panel-content">
             <div class="email-detail-header">
@@ -1571,9 +1604,10 @@
 
             // 填充邮件详情
             document.getElementById('detailSubject').textContent = email.subject || '(无主题)';
+            document.getElementById('detailPanelTitle').textContent = email.subject || '(无主题)';
             document.getElementById('detailFrom').textContent = email.from_addr || '';
             document.getElementById('detailTo').textContent = email.to_addr || '';
-            document.getElementById('detailDate').textContent = formatDate(email.received_at || email.created_at);
+            document.getElementById('detailDate').textContent = formatDate(email.sent_at || email.received_at || email.created_at);
 
             // 抄送显示
             const ccRow = document.getElementById('detailCcRow');
