@@ -763,20 +763,33 @@ def send_email_with_attachments(to: str, subject: str, body: str,
         result = {"success": True, "message_id": msg.get('Message-ID', '')}
 
         if result['success']:
-            # 保存到数据库
-            save_email({
-                'subject': subject,
-                'from_addr': config.get('username', ''),
-                'to_addr': to,
-                'cc_addr': cc,
-                'content': body,
-                'html_content': html_body,
-                'sent_at': datetime.now().isoformat(),
-                'is_sent': 1,
-                'message_id': result.get('message_id'),
-                'sync_status': 'completed',
-                'account_id': config.get('id')
-            })
+            # 保存到数据库（检查是否已存在）
+            message_id = result.get('message_id')
+            from Sills.db_mail import get_db_connection
+
+            # 检查邮件是否已存在
+            existing = None
+            if message_id:
+                with get_db_connection() as conn:
+                    existing = conn.execute(
+                        "SELECT id FROM uni_mail WHERE message_id = ?",
+                        (message_id,)
+                    ).fetchone()
+
+            if not existing:
+                save_email({
+                    'subject': subject,
+                    'from_addr': config.get('username', ''),
+                    'to_addr': to,
+                    'cc_addr': cc,
+                    'content': body,
+                    'html_content': html_body,
+                    'sent_at': datetime.now().isoformat(),
+                    'is_sent': 1,
+                    'message_id': message_id,
+                    'sync_status': 'completed',
+                    'account_id': config.get('id')
+                })
 
         return result
 
