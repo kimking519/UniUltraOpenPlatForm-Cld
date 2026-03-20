@@ -569,3 +569,28 @@ def set_sync_interval(minutes: int) -> bool:
         """, (str(minutes),))
         conn.commit()
         return True
+
+
+def get_sync_days() -> int:
+    """获取同步时间范围（天）"""
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT value FROM global_settings WHERE key = 'sync_days'"
+        ).fetchone()
+        if row:
+            return int(row[0])
+    return 90  # 默认90天
+
+
+def set_sync_days(days: int) -> bool:
+    """设置同步时间范围（天）"""
+    with get_db_connection() as conn:
+        conn.execute("""
+            INSERT INTO global_settings (key, value, updated_at)
+            VALUES ('sync_days', ?, datetime('now', 'localtime'))
+            ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = excluded.updated_at
+        """, (str(days),))
+        conn.commit()
+        return True

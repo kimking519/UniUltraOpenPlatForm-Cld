@@ -1937,6 +1937,8 @@ async def api_mail_list(
     current_user: dict = Depends(login_required)
 ):
     """获取邮件列表（用户隔离）"""
+    # 限制每页数量在1-100之间
+    page_size = max(1, min(100, page_size))
     is_sent = 1 if folder == "sent" else 0
     # 获取当前邮件账户ID
     config = get_mail_config()
@@ -2136,6 +2138,36 @@ async def api_mail_sync_interval_set(
 
         set_sync_interval(interval)
         return {"success": True, "message": f"同步间隔已设置为 {interval} 分钟"}
+    except Exception as e:
+        return {"success": False, "message": f"设置失败: {str(e)}"}
+
+
+@app.get("/api/mail/sync-days")
+async def api_mail_sync_days_get(current_user: dict = Depends(login_required)):
+    """获取同步时间范围设置"""
+    from Sills.db_mail import get_sync_days
+    days = get_sync_days()
+    return {
+        "success": True,
+        "days": days
+    }
+
+
+@app.post("/api/mail/sync-days")
+async def api_mail_sync_days_set(
+    request: Request,
+    current_user: dict = Depends(login_required)
+):
+    """设置同步时间范围"""
+    from Sills.db_mail import set_sync_days
+    try:
+        data = await request.json()
+        days = data.get('days', 90)
+        if not isinstance(days, int) or days < 1 or days > 365:
+            return {"success": False, "message": "同步时间范围必须在1-365天之间"}
+
+        set_sync_days(days)
+        return {"success": True, "message": f"同步时间范围已设置为 {days} 天"}
     except Exception as e:
         return {"success": False, "message": f"设置失败: {str(e)}"}
 

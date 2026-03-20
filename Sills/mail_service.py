@@ -19,7 +19,7 @@ import threading
 from Sills.db_mail import (
     save_email, get_mail_config, acquire_sync_lock,
     release_sync_lock, update_mail_sync_status, recover_orphaned_syncs,
-    update_sync_progress
+    update_sync_progress, get_sync_days
 )
 
 
@@ -46,6 +46,9 @@ class IMAPClient:
             port = self.config.get('imap_port', 993)
             use_ssl = self.config.get('use_tls', 1)
 
+            # 添加ID命令支持（163/126邮箱需要）
+            imaplib.Commands['ID'] = ('NONAUTH', 'AUTH', 'SELECTED')
+
             if use_ssl:
                 self.client = imaplib.IMAP4_SSL(server, port)
             else:
@@ -64,6 +67,13 @@ class IMAPClient:
                 auth_bytes = auth_string.encode('utf-8')
                 encoded = base64.b64encode(auth_bytes).decode('ascii')
                 self.client.authenticate('PLAIN', lambda x: encoded.encode('ascii'))
+
+            # 发送ID命令（163/126等网易邮箱需要，否则会出现Unsafe Login错误）
+            try:
+                self.client._simple_command('ID', '("name" "Thunderbird" "version" "115.0")')
+            except Exception as e:
+                print(f"[Mail] ID命令发送失败（部分邮箱不需要）: {e}")
+
             return True
         except Exception as e:
             raise ConnectionError(f"IMAP connection failed: {str(e)}")
@@ -78,12 +88,115 @@ class IMAPClient:
                 pass
             self.client = None
 
-    def fetch_emails(self, folder: str = 'INBOX') -> List[Dict[str, Any]]:
+    def _decode_imap_utf7(self, s: str) -> str:
+        """
+        解码 IMAP UTF-7 编码的文件夹名称
+
+        Args:
+            s: 编码的字符串，如 '&XfJT0ZAB-'
+
+        Returns:
+            解码后的字符串，如 '已发送'
+        """
+        result = []
+        i = 0
+        while i < len(s):
+            if s[i] == '&' and i + 1 < len(s) and s[i+1] != '-':
+                # 找到结束符 '-'
+                end = s.find('-', i)
+                if end != -1:
+                    # 提取编码部分
+                    encoded = s[i+1:end]
+                    # 将 ',' 替换回 '/' (IMAP UTF-7 特殊规则)
+                    encoded = encoded.replace(',', '/')
+                    # Base64 解码为 UTF-16-BE
+                    import base64
+                    try:
+                        # 补齐 Base64 padding
+                        padding = 4 - len(encoded) % 4
+                        if padding != 4:
+                            encoded += '=' * padding
+                        decoded = base64.b64decode(encoded).decode('utf-16-be')
+                        result.append(decoded)
+                    except Exception as e:
+                        print(f"[Mail] UTF-7 解码失败 '{s[i:end+1]}': {e}")
+                        result.append(s[i:end+1])
+                    i = end + 1
+                    continue
+            result.append(s[i])
+            i += 1
+        return ''.join(result)
+
+    def list_folders(self) -> List[tuple]:
+        """
+        获取所有邮箱文件夹列表
+
+        Returns:
+            文件夹列表，每项为 (原始名称, 解码后名称)
+        """
+        if not self.client:
+            raise ConnectionError("Not connected to IMAP server")
+
+        folders = []
+        try:
+            status, data = self.client.list()
+            if status == 'OK':
+                for item in data:
+                    if item:
+                        # 解析文件夹名称，格式如: (\HasNoChildren) "." "INBOX"
+                        parts = item.decode().split('"')
+                        if len(parts) >= 3:
+                            folder_name = parts[-2] if parts[-2] else parts[-1].strip('"')
+                        else:
+                            folder_name = item.decode().split()[-1].strip('"')
+
+                        # 解码 UTF-7 编码的名称
+                        decoded_name = self._decode_imap_utf7(folder_name)
+                        folders.append((folder_name, decoded_name))
+                        print(f"[Mail] 发现文件夹: {folder_name} -> {decoded_name}")
+        except Exception as e:
+            print(f"[Mail] 获取文件夹列表失败: {e}")
+
+        return folders
+
+    def find_sent_folder(self) -> Optional[str]:
+        """
+        自动查找发件箱文件夹
+
+        Returns:
+            发件箱文件夹原始名称，未找到返回None
+        """
+        folders = self.list_folders()
+
+        # 常见的发件箱名称（按优先级）
+        sent_names = [
+            'Sent', 'Sent Items', 'Sent Messages', '已发送', '发件箱',
+            'INBOX.Sent', 'INBOX/Sent', 'Sent Mail'
+        ]
+
+        # 先精确匹配解码后的名称
+        for raw_name, decoded_name in folders:
+            if decoded_name in sent_names:
+                print(f"[Mail] 找到发件箱: {raw_name} ({decoded_name})")
+                return raw_name
+
+        # 再模糊匹配
+        for raw_name, decoded_name in folders:
+            decoded_lower = decoded_name.lower()
+            if 'sent' in decoded_lower or '发件' in decoded_name:
+                print(f"[Mail] 模糊匹配找到发件箱: {raw_name} ({decoded_name})")
+                return raw_name
+
+        print("[Mail] 未找到发件箱文件夹")
+        return None
+
+    def fetch_emails(self, folder: str = 'INBOX', days: int = 90) -> List[Dict[str, Any]]:
         """
         获取邮件列表
 
         Args:
             folder: 邮箱文件夹
+            days: 同步时间范围（天）
 
         Returns:
             邮件数据列表
@@ -94,13 +207,28 @@ class IMAPClient:
         emails = []
 
         try:
-            self.client.select(folder)
-            status, messages = self.client.search(None, 'ALL')
-
+            # 尝试选择文件夹（不使用readonly，因为163邮箱不支持）
+            status, data = self.client.select(folder)
             if status != 'OK':
+                print(f"[Mail] 无法选择文件夹 '{folder}': {status}, {data}")
                 return emails
 
-            message_ids = messages[0].split()  # 获取所有邮件
+            print(f"[Mail] 成功选择文件夹: {folder}")
+
+            # 计算日期范围
+            from datetime import datetime, timedelta
+            since_date = datetime.now() - timedelta(days=days)
+            date_str = since_date.strftime('%d-%b-%Y')  # IMAP日期格式: 01-Jan-2024
+
+            # 使用SINCE搜索指定日期之后的邮件
+            status, messages = self.client.search(None, f'SINCE {date_str}')
+
+            if status != 'OK':
+                print(f"[Mail] 搜索失败 '{folder}': {status}")
+                return emails
+
+            message_ids = messages[0].split()
+            print(f"[Mail] 文件夹 '{folder}' 找到 {len(message_ids)} 封邮件")
 
             for msg_id in message_ids:
                 status, msg_data = self.client.fetch(msg_id, '(RFC822)')
@@ -115,7 +243,9 @@ class IMAPClient:
                     emails.append(email_data)
 
         except Exception as e:
-            print(f"Fetch emails error: {e}")
+            print(f"[Mail] Fetch emails error for '{folder}': {e}")
+            import traceback
+            traceback.print_exc()
 
         return emails
 
@@ -397,28 +527,34 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
 
         # 获取当前账户ID用于用户隔离
         current_account_id = config.get('id')
-        update_sync_progress(0, 100, "连接邮件服务器...")
+        sync_days = get_sync_days()
+        update_sync_progress(0, 100, f"连接邮件服务器（同步最近{sync_days}天）...")
 
         imap_client = IMAPClient(config)
         imap_client.connect()
 
+        # 自动检测发件箱
+        update_sync_progress(5, 100, "检测邮箱文件夹...")
+        sent_folder = imap_client.find_sent_folder()
+        print(f"[Mail] 检测到发件箱: {sent_folder}")
+
         # 同步收件箱和发件箱
-        folders = [
-            ('INBOX', 0, '收件箱'),
-            ('Sent', 1, '发件箱'),
-            ('Sent Items', 1, '发件箱'),
-            ('已发送', 1, '发件箱'),
-        ]
+        folders_to_sync = [('INBOX', 0, '收件箱')]
+        if sent_folder:
+            folders_to_sync.append((sent_folder, 1, '发件箱'))
 
         total_saved = 0
         total_updated = 0
         total_processed = 0
 
-        for folder_name, is_sent, folder_label in folders:
+        for folder_name, is_sent, folder_label in folders_to_sync:
             try:
                 update_sync_progress(10, 100, f"获取{folder_label}...")
-                emails = imap_client.fetch_emails(folder=folder_name)
+                print(f"[Mail] 开始同步文件夹: {folder_name}, is_sent={is_sent}")
+                emails = imap_client.fetch_emails(folder=folder_name, days=sync_days)
+                print(f"[Mail] 文件夹 {folder_name} 返回 {len(emails) if emails else 0} 封邮件")
                 if not emails:
+                    print(f"[Mail] 文件夹 {folder_name} 无邮件，跳过")
                     continue
 
                 # 标记是否为已发送
