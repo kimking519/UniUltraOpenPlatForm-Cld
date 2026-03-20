@@ -2332,6 +2332,14 @@ async def api_mail_batch_delete(request: Request, current_user: dict = Depends(l
     return {"success": True, "deleted": deleted}
 
 
+@app.post("/api/mail/{mail_id}/read")
+async def api_mail_mark_read(mail_id: int, current_user: dict = Depends(login_required)):
+    """标记邮件为已读"""
+    from Sills.db_mail import mark_email_read
+    mark_email_read(mail_id)
+    return {"success": True}
+
+
 @app.get("/api/mail/{mail_id}/analyze")
 async def api_mail_analyze(mail_id: int, current_user: dict = Depends(login_required)):
     """AI 分析邮件"""

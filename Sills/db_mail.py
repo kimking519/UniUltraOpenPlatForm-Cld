@@ -149,6 +149,29 @@ def batch_delete_emails(mail_ids: list) -> int:
         return result.rowcount
 
 
+def mark_email_read(mail_id: int) -> bool:
+    """标记邮件为已读"""
+    with get_db_connection() as conn:
+        conn.execute("UPDATE uni_mail SET is_read = 1 WHERE id = ?", (mail_id,))
+        conn.commit()
+        return True
+
+
+def get_unread_count(account_id: int = None) -> int:
+    """获取未读邮件数量"""
+    with get_db_connection() as conn:
+        if account_id is not None:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM uni_mail WHERE is_sent = 0 AND is_read = 0 AND account_id = ?",
+                (account_id,)
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM uni_mail WHERE is_sent = 0 AND is_read = 0"
+            ).fetchone()
+        return row[0] if row else 0
+
+
 def create_mail_relation(mail_id: int, ref_type: str, ref_id: str) -> int:
     """
     创建邮件与ERP实体的关联关系

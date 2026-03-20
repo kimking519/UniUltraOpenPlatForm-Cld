@@ -349,6 +349,7 @@ def init_db():
         received_at DATETIME,
         sent_at DATETIME,
         is_sent INTEGER DEFAULT 0,
+        is_read INTEGER DEFAULT 0,
         message_id TEXT,
         account_id INTEGER,
         sync_status TEXT DEFAULT 'completed',
@@ -442,6 +443,13 @@ def init_db():
             conn.execute("ALTER TABLE mail_sync_lock ADD COLUMN progress_current INTEGER DEFAULT 0")
             conn.execute("ALTER TABLE mail_sync_lock ADD COLUMN progress_message TEXT DEFAULT ''")
             print("[DB] 迁移完成：mail_sync_lock 添加进度字段")
+        except sqlite3.OperationalError:
+            pass  # 列已存在，忽略
+
+        # 迁移：为 uni_mail 添加 is_read 字段
+        try:
+            conn.execute("ALTER TABLE uni_mail ADD COLUMN is_read INTEGER DEFAULT 0")
+            print("[DB] 迁移完成：uni_mail 添加 is_read 列")
         except sqlite3.OperationalError:
             pass  # 列已存在，忽略
 

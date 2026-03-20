@@ -1438,7 +1438,7 @@
         }
 
         container.innerHTML = emails.map(email => `
-            <div class="mail-item" onclick="openEmail(${email.id})">
+            <div class="mail-item ${email.is_read ? '' : 'unread'}" onclick="openEmail(${email.id})">
                 <input type="checkbox" class="mail-checkbox" data-id="${email.id}" onclick="event.stopPropagation()">
                 <div class="mail-sender">${escapeHtml(email.from_addr)}</div>
                 <div>
@@ -1596,6 +1596,15 @@
     // Open email detail
     async function openEmail(id) {
         currentMailId = id;
+
+        // 标记为已读
+        fetch(`/api/mail/${id}/read`, { method: 'POST' });
+
+        // 更新列表中的未读状态
+        const mailItem = document.querySelector(`.mail-item[onclick="openEmail(${id})"]`);
+        if (mailItem) {
+            mailItem.classList.remove('unread');
+        }
 
         try {
             const response = await fetch(`/api/mail/${id}`);
