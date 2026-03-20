@@ -1463,22 +1463,20 @@ def _generate_koquote_excel(offers, template_dir, output_path, exchange_rate_krw
                     dest_cell.alignment = copy(src_cell.alignment)
 
     # ---- 设置边框样式 ----
-    # 第一行：左、右竖线 + 上实线（无下实线）
-    # 中间行：只有左、右竖线（无上下实线）
-    # 最后一行：左、右竖线 + 下实线（无上实线）
+    # 所有数据行的每个单元格都有完整的四边实线边框
     from openpyxl.styles import Border, Side
-    left_right_border = Border(left=Side(style='thin'), right=Side(style='thin'))
+    full_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
 
     for idx in range(data_count):
         row = first_data_row + idx
         for col in range(2, 10):  # B-I列
             cell = ws1.cell(row, col)
-            if idx == 0:  # 第一行
-                cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'))
-            elif idx == data_count - 1:  # 最后一行
-                cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), bottom=Side(style='thin'))
-            else:  # 中间行
-                cell.border = left_right_border
+            cell.border = full_border
 
     # 合并单元格处理
     for merged_range in ws2.merged_cells.ranges:

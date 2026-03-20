@@ -242,14 +242,8 @@
     <!-- 按钮组：加价保持可见，其他整合到加号下拉菜单 -->
     <div class="page-actions-group">
         <div class="price-increase-group">
-            <select id="priceIncreaseRatio">
-                <option value="5">+5%</option>
-                <option value="10">+10%</option>
-                <option value="15" selected>+15%</option>
-                <option value="20">+20%</option>
-                <option value="25">+25%</option>
-                <option value="30">+30%</option>
-            </select>
+            <input type="number" id="priceIncreaseRatio" value="15" min="1" max="500" step="1" style="width: 70px; text-align: center;">
+            <span style="margin: 0 8px; color: #666;">%</span>
             <button class="btn" onclick="batchPriceIncrease()" style="background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%); color: white;">
                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
@@ -1056,8 +1050,8 @@
         }
 
         const ratio = parseFloat(document.getElementById('priceIncreaseRatio').value);
-        if (isNaN(ratio) || ratio <= 0) {
-            alert('请选择有效的加价比例');
+        if (isNaN(ratio) || ratio < 1 || ratio > 500) {
+            alert('请输入有效的加价比例（1-500）');
             return;
         }
 
