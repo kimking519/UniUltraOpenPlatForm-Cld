@@ -1566,7 +1566,16 @@
             // 邮件内容（优先HTML，其次纯文本）
             const bodyEl = document.getElementById('detailBody');
             if (email.html_content && email.html_content.trim()) {
-                bodyEl.innerHTML = email.html_content;
+                // 清理HTML内容开头的空白
+                let htmlContent = email.html_content.trim();
+                // 移除开头的<br>标签
+                htmlContent = htmlContent.replace(/^(\s*<br\s*\/?\s*>)+/gi, '');
+                // 移除开头的空白段落
+                htmlContent = htmlContent.replace(/^(\s*<p[^>]*>\s*<\/p>)+/gi, '');
+                htmlContent = htmlContent.replace(/^(\s*<p[^>]*>\s*<br\s*\/?\s*>\s*<\/p>)+/gi, '');
+                // 移除开头的<div>空白
+                htmlContent = htmlContent.replace(/^(\s*<div[^>]*>\s*<\/div>)+/gi, '');
+                bodyEl.innerHTML = htmlContent;
             } else {
                 bodyEl.textContent = email.content || '(无内容)';
             }
