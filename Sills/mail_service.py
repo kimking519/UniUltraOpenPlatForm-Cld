@@ -18,7 +18,8 @@ import threading
 
 from Sills.db_mail import (
     save_email, get_mail_config, acquire_sync_lock,
-    release_sync_lock, update_mail_sync_status, recover_orphaned_syncs
+    release_sync_lock, update_mail_sync_status, recover_orphaned_syncs,
+    update_sync_progress
 )
 
 
@@ -356,19 +357,28 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
     try:
         config = get_mail_config()
         if not config or not config.get('imap_server'):
+            update_sync_progress(0, 1, "邮件配置未找到")
             return {"status": "error", "message": "Mail config not found"}
 
         # 获取当前账户ID用于用户隔离
         current_account_id = config.get('id')
+        update_sync_progress(0, 100, "连接邮件服务器...")
 
         imap_client = IMAPClient(config)
         imap_client.connect()
+        update_sync_progress(10, 100, "获取邮件列表...")
 
         emails = imap_client.fetch_emails(limit=50)
+        total_emails = len(emails)
+        update_sync_progress(20, 100, f"发现 {total_emails} 封邮件")
 
         saved_count = 0
         updated_count = 0
-        for email_data in emails:
+        for idx, email_data in enumerate(emails):
+            # 更新进度
+            progress = 20 + int((idx / total_emails) * 70) if total_emails > 0 else 90
+            update_sync_progress(progress, 100, f"处理邮件 {idx + 1}/{total_emails}")
+
             # 检查是否已存在
             if email_data.get('message_id'):
                 from Sills.db_mail import get_db_connection
@@ -396,7 +406,10 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
             save_email(email_data)
             saved_count += 1
 
+        update_sync_progress(95, 100, "断开连接...")
         imap_client.disconnect()
+
+        update_sync_progress(100, 100, f"完成！新增 {saved_count} 封，更新 {updated_count} 封")
 
         return {
             "status": "completed",
@@ -404,6 +417,7 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
         }
 
     except Exception as e:
+        update_sync_progress(0, 100, f"错误: {str(e)}")
         return {"status": "error", "message": str(e)}
 
     finally:

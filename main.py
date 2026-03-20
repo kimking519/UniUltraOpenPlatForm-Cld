@@ -17,7 +17,7 @@ from Sills.db_buy import get_buy_list, add_buy, update_buy_node, update_buy, del
 from Sills.db_mail import (
     get_mail_list, get_mail_by_id, save_email, delete_email,
     create_mail_relation, get_mail_relations, remove_mail_relation,
-    get_mail_config, is_sync_locked,
+    get_mail_config, is_sync_locked, get_sync_progress,
     # 多账户管理
     get_all_mail_accounts, get_mail_account_by_id, add_mail_account,
     update_mail_account, switch_current_account, delete_mail_account,
@@ -1977,12 +1977,11 @@ async def api_mail_sync(current_user: dict = Depends(login_required)):
 
 @app.get("/api/mail/sync/status")
 async def api_mail_sync_status(current_user: dict = Depends(login_required)):
-    """获取同步状态"""
-    locked = is_sync_locked()
+    """获取同步状态和进度"""
+    progress = get_sync_progress()
     return {
         "success": True,
-        "syncing": locked,
-        "status": "syncing" if locked else "idle"
+        **progress
     }
 
 

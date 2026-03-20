@@ -392,17 +392,66 @@ def acquire_sync_lock(lock_id: str) -> bool:
                 if expires > now:
                     return False  # 锁仍然有效
 
-        # 获取或更新锁
+        # 获取或更新锁（包含进度字段）
         conn.execute("""
-            INSERT INTO mail_sync_lock (id, locked_at, locked_by, expires_at)
-            VALUES (1, ?, ?, ?)
+            INSERT INTO mail_sync_lock (id, locked_at, locked_by, expires_at, progress_total, progress_current, progress_message)
+            VALUES (1, ?, ?, ?, 0, 0, '初始化中...')
             ON CONFLICT(id) DO UPDATE SET
                 locked_at = excluded.locked_at,
                 locked_by = excluded.locked_by,
-                expires_at = excluded.expires_at
+                expires_at = excluded.expires_at,
+                progress_total = 0,
+                progress_current = 0,
+                progress_message = '初始化中...'
         """, (now.isoformat(), lock_id, expires_at.isoformat()))
         conn.commit()
         return True
+
+
+def update_sync_progress(current: int, total: int, message: str = "") -> bool:
+    """
+    更新同步进度
+
+    Args:
+        current: 当前进度
+        total: 总数
+        message: 进度消息
+
+    Returns:
+        是否更新成功
+    """
+    with get_db_connection() as conn:
+        conn.execute("""
+            UPDATE mail_sync_lock
+            SET progress_current = ?, progress_total = ?, progress_message = ?
+            WHERE id = 1
+        """, (current, total, message))
+        conn.commit()
+        return True
+
+
+def get_sync_progress() -> Dict[str, Any]:
+    """
+    获取同步进度
+
+    Returns:
+        {syncing: bool, current: int, total: int, message: str}
+    """
+    with get_db_connection() as conn:
+        row = conn.execute("SELECT * FROM mail_sync_lock WHERE id = 1").fetchone()
+        if row:
+            lock = dict(row)
+            if lock.get('expires_at'):
+                expires = datetime.fromisoformat(lock['expires_at'])
+                if expires > datetime.now():
+                    return {
+                        "syncing": True,
+                        "current": lock.get('progress_current', 0) or 0,
+                        "total": lock.get('progress_total', 0) or 0,
+                        "message": lock.get('progress_message', '') or '',
+                        "status": "syncing"
+                    }
+    return {"syncing": False, "current": 0, "total": 0, "message": "", "status": "idle"}
 
 
 def release_sync_lock() -> bool:

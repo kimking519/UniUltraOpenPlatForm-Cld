@@ -1474,42 +1474,54 @@
 
         statusEl.classList.add('syncing');
         textEl.textContent = '同步中...';
-
-        // Show and animate progress bar
         progressBar.classList.add('active');
         progressFill.style.width = '0%';
-        progressText.textContent = '连接中...';
-
-        // Simulate progress stages
-        let progress = 0;
-        const progressInterval = setInterval(() => {
-            if (progress < 90) {
-                progress += Math.random() * 15;
-                if (progress > 90) progress = 90;
-                progressFill.style.width = progress + '%';
-            }
-        }, 300);
+        progressText.textContent = '启动同步...';
 
         try {
-            progressText.textContent = '获取邮件...';
             const response = await fetch('/api/mail/sync', { method: 'POST' });
             const data = await response.json();
 
-            clearInterval(progressInterval);
-            progressFill.style.width = '100%';
-            progressText.textContent = '完成';
+            if (data.success || data.status === 'started') {
+                // 开始轮询进度
+                const pollInterval = setInterval(async () => {
+                    try {
+                        const statusRes = await fetch('/api/mail/sync/status');
+                        const statusData = await statusRes.json();
 
-            if (data.status === 'started' || data.status === 'completed') {
-                textEl.textContent = data.message || '同步完成';
-                setTimeout(() => {
-                    statusEl.classList.remove('syncing');
-                    progressBar.classList.remove('active');
-                    textEl.textContent = '就绪';
-                    progressText.textContent = '';
-                    loadEmails();
-                }, 2000);
+                        if (statusData.syncing) {
+                            // 更新进度条
+                            const percent = statusData.total > 0
+                                ? Math.round((statusData.current / statusData.total) * 100)
+                                : statusData.current;
+                            progressFill.style.width = percent + '%';
+                            progressText.textContent = statusData.message || '同步中...';
+                            textEl.textContent = '同步中...';
+                        } else {
+                            // 同步完成
+                            clearInterval(pollInterval);
+                            progressFill.style.width = '100%';
+                            progressText.textContent = '完成';
+                            textEl.textContent = '就绪';
+                            statusEl.classList.remove('syncing');
+
+                            setTimeout(() => {
+                                progressBar.classList.remove('active');
+                                progressText.textContent = '';
+                            }, 2000);
+
+                            loadEmails();
+                            loadInboxCount();
+                        }
+                    } catch (err) {
+                        console.error('获取同步状态失败:', err);
+                    }
+                }, 500);
+
+                // 30秒超时保护
+                setTimeout(() => clearInterval(pollInterval), 30000);
             } else if (data.status === 'already_running') {
-                progressText.textContent = '进行中';
+                progressText.textContent = '已在同步中';
                 textEl.textContent = '同步进行中...';
             } else {
                 statusEl.classList.remove('syncing');
@@ -1519,7 +1531,6 @@
                 textEl.textContent = data.message || '同步失败';
             }
         } catch (error) {
-            clearInterval(progressInterval);
             statusEl.classList.remove('syncing');
             statusEl.classList.add('error');
             progressBar.classList.remove('active');

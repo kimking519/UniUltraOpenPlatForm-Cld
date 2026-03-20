@@ -370,7 +370,10 @@ def init_db():
         id INTEGER PRIMARY KEY CHECK (id = 1),
         locked_at DATETIME,
         locked_by TEXT,
-        expires_at DATETIME
+        expires_at DATETIME,
+        progress_total INTEGER DEFAULT 0,
+        progress_current INTEGER DEFAULT 0,
+        progress_message TEXT DEFAULT ''
     );
 
     -- 全局设置表（存储同步间隔等系统配置）
@@ -430,6 +433,15 @@ def init_db():
         try:
             conn.execute("ALTER TABLE uni_mail ADD COLUMN cc_addr TEXT")
             print("[DB] 迁移完成：uni_mail 添加 cc_addr 列")
+        except sqlite3.OperationalError:
+            pass  # 列已存在，忽略
+
+        # 迁移：为 mail_sync_lock 添加进度字段
+        try:
+            conn.execute("ALTER TABLE mail_sync_lock ADD COLUMN progress_total INTEGER DEFAULT 0")
+            conn.execute("ALTER TABLE mail_sync_lock ADD COLUMN progress_current INTEGER DEFAULT 0")
+            conn.execute("ALTER TABLE mail_sync_lock ADD COLUMN progress_message TEXT DEFAULT ''")
+            print("[DB] 迁移完成：mail_sync_lock 添加进度字段")
         except sqlite3.OperationalError:
             pass  # 列已存在，忽略
 
