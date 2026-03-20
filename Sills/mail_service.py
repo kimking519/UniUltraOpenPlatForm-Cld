@@ -427,11 +427,15 @@ class SMTPClient:
             server = self.config.get('smtp_server')
             port = self.config.get('smtp_port', 587)
 
-            self.client = smtplib.SMTP(server, port)
-            self.client.ehlo()
+            # 端口465使用SSL直连，其他端口使用STARTTLS
+            if port == 465:
+                self.client = smtplib.SMTP_SSL(server, port)
+            else:
+                self.client = smtplib.SMTP(server, port)
+                self.client.ehlo()
 
-            if self.config.get('use_tls', 1):
-                self.client.starttls()
+                if self.config.get('use_tls', 1):
+                    self.client.starttls()
 
             self.client.login(self.config['username'], self.config['password'])
             return True
