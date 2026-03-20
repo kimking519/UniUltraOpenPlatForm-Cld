@@ -1991,10 +1991,11 @@ async def api_mail_send_with_attachments(
     if not to or not subject:
         return {"success": False, "message": "收件人和主题不能为空"}
 
-    # 获取附件
+    # 获取所有附件（使用getlist获取多个同名字段）
     attachments = []
-    for key, value in form.items():
-        if key == 'attachments' and hasattr(value, 'filename'):
+    attachment_files = form.getlist('attachments')
+    for value in attachment_files:
+        if hasattr(value, 'filename') and value.filename:
             # 保存到临时文件
             content = await value.read()
             if content:
