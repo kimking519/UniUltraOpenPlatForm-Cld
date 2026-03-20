@@ -584,8 +584,9 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
                             ).fetchone()
                             if existing:
                                 existing_id, existing_account_id = existing
-                                # 如果邮件存在但 account_id 为 NULL，更新为当前账户
-                                if existing_account_id is None and current_account_id is not None:
+                                # 如果邮件存在但 account_id 不是当前账户，更新为当前账户
+                                # 允许同一封邮件在不同账户间切换显示
+                                if existing_account_id != current_account_id:
                                     conn.execute(
                                         "UPDATE uni_mail SET account_id = ? WHERE id = ?",
                                         (current_account_id, existing_id)
