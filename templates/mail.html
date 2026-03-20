@@ -3,22 +3,15 @@
 {% block content %}
 <style>
     .mail-container {
-        display: grid;
-        grid-template-columns: 250px 1fr 450px;
-        gap: 1rem;
+        display: flex;
         height: calc(100vh - 120px);
     }
 
-    /* Gmail-style 3-column layout */
-    .mail-container.detail-closed {
-        grid-template-columns: 250px 1fr 0px;
-    }
-
-    .mail-container.detail-closed .mail-detail-panel {
-        display: none;
-    }
-
     .mail-sidebar {
+        width: 250px;
+        min-width: 200px;
+        max-width: 350px;
+        flex-shrink: 0;
         background: var(--card-bg);
         border-radius: var(--radius-lg);
         padding: 1rem;
@@ -26,6 +19,67 @@
         flex-direction: column;
         position: relative;
         height: 100%;
+    }
+
+    .mail-main-wrapper {
+        flex: 1;
+        display: flex;
+        min-width: 300px;
+    }
+
+    .mail-main {
+        flex: 1;
+        min-width: 300px;
+        display: flex;
+        flex-direction: column;
+        background: var(--card-bg);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        margin-left: 1rem;
+    }
+
+    /* 可拖动分隔条 */
+    .mail-resizer {
+        width: 6px;
+        background: transparent;
+        cursor: col-resize;
+        position: relative;
+        flex-shrink: 0;
+        margin: 0 0.5rem;
+        border-radius: 3px;
+        transition: background 0.2s;
+    }
+
+    .mail-resizer:hover,
+    .mail-resizer.dragging {
+        background: var(--primary);
+    }
+
+    .mail-resizer::before {
+        content: '';
+        position: absolute;
+        left: -4px;
+        right: -4px;
+        top: 0;
+        bottom: 0;
+    }
+
+    .mail-detail-panel {
+        width: 450px;
+        min-width: 300px;
+        max-width: 800px;
+        flex-shrink: 0;
+        background: var(--card-bg);
+        border-radius: var(--radius-lg);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    /* Gmail-style 3-column layout */
+    .mail-container.detail-closed .mail-resizer,
+    .mail-container.detail-closed .mail-detail-panel {
+        display: none;
     }
 
     .mail-sidebar-header {
@@ -894,29 +948,33 @@
         </div>
     </div>
 
-    <!-- Main Content -->
-    <div class="mail-main">
-        <div class="mail-toolbar">
-            <input type="text" id="searchInput" placeholder="搜索邮件..." onkeyup="searchEmails(event)" autocomplete="off">
-            <button class="toolbar-btn" onclick="syncEmails()">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                </svg>
-                同步
-            </button>
+    <!-- Main Content Wrapper -->
+    <div class="mail-main-wrapper">
+        <div class="mail-main">
+            <div class="mail-toolbar">
+                <input type="text" id="searchInput" placeholder="搜索邮件..." onkeyup="searchEmails(event)" autocomplete="off">
+                <button class="toolbar-btn" onclick="syncEmails()">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    同步
+                </button>
+            </div>
+
+            <div class="mail-list" id="mailList">
+                <!-- Email list will be loaded here -->
+            </div>
+
+            <div class="pagination" id="pagination">
+                <!-- Pagination will be loaded here -->
+            </div>
         </div>
 
-        <div class="mail-list" id="mailList">
-            <!-- Email list will be loaded here -->
-        </div>
+        <!-- Resizer -->
+        <div class="mail-resizer" id="mailResizer"></div>
 
-        <div class="pagination" id="pagination">
-            <!-- Pagination will be loaded here -->
-        </div>
-    </div>
-
-    <!-- Gmail-style Detail Panel (Right Side) -->
-    <div class="mail-detail-panel" id="mailDetailPanel">
+        <!-- Gmail-style Detail Panel (Right Side) -->
+        <div class="mail-detail-panel" id="mailDetailPanel">
         <div class="detail-panel-header">
             <button class="detail-panel-close" onclick="closeDetailPanel()">
                 <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -960,6 +1018,7 @@
             </div>
         </div>
     </div>
+    </div><!-- End of mail-main-wrapper -->
 </div>
 
 <!-- Gmail-style Compose Panel (Right Side) -->
@@ -1258,6 +1317,7 @@
         initComposePanelResize();
         initDragDropAttachments();
         initPasteAttachments();
+        initDetailPanelResizer();
     });
 
     // Load emails
@@ -2199,6 +2259,58 @@
                 }
             } catch (e) {}
         }
+    }
+
+    // ============ Detail Panel Resizer ============
+    function initDetailPanelResizer() {
+        const resizer = document.getElementById('mailResizer');
+        const detailPanel = document.getElementById('mailDetailPanel');
+        const mailMain = document.querySelector('.mail-main');
+
+        if (!resizer || !detailPanel) return;
+
+        // Load saved width
+        const savedWidth = localStorage.getItem('mailDetailPanelWidth');
+        if (savedWidth) {
+            detailPanel.style.width = savedWidth + 'px';
+        }
+
+        let isResizing = false;
+        let startX = 0;
+        let startWidth = 0;
+
+        resizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            startX = e.clientX;
+            startWidth = detailPanel.offsetWidth;
+            resizer.classList.add('dragging');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+
+            const diff = startX - e.clientX;
+            let newWidth = startWidth + diff;
+
+            // Clamp width
+            newWidth = Math.max(300, Math.min(800, newWidth));
+
+            detailPanel.style.width = newWidth + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                resizer.classList.remove('dragging');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+
+                // Save width
+                localStorage.setItem('mailDetailPanelWidth', detailPanel.offsetWidth);
+            }
+        });
     }
 
     // ============ Drag & Drop Attachments ============
