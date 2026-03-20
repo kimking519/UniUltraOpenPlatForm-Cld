@@ -1245,6 +1245,7 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
+        loadInboxCount();
         loadEmails();
         loadClients();
         loadOrders();
@@ -1316,10 +1317,25 @@
         `;
     }
 
-    // Update badge
+    // Update badge - always show inbox count
     function updateBadge(count) {
-        const badge = document.getElementById('inboxBadge');
-        badge.textContent = count > 99 ? '99+' : count;
+        // Only update if we're viewing inbox
+        if (currentFolder === 'inbox') {
+            const badge = document.getElementById('inboxBadge');
+            badge.textContent = count > 99 ? '99+' : count;
+        }
+    }
+
+    // Load inbox count separately for badge
+    async function loadInboxCount() {
+        try {
+            const response = await fetch(`/api/mail/list?folder=inbox&page=1&page_size=1`);
+            const data = await response.json();
+            const badge = document.getElementById('inboxBadge');
+            badge.textContent = data.total_count > 99 ? '99+' : data.total_count;
+        } catch (error) {
+            console.error('Load inbox count error:', error);
+        }
     }
 
     // Switch folder
