@@ -261,6 +261,111 @@ def get_language_prompt(language: str) -> str:
     return prompts.get(language, prompts['en'])
 
 
+def extract_inquiry_table(email_content: str, email_subject: str, language: str) -> dict:
+    """
+    提取询价信息并整理成表格
+
+    Returns:
+        {"is_inquiry": bool, "table": str, "items": list}
+    """
+    client = get_gemini_client()
+    if not client:
+        return {"is_inquiry": False, "table": "", "items": []}
+
+    try:
+        cleaned_content = clean_email_content(email_content)
+
+        # 判断是否是询价邮件并提取信息
+        system_instruction = """你是一个邮件分析专家。请分析邮件内容，判断是否为电子元器件询价邮件。
+
+如果是询价邮件，请提取以下信息并返回JSON格式：
+{
+    "is_inquiry": true,
+    "items": [
+        {
+            "no": "序号",
+            "mpn": "型号",
+            "brand": "品牌",
+            "qty": "数量",
+            "datasheet": "规格书链接或状态",
+            "remark": "备注"
+        }
+    ]
+}
+
+如果不是询价邮件，返回：
+{"is_inquiry": false, "items": []}
+
+注意：
+1. 只返回JSON，不要其他文字
+2. 如果邮件中没有明确的信息，对应字段填空字符串
+3. 型号(MPN)是最重要的，必须仔细识别
+4. 数量要识别数字和单位（如K表示千）"""
+
+        prompt = f"""请分析以下邮件是否为询价邮件，如果是则提取元器件信息：
+
+主题：{email_subject}
+
+内容：
+{cleaned_content}
+
+请返回JSON格式的结果："""
+
+        config = types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            max_output_tokens=2000,
+            temperature=0.1,
+        )
+
+        response = client.models.generate_content(
+            model=MODEL_ID,
+            contents=prompt,
+            config=config
+        )
+
+        # 解析JSON响应
+        import json
+        response_text = response.text.strip()
+
+        # 移除可能的markdown代码块标记
+        if response_text.startswith("```"):
+            response_text = re.sub(r'^```json?\s*', '', response_text)
+            response_text = re.sub(r'\s*```$', '', response_text)
+
+        result = json.loads(response_text)
+
+        if result.get("is_inquiry") and result.get("items"):
+            items = result["items"]
+            # 根据语言生成表格
+            if language == 'ko':
+                table_header = "| No. | 모델명(MPN) | 브랜드 | 수량 | 데이터시트 | 비고 |\n|-----|-------------|--------|------|------------|------|"
+            elif language == 'en':
+                table_header = "| No. | MPN | Brand | Qty | Datasheet | Remark |\n|-----|-----|-------|-----|-----------|--------|"
+            elif language == 'zh':
+                table_header = "| 序号 | 型号(MPN) | 品牌 | 数量 | 规格书 | 备注 |\n|------|-----------|------|------|--------|------|"
+            else:
+                table_header = "| No. | MPN | Brand | Qty | Datasheet | Remark |\n|-----|-----|-------|-----|-----------|--------|"
+
+            table_rows = []
+            for item in items:
+                row = f"| {item.get('no', '')} | {item.get('mpn', '')} | {item.get('brand', '')} | {item.get('qty', '')} | {item.get('datasheet', '')} | {item.get('remark', '')} |"
+                table_rows.append(row)
+
+            table = table_header + "\n" + "\n".join(table_rows)
+
+            return {
+                "is_inquiry": True,
+                "table": table,
+                "items": items
+            }
+
+        return {"is_inquiry": False, "table": "", "items": []}
+
+    except Exception as e:
+        print(f"Extract inquiry error: {e}")
+        return {"is_inquiry": False, "table": "", "items": []}
+
+
 def suggest_email_reply(
     email_content: str,
     user_instruction: str,
@@ -290,6 +395,9 @@ def suggest_email_reply(
         # 检测原邮件语言
         detected_language = detect_language(cleaned_content + " " + email_subject)
         language_prompt = get_language_prompt(detected_language)
+
+        # 检查是否是询价邮件并提取表格
+        inquiry_result = extract_inquiry_table(email_content, email_subject, detected_language)
 
         # 构建系统提示
         system_instruction = f"""你是一个专业的邮件回复助手。请根据用户的指示和原邮件内容，生成一封专业、礼貌的邮件回复。
@@ -332,10 +440,28 @@ def suggest_email_reply(
             config=config
         )
 
+        reply_text = response.text
+
+        # 如果是询价邮件，在回复中插入表格
+        if inquiry_result["is_inquiry"]:
+            # 在回复开头插入表格
+            if detected_language == 'ko':
+                table_intro = "\n\n요청하신 제품 정보입니다:\n\n"
+            elif detected_language == 'zh':
+                table_intro = "\n\n您询价的产品信息如下：\n\n"
+            elif detected_language == 'en':
+                table_intro = "\n\nHere is the product information you requested:\n\n"
+            else:
+                table_intro = "\n\nHere is the product information you requested:\n\n"
+
+            reply_text = reply_text + table_intro + inquiry_result["table"]
+
         return {
             "success": True,
-            "reply": response.text,
+            "reply": reply_text,
             "language": detected_language,
+            "is_inquiry": inquiry_result["is_inquiry"],
+            "inquiry_items": inquiry_result["items"],
             "usage": {
                 "prompt_tokens": response.usage_metadata.prompt_token_count if response.usage_metadata else 0,
                 "output_tokens": response.usage_metadata.candidates_token_count if response.usage_metadata else 0
