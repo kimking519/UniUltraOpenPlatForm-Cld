@@ -1292,6 +1292,18 @@
                     <div id="blacklistContainer" style="max-height: 200px; overflow-y: auto;"></div>
                 </div>
 
+                <!-- Gemini AI 设置 -->
+                <div class="settings-section" style="margin-bottom: 20px; padding: 15px; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border);">
+                    <h3 style="margin: 0 0 10px 0; font-size: 15px; color: var(--text-main);">Gemini AI 设置</h3>
+                    <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">配置 Gemini API Key 以启用智能回复建议功能</p>
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem; align-items: center;">
+                        <input type="password" id="geminiApiKey" placeholder="输入 Gemini API Key" style="flex: 1; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                        <button class="btn btn-primary" onclick="saveGeminiConfig()">保存</button>
+                    </div>
+                    <div id="geminiStatus" style="font-size: 12px; color: var(--text-muted);"></div>
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" style="font-size: 12px; color: var(--primary);">获取 Gemini API Key</a>
+                </div>
+
                 <!-- 过滤规则 -->
                 <div class="settings-section" style="margin-bottom: 20px; padding: 15px; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border);">
                     <h3 style="margin: 0 0 5px 0; font-size: 15px; color: var(--text-main);">过滤规则</h3>
@@ -3285,11 +3297,82 @@
     async function suggestReply() {
         if (!currentMailId) return;
 
+        // Check if Gemini is configured
         try {
-            const response = await fetch(`/api/mail/${currentMailId}/suggest-reply`, { method: 'POST' });
-            const result = await response.json();
-            alert('AI 建议回复:\n' + result.reply);
+            const configResponse = await fetch('/api/gemini/config');
+            const config = await configResponse.json();
+            if (!config.configured) {
+                alert('请先在设置中配置 Gemini API Key');
+                openSettings();
+                return;
+            }
         } catch (error) {
+            alert('无法检查 Gemini 配置');
+            return;
+        }
+
+        // Get user's reply intent
+        const userIntent = prompt('请输入您想要回复的内容或方向：\n例如：同意报价、询问交期、感谢对方等');
+        if (!userIntent || !userIntent.trim()) {
+            return; // User cancelled
+        }
+
+        // Get current email content
+        const from = document.getElementById('detailFrom').textContent;
+        const subject = document.getElementById('detailSubject').textContent;
+        const bodyEl = document.getElementById('detailBody');
+        const emailContent = bodyEl.textContent || bodyEl.innerText || '';
+
+        // Show loading
+        showToast('正在生成回复建议...', 'info');
+
+        try {
+            const response = await fetch('/api/gemini/suggest-reply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email_content: emailContent,
+                    user_instruction: userIntent.trim(),
+                    sender_name: from,
+                    email_subject: subject
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Show suggestion for approval
+                const approved = confirm('AI 建议回复:\n\n' + result.reply + '\n\n是否使用此回复内容？');
+
+                if (approved) {
+                    // Open reply compose panel first
+                    replyEmail();
+
+                    // Wait a bit for the panel to open
+                    setTimeout(() => {
+                        // Insert the suggested reply at the beginning of the compose body
+                        const composeBody = document.getElementById('composeBody');
+                        const currentContent = composeBody.innerHTML || '';
+
+                        // Insert suggestion before the quoted content
+                        const suggestionHtml = `<div style="margin-bottom: 15px;">${result.reply.replace(/\n/g, '<br>')}</div>`;
+
+                        // Find where the quote starts (after <br><br> or at the border div)
+                        const quoteStart = currentContent.indexOf('<br><br><div style="border-left');
+                        if (quoteStart > -1) {
+                            composeBody.innerHTML = suggestionHtml + currentContent;
+                        } else {
+                            composeBody.innerHTML = suggestionHtml + currentContent;
+                        }
+
+                        showToast('已插入回复建议', 'success');
+                    }, 100);
+                }
+            } else {
+                alert('生成回复失败: ' + (result.error || '未知错误'));
+            }
+        } catch (error) {
+            console.error('Suggest reply error:', error);
             alert('AI 建议功能暂不可用');
         }
     }
@@ -3416,6 +3499,9 @@
 
         // Load blacklist
         await loadBlacklist();
+
+        // Load Gemini config
+        await loadGeminiConfig();
     }
 
     // Load blacklist
@@ -3499,6 +3585,58 @@
         } catch (error) {
             console.error('Remove blacklist error:', error);
             alert('移除失败');
+        }
+    }
+
+    // ============ Gemini AI Functions ============
+
+    // Load Gemini config
+    async function loadGeminiConfig() {
+        try {
+            const response = await fetch('/api/gemini/config');
+            const data = await response.json();
+            const statusEl = document.getElementById('geminiStatus');
+            const keyInput = document.getElementById('geminiApiKey');
+
+            if (data.configured) {
+                statusEl.innerHTML = `<span style="color: #10B981;">✓ 已配置</span> (${data.api_key})`;
+                keyInput.placeholder = '已配置，输入新的 API Key 可更新';
+            } else {
+                statusEl.innerHTML = `<span style="color: #EF4444;">✗ 未配置</span>`;
+            }
+        } catch (error) {
+            console.error('Load Gemini config error:', error);
+        }
+    }
+
+    // Save Gemini config
+    async function saveGeminiConfig() {
+        const keyInput = document.getElementById('geminiApiKey');
+        const apiKey = keyInput.value.trim();
+
+        if (!apiKey) {
+            alert('请输入 Gemini API Key');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/gemini/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: apiKey })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                showToast('Gemini API Key 设置成功', 'success');
+                keyInput.value = '';
+                loadGeminiConfig();
+            } else {
+                alert(result.message || '设置失败');
+            }
+        } catch (error) {
+            console.error('Save Gemini config error:', error);
+            alert('设置失败');
         }
     }
 

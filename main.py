@@ -2971,3 +2971,70 @@ if __name__ == "__main__":
     env = get_server_env()
     port = 8001 if env == "Windows" else 8000
     uvicorn.run("main:app", host="127.0.0.1", port=port, reload=True)
+
+
+# ==================== Gemini AI API ====================
+
+@app.get("/api/gemini/config")
+async def api_get_gemini_config(current_user: dict = Depends(login_required)):
+    """获取 Gemini 配置状态"""
+    from Sills.gemini_service import is_gemini_configured, get_gemini_api_key
+    return {
+        "success": True,
+        "configured": is_gemini_configured(),
+        "api_key": get_gemini_api_key()
+    }
+
+
+@app.post("/api/gemini/config")
+async def api_set_gemini_config(request: Request, current_user: dict = Depends(login_required)):
+    """设置 Gemini API Key"""
+    from Sills.gemini_service import set_gemini_api_key_permanent
+    data = await request.json()
+    api_key = data.get('api_key', '').strip()
+
+    if not api_key:
+        return {"success": False, "message": "API Key 不能为空"}
+
+    result = set_gemini_api_key_permanent(api_key)
+
+    if result["windows"] or result["wsl"]:
+        return {
+            "success": True,
+            "message": "Gemini API Key 设置成功",
+            "details": result
+        }
+    else:
+        return {
+            "success": False,
+            "message": result.get("message", "设置失败")
+        }
+
+
+@app.post("/api/gemini/suggest-reply")
+async def api_gemini_suggest_reply(request: Request, current_user: dict = Depends(login_required)):
+    """
+    Gemini AI 建议回复
+    需要提供：邮件内容 + 用户回复意图
+    """
+    from Sills.gemini_service import suggest_email_reply
+    data = await request.json()
+
+    email_content = data.get('email_content', '')
+    user_instruction = data.get('user_instruction', '')
+    sender_name = data.get('sender_name', '')
+    email_subject = data.get('email_subject', '')
+
+    if not email_content:
+        return {"success": False, "message": "邮件内容不能为空"}
+    if not user_instruction:
+        return {"success": False, "message": "请输入您想要回复的内容或方向"}
+
+    result = suggest_email_reply(
+        email_content=email_content,
+        user_instruction=user_instruction,
+        sender_name=sender_name,
+        email_subject=email_subject
+    )
+
+    return result
