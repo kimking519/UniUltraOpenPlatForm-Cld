@@ -153,14 +153,13 @@ def set_gemini_api_key_permanent(api_key: str) -> dict:
             pass
 
     if platform.system() == 'Windows' or is_wsl:
-        # Windows 环境
+        # Windows 环境 - 使用 setx 命令（比 PowerShell 快得多）
         try:
-            # 使用 PowerShell 设置用户级环境变量
-            ps_cmd = f'[Environment]::SetEnvironmentVariable("GEMINI_API_KEY", "{api_key}", "User")'
             subprocess.run(
-                ["powershell", "-Command", ps_cmd],
+                ["setx", "GEMINI_API_KEY", api_key],
                 check=True,
-                capture_output=True
+                capture_output=True,
+                timeout=5
             )
             result["windows"] = True
         except Exception as e:
