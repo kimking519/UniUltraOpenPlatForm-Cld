@@ -752,50 +752,71 @@ def sync_new_emails(background_tasks=None) -> Dict[str, Any]:
         total_saved = 0
         total_processed = 0
 
+        # 先获取所有新邮件并统计总数
+        all_emails_data = []
         for folder_name, is_sent, folder_label in folders_to_sync:
             try:
-                update_sync_progress(20, 100, f"获取{folder_label}新邮件...")
+                update_sync_progress(10, 100, f"扫描{folder_label}新邮件...")
                 print(f"[Mail] 增量同步文件夹: {folder_name}")
                 # 使用since_date进行增量同步
                 emails = imap_client.fetch_emails(folder=folder_name, days=7, since_date=since_date)
-                print(f"[Mail] 文件夹 {folder_name} 返回 {len(emails) if emails else 0} 封新邮件")
-
-                if not emails:
-                    continue
-
-                # 标记是否为已发送
-                for email_data in emails:
-                    email_data['is_sent'] = is_sent
-
-                total_emails = len(emails)
-                update_sync_progress(30, 100, f"{folder_label}发现 {total_emails} 封新邮件")
-
-                for idx, email_data in enumerate(emails):
-                    total_processed += 1
-                    progress = min(90, 30 + int((idx / total_emails) * 60))
-                    update_sync_progress(progress, 100, f"处理 {folder_label} {idx + 1}/{total_emails}")
-
-                    # 检查是否已存在
-                    if email_data.get('message_id'):
-                        from Sills.db_mail import get_db_connection
-                        with get_db_connection() as conn:
-                            existing = conn.execute(
-                                "SELECT id FROM uni_mail WHERE message_id = ?",
-                                (email_data['message_id'],)
-                            ).fetchone()
-                            if existing:
-                                continue
-
-                    # 关联当前账户ID
-                    email_data['account_id'] = current_account_id
-
-                    # 保存邮件
-                    save_email(email_data)
-                    total_saved += 1
-
+                if emails:
+                    for email_data in emails:
+                        email_data['is_sent'] = is_sent
+                        email_data['folder_label'] = folder_label
+                    all_emails_data.extend(emails)
+                    print(f"[Mail] {folder_label}: {len(emails)} 封新邮件")
             except Exception as e:
-                print(f"Sync {folder_name} error: {e}")
-                continue
+                print(f"[Mail] 扫描 {folder_name} 失败: {e}")
+
+        grand_total_emails = len(all_emails_data)
+        print(f"[Mail] 总计 {grand_total_emails} 封新邮件待同步")
+
+        # 设置同步日期范围（增量同步使用最近7天）
+        from datetime import datetime, timedelta
+        sync_start = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        sync_end = datetime.now().strftime('%Y-%m-%d')
+
+        # 更新总邮件数
+        update_sync_progress(20, 100, f"共发现 {grand_total_emails} 封新邮件",
+                           sync_start_date=sync_start, sync_end_date=sync_end,
+                           total_emails=grand_total_emails, synced_emails=0)
+
+        # 同步邮件
+        for idx, email_data in enumerate(all_emails_data):
+            # 检查是否已存在
+            is_new_email = True
+            if email_data.get('message_id'):
+                from Sills.db_mail import get_db_connection
+                with get_db_connection() as conn:
+                    existing = conn.execute(
+                        "SELECT id FROM uni_mail WHERE message_id = ?",
+                        (email_data['message_id'],)
+                    ).fetchone()
+                    if existing:
+                        is_new_email = False
+
+            # 保存新邮件
+            if is_new_email:
+                email_data['account_id'] = current_account_id
+                save_email(email_data)
+                total_saved += 1
+
+            # 更新已处理数量
+            total_processed += 1
+
+            # 计算进度百分比并更新
+            if grand_total_emails > 0:
+                percent = int((total_processed / grand_total_emails) * 100)
+            else:
+                percent = 0
+
+            folder_label = email_data.get('folder_label', '')
+            update_sync_progress(
+                percent, 100,
+                f"处理 {folder_label} {idx + 1}/{grand_total_emails}",
+                synced_emails=total_processed
+            )
 
         update_sync_progress(95, 100, "断开连接...")
         imap_client.disconnect()
