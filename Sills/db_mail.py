@@ -28,8 +28,8 @@ def get_mail_list(page: int = 1, limit: int = 20, is_sent: int = 0,
     params = [is_sent]
     count_params = [is_sent]
 
-    query = "SELECT * FROM uni_mail WHERE is_sent = ?"
-    count_query = "SELECT COUNT(*) FROM uni_mail WHERE is_sent = ?"
+    query = "SELECT * FROM uni_mail WHERE is_sent = ? AND is_deleted = 0"
+    count_query = "SELECT COUNT(*) FROM uni_mail WHERE is_sent = ? AND is_deleted = 0"
 
     # 收件箱只显示未分类的邮件（folder_id IS NULL）
     if is_sent == 0:
@@ -97,6 +97,66 @@ def get_mail_by_id(mail_id: int) -> Optional[Dict[str, Any]]:
     return None
 
 
+def get_trash_list(page: int = 1, limit: int = 20, search: str = None, account_id: int = None) -> Dict[str, Any]:
+    """
+    获取回收站邮件列表（分页）
+    """
+    offset = (page - 1) * limit
+    params = []
+    count_params = []
+
+    query = "SELECT * FROM uni_mail WHERE is_deleted = 1"
+    count_query = "SELECT COUNT(*) FROM uni_mail WHERE is_deleted = 1"
+
+    # 用户隔离：按账户ID过滤
+    if account_id is not None:
+        query += " AND account_id = ?"
+        count_query += " AND account_id = ?"
+        params.append(account_id)
+        count_params.append(account_id)
+    else:
+        return {
+            "items": [],
+            "total_count": 0,
+            "page": page,
+            "page_size": limit,
+            "total_pages": 0
+        }
+
+    if search:
+        query += " AND (subject LIKE ? OR from_addr LIKE ? OR to_addr LIKE ?)"
+        count_query += " AND (subject LIKE ? OR from_addr LIKE ? OR to_addr LIKE ?)"
+        search_param = f"%{search}%"
+        params.extend([search_param, search_param, search_param])
+        count_params.extend([search_param, search_param, search_param])
+
+    query += " ORDER BY deleted_at DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+
+    with get_db_connection() as conn:
+        total_count = conn.execute(count_query, count_params).fetchone()[0]
+        rows = conn.execute(query, params).fetchall()
+
+    items = []
+    for row in rows:
+        item = dict(row)
+        import re
+        content = item.get('content', '') or ''
+        content_clean = re.sub(r'<[^>]+>', '', content)
+        content_clean = re.sub(r'\s+', ' ', content_clean).strip()
+        item['content_preview'] = content_clean[:500]
+        item['body_truncated'] = len(content_clean) > 500
+        items.append(item)
+
+    return {
+        "items": items,
+        "total_count": total_count,
+        "page": page,
+        "page_size": limit,
+        "total_pages": (total_count + limit - 1) // limit if total_count > 0 else 0
+    }
+
+
 def save_email(mail_data: Dict[str, Any]) -> int:
     """
     保存邮件到数据库
@@ -137,13 +197,51 @@ def save_email(mail_data: Dict[str, Any]) -> int:
 
 
 def delete_email(mail_id: int) -> bool:
-    """删除邮件"""
+    """删除邮件（移入回收站）"""
+    with get_db_connection() as conn:
+        # 软删除：设置 is_deleted = 1
+        result = conn.execute("""
+            UPDATE uni_mail SET is_deleted = 1, deleted_at = datetime('now', 'localtime') WHERE id = ?
+        """, (mail_id,))
+        conn.commit()
+        return result.rowcount > 0
+
+
+def restore_email(mail_id: int) -> bool:
+    """恢复邮件（从回收站）"""
+    with get_db_connection() as conn:
+        result = conn.execute("""
+            UPDATE uni_mail SET is_deleted = 0, deleted_at = NULL WHERE id = ?
+        """, (mail_id,))
+        conn.commit()
+        return result.rowcount > 0
+
+
+def permanently_delete_email(mail_id: int) -> bool:
+    """永久删除邮件"""
     with get_db_connection() as conn:
         # 先删除关联关系
         conn.execute("DELETE FROM uni_mail_rel WHERE mail_id = ?", (mail_id,))
         result = conn.execute("DELETE FROM uni_mail WHERE id = ?", (mail_id,))
         conn.commit()
         return result.rowcount > 0
+
+
+def empty_trash() -> int:
+    """清空回收站"""
+    with get_db_connection() as conn:
+        # 先删除关联关系
+        conn.execute("DELETE FROM uni_mail_rel WHERE mail_id IN (SELECT id FROM uni_mail WHERE is_deleted = 1)")
+        result = conn.execute("DELETE FROM uni_mail WHERE is_deleted = 1")
+        conn.commit()
+        return result.rowcount
+
+
+def get_trash_count() -> int:
+    """获取回收站邮件数量"""
+    with get_db_connection() as conn:
+        row = conn.execute("SELECT COUNT(*) FROM uni_mail WHERE is_deleted = 1").fetchone()
+        return row[0] if row else 0
 
 
 def batch_delete_emails(mail_ids: list) -> int:

@@ -496,6 +496,20 @@ def init_db():
         except sqlite3.OperationalError:
             pass  # 列已存在，忽略
 
+        # 迁移：为 uni_mail 添加 is_deleted 字段（回收站功能）
+        try:
+            conn.execute("ALTER TABLE uni_mail ADD COLUMN is_deleted INTEGER DEFAULT 0 CHECK(is_deleted IN (0,1))")
+            print("[DB] 迁移完成：uni_mail 添加 is_deleted 列")
+        except sqlite3.OperationalError:
+            pass  # 列已存在，忽略
+
+        # 迁移：为 uni_mail 添加 deleted_at 字段
+        try:
+            conn.execute("ALTER TABLE uni_mail ADD COLUMN deleted_at DATETIME")
+            print("[DB] 迁移完成：uni_mail 添加 deleted_at 列")
+        except sqlite3.OperationalError:
+            pass  # 列已存在，忽略
+
         conn.executescript(schema)
         conn.execute("""
             INSERT OR IGNORE INTO uni_emp (emp_id, emp_name, account, password, rule)

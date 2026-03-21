@@ -1081,6 +1081,12 @@
         邮件中心
     </h1>
     <div style="display: flex; align-items: center; gap: 1rem;">
+        <button class="btn btn-secondary" onclick="emptyTrash()" id="emptyTrashBtn" style="display: none; color: #EF4444; border-color: #EF4444;">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+            清空回收站
+        </button>
         <button class="btn btn-secondary" onclick="batchDeleteMails()" id="batchDeleteBtn" style="display: none; color: #EF4444; border-color: #EF4444;">
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -1127,6 +1133,13 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
                 </svg>
                 已发送
+            </li>
+            <li class="folder-item" data-folder="trash" onclick="switchFolder('trash')">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+                回收站
+                <span class="folder-badge" id="trashBadge" style="display: none;">0</span>
             </li>
             <!-- 自定义文件夹将动态加载 -->
         </ul>
@@ -1324,6 +1337,7 @@
                 <button class="btn btn-secondary" onclick="forwardEmail()">转发</button>
                 <button class="btn btn-secondary" onclick="analyzeEmail()">AI 分析</button>
                 <button class="btn btn-secondary" onclick="suggestReply()">AI 建议回复</button>
+                <button class="btn btn-secondary" id="restoreBtn" style="display: none; color: #22C55E;" onclick="restoreCurrentEmail()">恢复</button>
                 <button class="btn btn-secondary" style="margin-left: auto; color: #EF4444;" onclick="deleteCurrentEmail()">删除</button>
             </div>
         </div>
@@ -1481,6 +1495,7 @@
                 <button class="btn btn-secondary" onclick="forwardEmail()">转发</button>
                 <button class="btn btn-secondary" onclick="analyzeEmail()">AI 分析</button>
                 <button class="btn btn-secondary" onclick="suggestReply()">AI 建议回复</button>
+                <button class="btn btn-secondary" id="restoreBtn" style="display: none; color: #22C55E;" onclick="restoreCurrentEmail()">恢复</button>
                 <button class="btn btn-secondary" style="margin-left: auto; color: #EF4444;" onclick="deleteCurrentEmail()">删除</button>
             </div>
         </div>
@@ -2032,32 +2047,59 @@
 
     // Load emails
     async function loadEmails() {
-        const folder = currentFolder; // 'inbox' or 'sent'
+        const folder = currentFolder; // 'inbox', 'sent', or 'trash'
         const search = document.getElementById('searchInput').value;
 
         try {
-            const response = await fetch(`/api/mail/list?folder=${folder}&page=${currentPage}&page_size=${pageSize}${search ? '&search=' + encodeURIComponent(search) : ''}`);
-            const data = await response.json();
+            let data;
+            if (folder === 'trash') {
+                // 加载回收站邮件
+                const response = await fetch(`/api/mail/trash?page=${currentPage}&page_size=${pageSize}${search ? '&search=' + encodeURIComponent(search) : ''}`);
+                data = await response.json();
+            } else {
+                const response = await fetch(`/api/mail/list?folder=${folder}&page=${currentPage}&page_size=${pageSize}${search ? '&search=' + encodeURIComponent(search) : ''}`);
+                data = await response.json();
+            }
 
-            renderEmailList(data.items);
+            renderEmailList(data.items, folder === 'trash');
             renderPagination(data);
             updateBadge(data.total_count);
+            loadTrashCount(); // 更新回收站badge
         } catch (error) {
             console.error('Load emails error:', error);
         }
     }
 
+    // Load trash count
+    async function loadTrashCount() {
+        try {
+            const response = await fetch('/api/mail/trash?page=1&page_size=1');
+            const data = await response.json();
+            const badge = document.getElementById('trashBadge');
+            if (data.total_count > 0) {
+                badge.textContent = data.total_count > 99 ? '99+' : data.total_count;
+                badge.style.display = 'inline';
+            } else {
+                badge.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Load trash count error:', error);
+        }
+    }
+
     // Render email list
-    function renderEmailList(emails) {
+    function renderEmailList(emails, isTrash = false) {
         const container = document.getElementById('mailList');
 
         if (emails.length === 0) {
+            const emptyText = isTrash ? '回收站是空的' : '暂无邮件';
             container.innerHTML = `
                 <div class="mail-empty">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                     </svg>
-                    <p>暂无邮件</p>
+                    <p>${emptyText}</p>
+                    ${isTrash ? '<button class="btn btn-primary" style="margin-top: 10px;" onclick="closeSettingsView()">返回收件箱</button>' : ''}
                 </div>
             `;
             return;
@@ -2129,6 +2171,10 @@
         // Update UI
         document.querySelectorAll('.folder-item').forEach(el => el.classList.remove('active'));
         document.querySelector(`[data-folder="${folder}"]`).classList.add('active');
+
+        // Show/hide empty trash button
+        const emptyTrashBtn = document.getElementById('emptyTrashBtn');
+        emptyTrashBtn.style.display = folder === 'trash' ? 'inline-flex' : 'none';
 
         loadEmails();
     }
@@ -2452,6 +2498,10 @@
             // Load relations
             loadRelations(id);
 
+            // Show/hide restore button based on trash folder
+            const restoreBtn = document.getElementById('restoreBtn');
+            restoreBtn.style.display = currentFolder === 'trash' ? 'inline-flex' : 'none';
+
             // Show detail panel (Gmail style)
             document.querySelector('.mail-container').classList.remove('detail-closed');
         } catch (error) {
@@ -2770,16 +2820,69 @@
 
     // Delete email
     async function deleteCurrentEmail() {
-        if (!currentMailId || !confirm('确定要删除这封邮件吗？')) return;
+        if (!currentMailId) return;
+
+        if (currentFolder === 'trash') {
+            // 回收站中是永久删除
+            if (!confirm('确定要永久删除这封邮件吗？此操作不可恢复！')) return;
+            try {
+                const response = await fetch(`/api/mail/${currentMailId}/permanent`, { method: 'DELETE' });
+                if (response.ok) {
+                    closeDetailPanel();
+                    loadEmails();
+                    showToast('邮件已永久删除', 'success');
+                }
+            } catch (error) {
+                console.error('Delete email error:', error);
+                showToast('删除失败', 'error');
+            }
+        } else {
+            // 其他文件夹移入回收站
+            if (!confirm('确定要删除这封邮件吗？')) return;
+            try {
+                const response = await fetch(`/api/mail/${currentMailId}`, { method: 'DELETE' });
+                if (response.ok) {
+                    closeDetailPanel();
+                    loadEmails();
+                    showToast('邮件已移入回收站', 'success');
+                }
+            } catch (error) {
+                console.error('Delete email error:', error);
+                showToast('删除失败', 'error');
+            }
+        }
+    }
+
+    // Restore email (from trash)
+    async function restoreCurrentEmail() {
+        if (!currentMailId) return;
 
         try {
-            const response = await fetch(`/api/mail/${currentMailId}`, { method: 'DELETE' });
+            const response = await fetch(`/api/mail/${currentMailId}/restore`, { method: 'POST' });
             if (response.ok) {
                 closeDetailPanel();
                 loadEmails();
+                showToast('邮件已恢复', 'success');
             }
         } catch (error) {
-            console.error('Delete email error:', error);
+            console.error('Restore email error:', error);
+            showToast('恢复失败', 'error');
+        }
+    }
+
+    // Empty trash
+    async function emptyTrash() {
+        if (!confirm('确定要清空回收站吗？此操作不可恢复！')) return;
+
+        try {
+            const response = await fetch('/api/mail/trash/empty', { method: 'POST' });
+            if (response.ok) {
+                loadEmails();
+                showToast('回收站已清空', 'success');
+            }
+        } catch (error) {
+            console.error('Empty trash error:', error);
+            showToast('清空失败', 'error');
         }
     }
 
