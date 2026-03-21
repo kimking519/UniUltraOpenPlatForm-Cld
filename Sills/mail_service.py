@@ -639,21 +639,8 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
                 update_sync_progress(20, 100, f"{folder_label}发现 {folder_emails} 封邮件")
 
                 for idx, email_data in enumerate(emails):
-                    total_processed += 1
-                    total_saved += 1
-                    # 计算进度百分比
-                    if grand_total_emails > 0:
-                        percent = int((total_processed / grand_total_emails) * 100)
-                    else:
-                        percent = 0
-                    # 更新进度（包含已同步数）
-                    update_sync_progress(
-                        percent, 100,
-                        f"处理 {folder_label} {idx + 1}/{folder_emails}",
-                        synced_emails=total_processed
-                    )
-
                     # 检查是否已存在
+                    is_new_email = True
                     if email_data.get('message_id'):
                         from Sills.db_mail import get_db_connection
                         with get_db_connection() as conn:
@@ -664,7 +651,6 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
                             if existing:
                                 existing_id, existing_account_id = existing
                                 # 如果邮件存在但 account_id 不是当前账户，更新为当前账户
-                                # 允许同一封邮件在不同账户间切换显示
                                 if existing_account_id != current_account_id:
                                     conn.execute(
                                         "UPDATE uni_mail SET account_id = ? WHERE id = ?",
@@ -672,14 +658,27 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
                                     )
                                     conn.commit()
                                     total_updated += 1
-                                continue
+                                is_new_email = False
 
-                    # 关联当前账户ID
-                    email_data['account_id'] = current_account_id
+                    # 保存新邮件
+                    if is_new_email:
+                        email_data['account_id'] = current_account_id
+                        save_email(email_data)
+                        total_saved += 1
 
-                    # 保存邮件
-                    save_email(email_data)
-                    total_saved += 1
+                    # 更新已处理数量
+                    total_processed += 1
+
+                    # 计算进度百分比并更新
+                    if grand_total_emails > 0:
+                        percent = int((total_processed / grand_total_emails) * 100)
+                    else:
+                        percent = 0
+                    update_sync_progress(
+                        percent, 100,
+                        f"处理 {folder_label} {idx + 1}/{folder_emails}",
+                        synced_emails=total_processed
+                    )
 
             except Exception as e:
                 print(f"Sync {folder_name} error: {e}")
