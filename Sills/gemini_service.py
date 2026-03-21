@@ -3,6 +3,7 @@ Gemini AI 服务模块
 用于邮件智能回复建议等功能
 """
 import os
+import re
 from google import genai
 from google.genai import types
 
@@ -10,6 +11,79 @@ from google.genai import types
 MODEL_ID = "gemini-3.0-flash"
 
 _client = None
+
+# 邮件中常见的无意义内容模式
+NOISE_PATTERNS = [
+    # 签名档
+    r'(?m)^[-]{2,}\s*$.*',  # -- 签名分隔线
+    r'(?i)(best\s*regards|kind\s*regards|regards|cheers|sincerely|yours\s*faithfully|yours\s*truly)[,\s]*.*?(?=\n\n|\Z)',
+    r'(?i)(祝好|此致|敬礼|顺颂商祺|商祺|谨启|拜上).*?(?=\n\n|\Z)',
+    r'(?i)(发自.{0,10}手机|发自.{0,10}邮箱|来自.{0,10}手机|来自.{0,10}邮箱)',
+    r'(?i)(sent from my (iphone|ipad|android|mobile|device))',
+
+    # 法律声明/免责声明
+    r'(?i)(disclaimer|confidential|privileged|legal notice|法律声明|免责声明|保密|机密).*?(?=\n\n|\Z)',
+    r'(?i)此邮件.*?保密.*?(?=\n\n|\Z)',
+    r'(?i)本邮件.*?机密.*?(?=\n\n|\Z)',
+    r'(?i)if you have received this email in error.*?(?=\n\n|\Z)',
+
+    # 邮件系统自动添加的内容
+    r'(?i)(此邮件由.*?发送|this email was sent by).*?(?=\n\n|\Z)',
+    r'(?i)(点击.*?退订|click.*?unsubscribe|取消订阅|退订链接)',
+    r'(?i)(您收到此邮件是因为.*?|you are receiving this email because).*?(?=\n\n|\Z)',
+    r'(?i)(不想再收到.*?|don\'t want to receive).*?(?=\n\n|\Z)',
+
+    # 营销页脚
+    r'(?i)(follow us on|关注我们|扫码关注|微信公众号|微博|linkedin|twitter|facebook).{0,50}$',
+    r'(?i)(visit our website|访问我们|官网).*?(?=\n\n|\Z)',
+
+    # 多余空白
+    r'\n{3,}',  # 连续3个以上换行
+    r'[ \t]+$',  # 行尾空白
+]
+
+def clean_email_content(content: str, max_length: int = 2000) -> str:
+    """
+    清理邮件内容，去除无意义部分，减少token消耗
+
+    Args:
+        content: 原始邮件内容
+        max_length: 最大保留长度
+
+    Returns:
+        清理后的邮件内容
+    """
+    if not content:
+        return ""
+
+    # 如果是HTML，先提取纯文本
+    if '<' in content and '>' in content:
+        # 移除HTML标签
+        text = re.sub(r'<style[^>]*>.*?</style>', '', content, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'<[^>]+>', ' ', text)
+        text = re.sub(r'&nbsp;|&#160;', ' ', text)
+        text = re.sub(r'&[a-z]+;', '', text)
+        content = text
+
+    # 移除引用的历史邮件（转发链）
+    # 常见格式: "On ... wrote:", "-----Original Message-----", "发件人:", "From:"
+    content = re.split(r'(?i)(^[-]{3,}.*?original message.*?[-]{3,}|on .+?wrote:|发件人[：:]\s*$|^from[：:]\s*$)', content)[0]
+
+    # 应用噪音模式清理
+    for pattern in NOISE_PATTERNS:
+        content = re.sub(pattern, '', content, flags=re.DOTALL | re.IGNORECASE)
+
+    # 清理多余空白
+    content = re.sub(r'\n{3,}', '\n\n', content)
+    content = re.sub(r'[ \t]+', ' ', content)
+    content = content.strip()
+
+    # 限制长度
+    if len(content) > max_length:
+        content = content[:max_length] + "..."
+
+    return content
 
 def get_gemini_client():
     """获取 Gemini 客户端（单例）"""
@@ -146,6 +220,9 @@ def suggest_email_reply(
         return {"success": False, "error": "Gemini API Key 未配置"}
 
     try:
+        # 清理邮件内容，去除无意义部分
+        cleaned_content = clean_email_content(email_content)
+
         # 构建系统提示
         system_instruction = """你是一个专业的邮件回复助手。请根据用户的指示和原邮件内容，生成一封专业、礼貌的邮件回复。
 
@@ -163,7 +240,7 @@ def suggest_email_reply(
 
 原邮件内容：
 ---
-{email_content[:3000]}
+{cleaned_content}
 ---
 
 我的回复意图：
@@ -211,6 +288,9 @@ def analyze_email(email_content: str) -> dict:
         return {"success": False, "error": "Gemini API Key 未配置"}
 
     try:
+        # 清理邮件内容
+        cleaned_content = clean_email_content(email_content)
+
         system_instruction = """你是一个邮件分析助手。请分析邮件内容并提取以下信息：
 1. 邮件主题/目的
 2. 关键信息点
@@ -219,7 +299,7 @@ def analyze_email(email_content: str) -> dict:
 
 请用简洁的中文回答。"""
 
-        prompt = f"请分析以下邮件内容：\n\n{email_content[:3000]}"
+        prompt = f"请分析以下邮件内容：\n\n{cleaned_content}"
 
         config = types.GenerateContentConfig(
             system_instruction=system_instruction,
