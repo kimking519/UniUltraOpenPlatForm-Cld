@@ -4541,7 +4541,7 @@
                 closeDetailPanel();
             }
 
-            // 关闭所有模态框
+            // 关闭所有模态框（设置、账户等）
             const modals = document.querySelectorAll('.modal');
             modals.forEach(modal => {
                 if (modal.style.display === 'flex' || modal.classList.contains('active')) {
@@ -4550,7 +4550,7 @@
                 }
             });
 
-            // 切换回收件箱（如果不在收件箱）
+            // 切换回收件箱
             if (currentFolder !== 'inbox') {
                 switchFolder('inbox');
             }
