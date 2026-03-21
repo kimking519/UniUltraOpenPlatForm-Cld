@@ -1607,6 +1607,27 @@
     </div>
 </div>
 
+<!-- AI Suggestion Modal -->
+<div class="modal" id="aiSuggestModal">
+    <div class="modal-content" style="max-width: 700px; max-height: 80vh;">
+        <div class="modal-header">
+            <h2>🤖 AI 回复建议</h2>
+            <button class="modal-close" onclick="closeAiSuggestModal()">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+            <div id="aiSuggestContent" style="white-space: pre-wrap; line-height: 1.6; padding: 15px; background: var(--card-bg); border-radius: 8px; min-height: 200px;"></div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; padding: 15px; border-top: 1px solid var(--border);">
+            <button class="btn btn-secondary" onclick="closeAiSuggestModal()">取消</button>
+            <button class="btn btn-primary" onclick="applyAiSuggestion()">使用此回复</button>
+        </div>
+    </div>
+</div>
+
 <!-- Account Edit Modal -->
 <div class="modal" id="accountModal">
     <div class="modal-content">
@@ -3408,33 +3429,13 @@
             const result = await response.json();
 
             if (result.success) {
-                // Show suggestion for approval
-                const approved = confirm('AI 建议回复:\n\n' + result.reply + '\n\n是否使用此回复内容？');
+                // Store the suggestion for later use
+                window.currentAiSuggestion = result.reply;
 
-                if (approved) {
-                    // Open reply compose panel first
-                    replyEmail();
-
-                    // Wait a bit for the panel to open
-                    setTimeout(() => {
-                        // Insert the suggested reply at the beginning of the compose body
-                        const composeBody = document.getElementById('composeBody');
-                        const currentContent = composeBody.innerHTML || '';
-
-                        // Insert suggestion before the quoted content
-                        const suggestionHtml = `<div style="margin-bottom: 15px;">${result.reply.replace(/\n/g, '<br>')}</div>`;
-
-                        // Find where the quote starts (after <br><br> or at the border div)
-                        const quoteStart = currentContent.indexOf('<br><br><div style="border-left');
-                        if (quoteStart > -1) {
-                            composeBody.innerHTML = suggestionHtml + currentContent;
-                        } else {
-                            composeBody.innerHTML = suggestionHtml + currentContent;
-                        }
-
-                        showToast('已插入回复建议', 'success');
-                    }, 100);
-                }
+                // Show suggestion in modal (use textContent for safety)
+                const suggestContent = document.getElementById('aiSuggestContent');
+                suggestContent.textContent = result.reply;
+                document.getElementById('aiSuggestModal').style.display = 'flex';
             } else {
                 alert('生成回复失败: ' + (result.error || '未知错误'));
             }
@@ -3442,6 +3443,41 @@
             console.error('Suggest reply error:', error);
             alert('AI 建议功能暂不可用');
         }
+    }
+
+    // Close AI suggestion modal
+    function closeAiSuggestModal() {
+        document.getElementById('aiSuggestModal').style.display = 'none';
+    }
+
+    // Apply AI suggestion to compose body
+    function applyAiSuggestion() {
+        const suggestion = window.currentAiSuggestion;
+        if (!suggestion) return;
+
+        // Close modal first
+        closeAiSuggestModal();
+
+        // Open reply compose panel
+        replyEmail();
+
+        // Wait a bit for the panel to open
+        setTimeout(() => {
+            // Insert the suggested reply at the beginning of the compose body
+            const composeBody = document.getElementById('composeBody');
+            const currentContent = composeBody.innerHTML || '';
+
+            // Escape HTML and convert newlines to <br>
+            const escapedSuggestion = suggestion
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\n/g, '<br>');
+            const suggestionHtml = `<div style="margin-bottom: 15px;">${escapedSuggestion}</div>`;
+
+            composeBody.innerHTML = suggestionHtml + currentContent;
+            showToast('已插入回复建议', 'success');
+        }, 100);
     }
 
     // Mail presets for common providers
