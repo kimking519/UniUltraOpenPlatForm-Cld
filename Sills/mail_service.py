@@ -598,91 +598,77 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
         total_saved = 0
         total_updated = 0
         total_processed = 0
-        grand_total_emails = 0  # 所有文件夹总邮件数
 
-        # 先统计总邮件数
+        # 先获取所有文件夹的邮件并统计总数
+        all_emails_data = []
         for folder_name, is_sent, folder_label in folders_to_sync:
             try:
+                update_sync_progress(5, 100, f"扫描{folder_label}...")
+                print(f"[Mail] 扫描文件夹: {folder_name}")
                 emails = imap_client.fetch_emails(
                     folder=folder_name,
                     days=sync_days,
                     date_range=date_range if date_range[0] and date_range[1] else None
                 )
                 if emails:
-                    grand_total_emails += len(emails)
+                    for email_data in emails:
+                        email_data['is_sent'] = is_sent
+                        email_data['folder_label'] = folder_label
+                    all_emails_data.extend(emails)
+                    print(f"[Mail] {folder_label}: {len(emails)} 封邮件")
             except Exception as e:
-                print(f"[Mail] 统计 {folder_name} 邮件数失败: {e}")
+                print(f"[Mail] 扫描 {folder_name} 失败: {e}")
+
+        grand_total_emails = len(all_emails_data)
+        print(f"[Mail] 总计 {grand_total_emails} 封邮件待同步")
 
         # 更新总邮件数
-        update_sync_progress(5, 100, f"共发现 {grand_total_emails} 封邮件", total_emails=grand_total_emails)
+        update_sync_progress(10, 100, f"共发现 {grand_total_emails} 封邮件", total_emails=grand_total_emails)
 
-        # 重新选择文件夹进行同步
-        for folder_name, is_sent, folder_label in folders_to_sync:
-            try:
-                update_sync_progress(10, 100, f"获取{folder_label}...")
-                print(f"[Mail] 开始同步文件夹: {folder_name}, is_sent={is_sent}")
-                emails = imap_client.fetch_emails(
-                    folder=folder_name,
-                    days=sync_days,
-                    date_range=date_range if date_range[0] and date_range[1] else None
-                )
-                print(f"[Mail] 文件夹 {folder_name} 返回 {len(emails) if emails else 0} 封邮件")
-                if not emails:
-                    print(f"[Mail] 文件夹 {folder_name} 无邮件，跳过")
-                    continue
+        # 同步邮件
+        for idx, email_data in enumerate(all_emails_data):
+            # 检查是否已存在
+            is_new_email = True
+            if email_data.get('message_id'):
+                from Sills.db_mail import get_db_connection
+                with get_db_connection() as conn:
+                    existing = conn.execute(
+                        "SELECT id, account_id FROM uni_mail WHERE message_id = ?",
+                        (email_data['message_id'],)
+                    ).fetchone()
+                    if existing:
+                        existing_id, existing_account_id = existing
+                        # 如果邮件存在但 account_id 不是当前账户，更新为当前账户
+                        if existing_account_id != current_account_id:
+                            conn.execute(
+                                "UPDATE uni_mail SET account_id = ? WHERE id = ?",
+                                (current_account_id, existing_id)
+                            )
+                            conn.commit()
+                            total_updated += 1
+                        is_new_email = False
 
-                # 标记是否为已发送
-                for email_data in emails:
-                    email_data['is_sent'] = is_sent
+            # 保存新邮件
+            if is_new_email:
+                email_data['account_id'] = current_account_id
+                save_email(email_data)
+                total_saved += 1
 
-                folder_emails = len(emails)
-                update_sync_progress(20, 100, f"{folder_label}发现 {folder_emails} 封邮件")
+            # 更新已处理数量
+            total_processed += 1
 
-                for idx, email_data in enumerate(emails):
-                    # 检查是否已存在
-                    is_new_email = True
-                    if email_data.get('message_id'):
-                        from Sills.db_mail import get_db_connection
-                        with get_db_connection() as conn:
-                            existing = conn.execute(
-                                "SELECT id, account_id FROM uni_mail WHERE message_id = ?",
-                                (email_data['message_id'],)
-                            ).fetchone()
-                            if existing:
-                                existing_id, existing_account_id = existing
-                                # 如果邮件存在但 account_id 不是当前账户，更新为当前账户
-                                if existing_account_id != current_account_id:
-                                    conn.execute(
-                                        "UPDATE uni_mail SET account_id = ? WHERE id = ?",
-                                        (current_account_id, existing_id)
-                                    )
-                                    conn.commit()
-                                    total_updated += 1
-                                is_new_email = False
+            # 计算进度百分比并更新
+            if grand_total_emails > 0:
+                percent = int((total_processed / grand_total_emails) * 100)
+            else:
+                percent = 0
 
-                    # 保存新邮件
-                    if is_new_email:
-                        email_data['account_id'] = current_account_id
-                        save_email(email_data)
-                        total_saved += 1
-
-                    # 更新已处理数量
-                    total_processed += 1
-
-                    # 计算进度百分比并更新
-                    if grand_total_emails > 0:
-                        percent = int((total_processed / grand_total_emails) * 100)
-                    else:
-                        percent = 0
-                    update_sync_progress(
-                        percent, 100,
-                        f"处理 {folder_label} {idx + 1}/{folder_emails}",
-                        synced_emails=total_processed
-                    )
-
-            except Exception as e:
-                print(f"Sync {folder_name} error: {e}")
-                continue
+            folder_label = email_data.get('folder_label', '')
+            update_sync_progress(
+                percent, 100,
+                f"处理 {folder_label} {idx + 1}/{grand_total_emails}",
+                synced_emails=total_processed
+            )
 
         update_sync_progress(95, 100, "断开连接...")
         imap_client.disconnect()
