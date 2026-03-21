@@ -3500,23 +3500,20 @@
 
     // ============ Paste Attachments ============
     function initPasteAttachments() {
-        // 在整个面板和文本区域都监听粘贴事件
+        // 只在面板body监听粘贴事件，避免事件冒泡导致重复
         const composeBody = document.getElementById('composePanelBody');
-        const textArea = document.getElementById('composeBody');
 
         if (composeBody) {
             composeBody.addEventListener('paste', handlePaste, false);
-        }
-
-        // 文本区域也需要监听，捕获粘贴的图片
-        if (textArea) {
-            textArea.addEventListener('paste', handlePaste, false);
         }
     }
 
     function handlePaste(e) {
         const items = e.clipboardData?.items;
         if (!items) return;
+
+        // 阻止事件冒泡，防止重复处理
+        e.stopPropagation();
 
         const files = [];
         for (let i = 0; i < items.length; i++) {
