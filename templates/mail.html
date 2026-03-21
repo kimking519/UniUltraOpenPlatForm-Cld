@@ -1618,8 +1618,8 @@
                 </svg>
             </button>
         </div>
-        <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
-            <div id="aiSuggestContent" style="white-space: pre-wrap; line-height: 1.6; padding: 15px; background: var(--card-bg); border-radius: 8px; min-height: 200px;"></div>
+        <div class="modal-body" style="padding: 20px;">
+            <textarea id="aiSuggestContent" readonly style="width: 100%; min-height: 300px; padding: 15px; border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg); color: var(--text-main); font-size: 14px; line-height: 1.6; resize: vertical; font-family: inherit;"></textarea>
         </div>
         <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; padding: 15px; border-top: 1px solid var(--border);">
             <button class="btn btn-secondary" onclick="closeAiSuggestModal()">取消</button>
@@ -3434,7 +3434,7 @@
 
                 // Show suggestion in modal (use textContent for safety)
                 const suggestContent = document.getElementById('aiSuggestContent');
-                suggestContent.textContent = result.reply;
+                suggestContent.value = result.reply;
                 document.getElementById('aiSuggestModal').style.display = 'flex';
             } else {
                 alert('生成回复失败: ' + (result.error || '未知错误'));
