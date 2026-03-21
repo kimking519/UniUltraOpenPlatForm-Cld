@@ -108,20 +108,12 @@ def get_trash_list(page: int = 1, limit: int = 20, search: str = None, account_i
     query = "SELECT * FROM uni_mail WHERE is_deleted = 1"
     count_query = "SELECT COUNT(*) FROM uni_mail WHERE is_deleted = 1"
 
-    # 用户隔离：按账户ID过滤
+    # 用户隔离：按账户ID过滤（如果有的话）
     if account_id is not None:
         query += " AND account_id = ?"
         count_query += " AND account_id = ?"
         params.append(account_id)
         count_params.append(account_id)
-    else:
-        return {
-            "items": [],
-            "total_count": 0,
-            "page": page,
-            "page_size": limit,
-            "total_pages": 0
-        }
 
     if search:
         query += " AND (subject LIKE ? OR from_addr LIKE ? OR to_addr LIKE ?)"
