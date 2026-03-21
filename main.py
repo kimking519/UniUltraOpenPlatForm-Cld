@@ -2621,8 +2621,9 @@ async def api_mail_trash_list(
     current_user: dict = Depends(login_required)
 ):
     """获取回收站邮件列表"""
-    from Sills.db_mail import get_trash_list, get_current_account_id
-    account_id = get_current_account_id()
+    from Sills.db_mail import get_trash_list
+    account = get_mail_config()
+    account_id = account.get('id') if account else None
     result = get_trash_list(page=page, limit=page_size, search=search, account_id=account_id)
     return result
 
