@@ -1063,6 +1063,60 @@ def set_signature(signature: str) -> bool:
         return True
 
 
+def get_sync_date_range() -> tuple:
+    """
+    获取自定义同步日期范围
+
+    Returns:
+        (start_date, end_date) 或 (None, None)
+    """
+    with get_db_connection() as conn:
+        start_row = conn.execute(
+            "SELECT value FROM global_settings WHERE key = 'sync_start_date'"
+        ).fetchone()
+        end_row = conn.execute(
+            "SELECT value FROM global_settings WHERE key = 'sync_end_date'"
+        ).fetchone()
+        if start_row and end_row:
+            return (start_row[0], end_row[0])
+    return (None, None)
+
+
+def set_sync_date_range(start_date: str, end_date: str) -> bool:
+    """
+    设置自定义同步日期范围
+
+    Args:
+        start_date: 起始日期 (YYYY-MM-DD)
+        end_date: 结束日期 (YYYY-MM-DD)
+    """
+    with get_db_connection() as conn:
+        conn.execute("""
+            INSERT INTO global_settings (key, value, updated_at)
+            VALUES ('sync_start_date', ?, datetime('now', 'localtime'))
+            ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = excluded.updated_at
+        """, (start_date,))
+        conn.execute("""
+            INSERT INTO global_settings (key, value, updated_at)
+            VALUES ('sync_end_date', ?, datetime('now', 'localtime'))
+            ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = excluded.updated_at
+        """, (end_date,))
+        conn.commit()
+        return True
+
+
+def clear_sync_date_range() -> bool:
+    """清除自定义同步日期范围"""
+    with get_db_connection() as conn:
+        conn.execute("DELETE FROM global_settings WHERE key IN ('sync_start_date', 'sync_end_date')")
+        conn.commit()
+        return True
+
+
 # ==================== 邮件文件夹管理 ====================
 
 def get_folders(account_id: int = None) -> List[Dict[str, Any]]:

@@ -2303,7 +2303,7 @@ async def api_mail_sync_days_set(
     current_user: dict = Depends(login_required)
 ):
     """设置同步时间范围"""
-    from Sills.db_mail import set_sync_days
+    from Sills.db_mail import set_sync_days, clear_sync_date_range
     try:
         data = await request.json()
         days = data.get('days', 90)
@@ -2311,7 +2311,58 @@ async def api_mail_sync_days_set(
             return {"success": False, "message": "同步时间范围必须在1-365天之间"}
 
         set_sync_days(days)
+        # 清除自定义日期范围
+        clear_sync_date_range()
         return {"success": True, "message": f"同步时间范围已设置为 {days} 天"}
+    except Exception as e:
+        return {"success": False, "message": f"设置失败: {str(e)}"}
+
+
+@app.get("/api/mail/sync-range")
+async def api_mail_sync_range_get(current_user: dict = Depends(login_required)):
+    """获取同步范围设置（快捷或自定义）"""
+    from Sills.db_mail import get_sync_days, get_sync_date_range
+    start_date, end_date = get_sync_date_range()
+    if start_date and end_date:
+        return {
+            "success": True,
+            "mode": "custom",
+            "start_date": start_date,
+            "end_date": end_date
+        }
+    else:
+        return {
+            "success": True,
+            "mode": "quick",
+            "days": get_sync_days()
+        }
+
+
+@app.post("/api/mail/sync-date-range")
+async def api_mail_sync_date_range_set(
+    request: Request,
+    current_user: dict = Depends(login_required)
+):
+    """设置自定义同步日期范围"""
+    from Sills.db_mail import set_sync_date_range
+    try:
+        data = await request.json()
+        start_date = data.get('start_date', '')
+        end_date = data.get('end_date', '')
+
+        if not start_date or not end_date:
+            return {"success": False, "message": "请选择起始日期和结束日期"}
+
+        # 验证日期格式
+        from datetime import datetime
+        try:
+            datetime.strptime(start_date, '%Y-%m-%d')
+            datetime.strptime(end_date, '%Y-%m-%d')
+        except ValueError:
+            return {"success": False, "message": "日期格式无效，请使用 YYYY-MM-DD 格式"}
+
+        set_sync_date_range(start_date, end_date)
+        return {"success": True, "message": f"同步范围已设置为 {start_date} 至 {end_date}"}
     except Exception as e:
         return {"success": False, "message": f"设置失败: {str(e)}"}
 

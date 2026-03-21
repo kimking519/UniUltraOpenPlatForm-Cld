@@ -1288,16 +1288,44 @@
                         <button class="btn btn-primary" onclick="saveSyncInterval()">保存</button>
                     </div>
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-                        <label style="color: var(--text-main); min-width: 100px;">同步范围</label>
-                        <input type="number" id="syncDays" value="90" min="1" max="365" style="width: 80px; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
-                        <span style="color: var(--text-muted);">天</span>
-                        <button class="btn btn-primary" onclick="saveSyncDays()">保存</button>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 10px;">
                         <label style="color: var(--text-main); min-width: 100px;">发送撤销时间</label>
                         <input type="number" id="undoSendSeconds" value="5" min="0" max="30" style="width: 80px; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
                         <span style="color: var(--text-muted);">秒 (0=立即发送)</span>
                         <button class="btn btn-primary" onclick="saveUndoSendSeconds()">保存</button>
+                    </div>
+                    <!-- 同步时间范围 -->
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border);">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                            <label style="color: var(--text-main); min-width: 100px;">同步范围</label>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                <button class="btn btn-secondary" onclick="setSyncQuickRange(7)" style="padding: 4px 10px; font-size: 12px;">7天</button>
+                                <button class="btn btn-secondary" onclick="setSyncQuickRange(30)" style="padding: 4px 10px; font-size: 12px;">30天</button>
+                                <button class="btn btn-secondary" onclick="setSyncQuickRange(90)" style="padding: 4px 10px; font-size: 12px;">90天</button>
+                                <button class="btn btn-secondary" onclick="setSyncQuickRange(180)" style="padding: 4px 10px; font-size: 12px;">180天</button>
+                                <button class="btn btn-secondary" onclick="setSyncQuickRange(365)" style="padding: 4px 10px; font-size: 12px;">1年</button>
+                                <button class="btn btn-secondary" onclick="toggleCustomDateRange()" style="padding: 4px 10px; font-size: 12px;">自定义</button>
+                            </div>
+                        </div>
+                        <!-- 自定义日期范围 -->
+                        <div id="customDateRange" style="display: none; margin-top: 10px; padding: 12px; background: var(--bg-secondary); border-radius: var(--radius);">
+                            <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <label style="color: var(--text-main); font-size: 13px;">起始日期</label>
+                                    <input type="date" id="syncStartDate" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <label style="color: var(--text-main); font-size: 13px;">结束日期</label>
+                                    <input type="date" id="syncEndDate" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                                </div>
+                                <button class="btn btn-primary" onclick="saveCustomDateRange()">保存设置</button>
+                            </div>
+                            <p style="font-size: 12px; color: var(--text-muted); margin: 10px 0 0 0;">
+                                💡 提示：大批量邮件建议分批同步，如先同步最近1个月，再同步更早的时间段
+                            </p>
+                        </div>
+                        <div id="syncRangeInfo" style="margin-top: 10px; padding: 8px 12px; background: var(--bg-secondary); border-radius: var(--radius); font-size: 13px; color: var(--text-muted);">
+                            当前同步范围：<span id="syncRangeText">最近 90 天</span>
+                        </div>
                     </div>
                 </div>
 
@@ -3593,6 +3621,9 @@
 
         // Load Gemini config
         await loadGeminiConfig();
+
+        // Load sync range info
+        await loadSyncRangeInfo();
     }
 
     // Load blacklist
@@ -3798,15 +3829,8 @@
         }
     }
 
-    // Save sync days
-    async function saveSyncDays() {
-        const days = parseInt(document.getElementById('syncDays').value) || 90;
-
-        if (days < 1 || days > 365) {
-            alert('同步时间范围必须在1-365天之间');
-            return;
-        }
-
+    // Sync range quick select
+    async function setSyncQuickRange(days) {
         try {
             const response = await fetch('/api/mail/sync-days', {
                 method: 'POST',
@@ -3817,12 +3841,104 @@
             const result = await response.json();
 
             if (result.success) {
-                alert('同步时间范围已保存');
+                updateSyncRangeDisplay('quick', days);
+                document.getElementById('customDateRange').style.display = 'none';
+                alert(`同步范围已设置为最近 ${days} 天`);
             } else {
                 alert('保存失败: ' + (result.message || '未知错误'));
             }
         } catch (error) {
             alert('保存失败: ' + error.message);
+        }
+    }
+
+    // Toggle custom date range panel
+    function toggleCustomDateRange() {
+        const panel = document.getElementById('customDateRange');
+        if (panel.style.display === 'none') {
+            panel.style.display = 'block';
+            // Set default dates
+            const today = new Date();
+            const thirtyDaysAgo = new Date(today);
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            document.getElementById('syncEndDate').value = today.toISOString().split('T')[0];
+            document.getElementById('syncStartDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+        } else {
+            panel.style.display = 'none';
+        }
+    }
+
+    // Save custom date range
+    async function saveCustomDateRange() {
+        const startDate = document.getElementById('syncStartDate').value;
+        const endDate = document.getElementById('syncEndDate').value;
+
+        if (!startDate || !endDate) {
+            alert('请选择起始日期和结束日期');
+            return;
+        }
+
+        if (new Date(startDate) > new Date(endDate)) {
+            alert('起始日期不能晚于结束日期');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/mail/sync-date-range', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ start_date: startDate, end_date: endDate })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                updateSyncRangeDisplay('custom', null, startDate, endDate);
+                alert(`同步范围已设置为 ${startDate} 至 ${endDate}`);
+            } else {
+                alert('保存失败: ' + (result.message || '未知错误'));
+            }
+        } catch (error) {
+            alert('保存失败: ' + error.message);
+        }
+    }
+
+    // Update sync range display
+    function updateSyncRangeDisplay(mode, days, startDate, endDate) {
+        const textEl = document.getElementById('syncRangeText');
+        if (mode === 'quick') {
+            if (days === 365) {
+                textEl.textContent = '最近 1 年';
+            } else if (days === 180) {
+                textEl.textContent = '最近 180 天';
+            } else if (days === 90) {
+                textEl.textContent = '最近 90 天';
+            } else if (days === 30) {
+                textEl.textContent = '最近 30 天';
+            } else if (days === 7) {
+                textEl.textContent = '最近 7 天';
+            } else {
+                textEl.textContent = `最近 ${days} 天`;
+            }
+        } else if (mode === 'custom') {
+            textEl.textContent = `${startDate} 至 ${endDate}`;
+        }
+    }
+
+    // Load sync range info
+    async function loadSyncRangeInfo() {
+        try {
+            const response = await fetch('/api/mail/sync-range');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.mode === 'quick') {
+                    updateSyncRangeDisplay('quick', data.days);
+                } else if (data.mode === 'custom') {
+                    updateSyncRangeDisplay('custom', null, data.start_date, data.end_date);
+                }
+            }
+        } catch (error) {
+            console.error('Load sync range error:', error);
         }
     }
 

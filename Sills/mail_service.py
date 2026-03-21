@@ -19,7 +19,7 @@ import threading
 from Sills.db_mail import (
     save_email, get_mail_config, acquire_sync_lock,
     release_sync_lock, update_mail_sync_status, recover_orphaned_syncs,
-    update_sync_progress, get_sync_days
+    update_sync_progress, get_sync_days, get_sync_date_range
 )
 
 
@@ -190,7 +190,7 @@ class IMAPClient:
         print("[Mail] 未找到发件箱文件夹")
         return None
 
-    def fetch_emails(self, folder: str = 'INBOX', days: int = 90, since_date: datetime = None) -> List[Dict[str, Any]]:
+    def fetch_emails(self, folder: str = 'INBOX', days: int = 90, since_date: datetime = None, date_range: tuple = None) -> List[Dict[str, Any]]:
         """
         获取邮件列表
 
@@ -198,6 +198,7 @@ class IMAPClient:
             folder: 邮箱文件夹
             days: 同步时间范围（天）
             since_date: 增量同步起始时间（优先于days参数）
+            date_range: 自定义日期范围 (start_date, end_date)，格式 'YYYY-MM-DD'
 
         Returns:
             邮件数据列表
@@ -216,21 +217,39 @@ class IMAPClient:
 
             print(f"[Mail] 成功选择文件夹: {folder}")
 
-            # 计算日期范围
+            # 构建搜索条件
             from datetime import datetime, timedelta
-            if since_date:
+
+            search_criteria = None
+
+            if date_range:
+                # 自定义日期范围
+                start_date, end_date = date_range
+                # IMAP日期格式: 01-Jan-2024
+                start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+                end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+                # SINCE: 包含当天及之后，BEFORE: 不包含当天
+                # 所以end_date要加1天才能包含当天
+                end_dt_search = end_dt + timedelta(days=1)
+                start_str = start_dt.strftime('%d-%b-%Y')
+                end_str = end_dt_search.strftime('%d-%b-%Y')
+                search_criteria = f'SINCE {start_str} BEFORE {end_str}'
+                print(f"[Mail] 自定义日期范围同步: {start_date} 至 {end_date}")
+            elif since_date:
                 # 增量同步：从指定时间开始
                 # 稍微往前推1小时，避免遗漏
                 search_date = since_date - timedelta(hours=1)
                 date_str = search_date.strftime('%d-%b-%Y')
+                search_criteria = f'SINCE {date_str}'
                 print(f"[Mail] 增量同步，起始时间: {search_date}")
             else:
                 # 全量同步
                 search_date = datetime.now() - timedelta(days=days)
                 date_str = search_date.strftime('%d-%b-%Y')  # IMAP日期格式: 01-Jan-2024
+                search_criteria = f'SINCE {date_str}'
 
-            # 使用SINCE搜索指定日期之后的邮件
-            status, messages = self.client.search(None, f'SINCE {date_str}')
+            # 使用搜索条件获取邮件
+            status, messages = self.client.search(None, search_criteria)
 
             if status != 'OK':
                 print(f"[Mail] 搜索失败 '{folder}': {status}")
@@ -541,7 +560,14 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
         # 获取当前账户ID用于用户隔离
         current_account_id = config.get('id')
         sync_days = get_sync_days()
-        update_sync_progress(0, 100, f"连接邮件服务器（同步最近{sync_days}天）...")
+        date_range = get_sync_date_range()
+
+        # 确定同步范围描述
+        if date_range[0] and date_range[1]:
+            sync_desc = f"{date_range[0]} 至 {date_range[1]}"
+        else:
+            sync_desc = f"最近{sync_days}天"
+        update_sync_progress(0, 100, f"连接邮件服务器（同步范围: {sync_desc}）...")
 
         imap_client = IMAPClient(config)
         imap_client.connect()
@@ -564,7 +590,11 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
             try:
                 update_sync_progress(10, 100, f"获取{folder_label}...")
                 print(f"[Mail] 开始同步文件夹: {folder_name}, is_sent={is_sent}")
-                emails = imap_client.fetch_emails(folder=folder_name, days=sync_days)
+                emails = imap_client.fetch_emails(
+                    folder=folder_name,
+                    days=sync_days,
+                    date_range=date_range if date_range[0] and date_range[1] else None
+                )
                 print(f"[Mail] 文件夹 {folder_name} 返回 {len(emails) if emails else 0} 封邮件")
                 if not emails:
                     print(f"[Mail] 文件夹 {folder_name} 无邮件，跳过")
