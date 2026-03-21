@@ -107,6 +107,11 @@ def save_email(mail_data: Dict[str, Any]) -> int:
     Returns:
         新邮件的ID
     """
+    # 将空字符串的message_id转为None，避免唯一约束冲突
+    message_id = mail_data.get('message_id')
+    if message_id == '':
+        message_id = None
+
     with get_db_connection() as conn:
         cursor = conn.execute("""
             INSERT INTO uni_mail (subject, from_addr, from_name, to_addr, cc_addr, content, html_content,
@@ -123,7 +128,7 @@ def save_email(mail_data: Dict[str, Any]) -> int:
             mail_data.get('received_at'),
             mail_data.get('sent_at'),
             mail_data.get('is_sent', 0),
-            mail_data.get('message_id'),
+            message_id,
             mail_data.get('sync_status', 'completed'),
             mail_data.get('account_id')
         ))
