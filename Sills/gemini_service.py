@@ -7,7 +7,7 @@ from google import genai
 from google.genai import types
 
 # 模型ID
-MODEL_ID = "gemini-2.0-flash"
+MODEL_ID = "gemini-3.0-flash"
 
 _client = None
 
