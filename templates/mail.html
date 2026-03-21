@@ -4507,5 +4507,36 @@
         dropZone.classList.add('active');
         setTimeout(() => dropZone.classList.remove('active'), 500);
     }
+
+    // Esc 快捷键 - 回到初始状态
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            // 关闭写信面板
+            const composePanel = document.getElementById('composePanel');
+            if (composePanel.classList.contains('active')) {
+                closeComposePanel();
+            }
+
+            // 关闭邮件详情面板
+            const mailContainer = document.querySelector('.mail-container');
+            if (!mailContainer.classList.contains('detail-closed')) {
+                closeDetailPanel();
+            }
+
+            // 关闭所有模态框
+            const modals = document.querySelectorAll('.modal');
+            modals.forEach(modal => {
+                if (modal.style.display === 'flex' || modal.classList.contains('active')) {
+                    modal.style.display = 'none';
+                    modal.classList.remove('active');
+                }
+            });
+
+            // 切换回收件箱（如果不在收件箱）
+            if (currentFolder !== 'inbox') {
+                switchFolder('inbox');
+            }
+        }
+    });
 </script>
 {% endblock %}
