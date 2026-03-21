@@ -2755,6 +2755,49 @@ async def api_mail_delete_draft(draft_id: int, current_user: dict = Depends(logi
     return {"success": success}
 
 
+# ============ 黑名单邮件箱 API ============
+
+@app.get("/api/mail/blacklisted")
+async def api_mail_blacklisted_list(
+    page: int = 1,
+    page_size: int = 20,
+    search: str = None,
+    current_user: dict = Depends(login_required)
+):
+    """获取黑名单邮件列表"""
+    from Sills.db_mail import get_blacklisted_list
+    account = get_mail_config()
+    account_id = account.get('id') if account else None
+    result = get_blacklisted_list(page=page, limit=page_size, search=search, account_id=account_id)
+    return result
+
+
+@app.post("/api/mail/{mail_id}/blacklist")
+async def api_mail_mark_blacklisted(mail_id: int, current_user: dict = Depends(login_required)):
+    """将邮件移入黑名单邮件箱"""
+    from Sills.db_mail import mark_email_as_blacklisted
+    success = mark_email_as_blacklisted(mail_id)
+    return {"success": success}
+
+
+@app.post("/api/mail/{mail_id}/unblacklist")
+async def api_mail_unmark_blacklisted(mail_id: int, current_user: dict = Depends(login_required)):
+    """将邮件移出黑名单邮件箱"""
+    from Sills.db_mail import unmark_email_as_blacklisted
+    success = unmark_email_as_blacklisted(mail_id)
+    return {"success": success}
+
+
+@app.post("/api/mail/blacklist/classify")
+async def api_mail_auto_classify_blacklist(current_user: dict = Depends(login_required)):
+    """自动分类黑名单邮件"""
+    from Sills.db_mail import auto_classify_blacklist
+    account = get_mail_config()
+    account_id = account.get('id') if account else None
+    count = auto_classify_blacklist(account_id)
+    return {"success": True, "classified_count": count}
+
+
 @app.get("/api/mail/{mail_id}")
 async def api_mail_detail(mail_id: int, current_user: dict = Depends(login_required)):
     """获取邮件详情"""

@@ -454,6 +454,127 @@ def is_in_blacklist(email_addr: str, account_id: int = None) -> bool:
         return row[0] > 0 if row else False
 
 
+def get_blacklisted_list(page: int = 1, limit: int = 20, search: str = None, account_id: int = None) -> Dict[str, Any]:
+    """获取黑名单邮件列表（分页）"""
+    offset = (page - 1) * limit
+    params = []
+    count_params = []
+
+    query = "SELECT * FROM uni_mail WHERE is_blacklisted = 1 AND is_deleted = 0"
+    count_query = "SELECT COUNT(*) FROM uni_mail WHERE is_blacklisted = 1 AND is_deleted = 0"
+
+    if account_id is not None:
+        query += " AND account_id = ?"
+        count_query += " AND account_id = ?"
+        params.append(account_id)
+        count_params.append(account_id)
+
+    if search:
+        query += " AND (subject LIKE ? OR from_addr LIKE ?)"
+        count_query += " AND (subject LIKE ? OR from_addr LIKE ?)"
+        search_param = f"%{search}%"
+        params.extend([search_param, search_param])
+        count_params.extend([search_param, search_param])
+
+    query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+
+    with get_db_connection() as conn:
+        total_count = conn.execute(count_query, count_params).fetchone()[0]
+        rows = conn.execute(query, params).fetchall()
+
+    items = []
+    for row in rows:
+        item = dict(row)
+        content = item.get('content', '') or ''
+        import re
+        content_clean = re.sub(r'<[^>]+>', '', content)
+        content_clean = re.sub(r'\s+', ' ', content_clean).strip()
+        item['content_preview'] = content_clean[:100]
+        item['body_truncated'] = len(content_clean) > 100
+        items.append(item)
+
+    return {
+        "items": items,
+        "total_count": total_count,
+        "page": page,
+        "page_size": limit,
+        "total_pages": (total_count + limit - 1) // limit if total_count > 0 else 0
+    }
+
+
+def get_blacklisted_count(account_id: int = None) -> int:
+    """获取黑名单邮件数量"""
+    with get_db_connection() as conn:
+        if account_id is not None:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM uni_mail WHERE is_blacklisted = 1 AND is_deleted = 0 AND account_id = ?",
+                (account_id,)
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM uni_mail WHERE is_blacklisted = 1 AND is_deleted = 0"
+            ).fetchone()
+        return row[0] if row else 0
+
+
+def mark_email_as_blacklisted(mail_id: int) -> bool:
+    """将邮件标记为黑名单邮件"""
+    with get_db_connection() as conn:
+        result = conn.execute(
+            "UPDATE uni_mail SET is_blacklisted = 1 WHERE id = ?",
+            (mail_id,)
+        )
+        conn.commit()
+        return result.rowcount > 0
+
+
+def unmark_email_as_blacklisted(mail_id: int) -> bool:
+    """取消邮件的黑名单标记"""
+    with get_db_connection() as conn:
+        result = conn.execute(
+            "UPDATE uni_mail SET is_blacklisted = 0 WHERE id = ?",
+            (mail_id,)
+        )
+        conn.commit()
+        return result.rowcount > 0
+
+
+def auto_classify_blacklist(account_id: int = None) -> int:
+    """
+    自动将黑名单邮箱的邮件标记为黑名单邮件
+    返回：被标记的邮件数量
+    """
+    with get_db_connection() as conn:
+        # 获取黑名单邮箱列表
+        if account_id is not None:
+            blacklist_rows = conn.execute(
+                "SELECT email_addr FROM mail_blacklist WHERE account_id = ? OR account_id IS NULL",
+                (account_id,)
+            ).fetchall()
+        else:
+            blacklist_rows = conn.execute(
+                "SELECT email_addr FROM mail_blacklist"
+            ).fetchall()
+
+        if not blacklist_rows:
+            return 0
+
+        blacklist_emails = [row[0] for row in blacklist_rows]
+        count = 0
+
+        for email in blacklist_emails:
+            # 更新所有来自该邮箱的邮件
+            result = conn.execute("""
+                UPDATE uni_mail SET is_blacklisted = 1
+                WHERE from_addr LIKE ? AND is_blacklisted = 0 AND is_deleted = 0
+            """, (f"%{email}%",))
+            count += result.rowcount
+
+        conn.commit()
+        return count
+
+
 def get_unread_count(account_id: int = None) -> int:
     """获取未读邮件数量"""
     with get_db_connection() as conn:
