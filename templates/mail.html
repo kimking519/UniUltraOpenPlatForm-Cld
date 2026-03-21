@@ -1162,6 +1162,11 @@
                 </div>
                 <div class="sync-progress-text" id="syncProgressText"></div>
             </div>
+            <!-- 详细进度信息 -->
+            <div class="sync-detail-info" id="syncDetailInfo" style="display: none; font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">
+                <span id="syncDateRange"></span>
+                <span id="syncEmailCount" style="margin-left: 8px;"></span>
+            </div>
             <span id="syncText">就绪</span>
         </div>
     </div>
@@ -2412,16 +2417,14 @@
                 const progressBar = document.getElementById('syncProgressBar');
                 const progressFill = document.getElementById('syncProgressFill');
                 const progressText = document.getElementById('syncProgressText');
+                const detailInfo = document.getElementById('syncDetailInfo');
 
                 statusEl.classList.add('syncing');
                 textEl.textContent = '同步中...';
                 progressBar.classList.add('active');
 
-                const current = data.current || 0;
-                const total = data.total || 100;
-                const percent = total > 0 ? Math.round((current / total) * 100) : 0;
-                progressFill.style.width = percent + '%';
-                progressText.textContent = data.message || '同步中...';
+                // 更新进度显示
+                updateSyncProgressUI(data);
 
                 // Start polling for progress updates
                 const pollInterval = setInterval(async () => {
@@ -2435,6 +2438,7 @@
                             progressText.textContent = '完成';
                             textEl.textContent = '就绪';
                             statusEl.classList.remove('syncing');
+                            detailInfo.style.display = 'none';
 
                             setTimeout(() => {
                                 progressBar.classList.remove('active');
@@ -2444,11 +2448,7 @@
                             loadEmails();
                             loadInboxCount();
                         } else {
-                            const current = statusData.current || 0;
-                            const total = statusData.total || 100;
-                            const percent = total > 0 ? Math.round((current / total) * 100) : 0;
-                            progressFill.style.width = percent + '%';
-                            progressText.textContent = statusData.message || '同步中...';
+                            updateSyncProgressUI(statusData);
                         }
                     } catch (err) {
                         console.error('获取同步状态失败:', err);
@@ -2463,6 +2463,33 @@
         }
     }
 
+    // 更新同步进度UI
+    function updateSyncProgressUI(data) {
+        const progressFill = document.getElementById('syncProgressFill');
+        const progressText = document.getElementById('syncProgressText');
+        const detailInfo = document.getElementById('syncDetailInfo');
+        const dateRangeEl = document.getElementById('syncDateRange');
+        const emailCountEl = document.getElementById('syncEmailCount');
+
+        // 更新进度条
+        const percent = data.percent || (data.total > 0 ? Math.round((data.current / data.total) * 100) : 0);
+        progressFill.style.width = percent + '%';
+        progressText.textContent = data.message || '同步中...';
+
+        // 更新详细信息
+        if (data.sync_start_date && data.sync_end_date) {
+            detailInfo.style.display = 'block';
+            dateRangeEl.textContent = `📅 ${data.sync_start_date} ~ ${data.sync_end_date}`;
+            if (data.total_emails > 0) {
+                emailCountEl.textContent = `📧 ${data.synced_emails || 0}/${data.total_emails} (${percent}%)`;
+            } else {
+                emailCountEl.textContent = '';
+            }
+        } else {
+            detailInfo.style.display = 'none';
+        }
+    }
+
     // Sync emails
     async function syncEmails() {
         const statusEl = document.getElementById('syncStatus');
@@ -2470,6 +2497,7 @@
         const progressBar = document.getElementById('syncProgressBar');
         const progressFill = document.getElementById('syncProgressFill');
         const progressText = document.getElementById('syncProgressText');
+        const detailInfo = document.getElementById('syncDetailInfo');
 
         statusEl.classList.add('syncing');
         textEl.textContent = '同步中...';
@@ -2490,11 +2518,7 @@
 
                         if (statusData.syncing) {
                             // 更新进度条
-                            const percent = statusData.total > 0
-                                ? Math.round((statusData.current / statusData.total) * 100)
-                                : statusData.current;
-                            progressFill.style.width = percent + '%';
-                            progressText.textContent = statusData.message || '同步中...';
+                            updateSyncProgressUI(statusData);
                             textEl.textContent = '同步中...';
                         } else {
                             // 同步完成
@@ -2503,6 +2527,7 @@
                             progressText.textContent = '完成';
                             textEl.textContent = '就绪';
                             statusEl.classList.remove('syncing');
+                            detailInfo.style.display = 'none';
 
                             setTimeout(() => {
                                 progressBar.classList.remove('active');
@@ -2527,6 +2552,7 @@
                 statusEl.classList.add('error');
                 progressBar.classList.remove('active');
                 progressText.textContent = '';
+                detailInfo.style.display = 'none';
                 textEl.textContent = data.message || '同步失败';
             }
         } catch (error) {
@@ -2534,6 +2560,7 @@
             statusEl.classList.add('error');
             progressBar.classList.remove('active');
             progressText.textContent = '';
+            detailInfo.style.display = 'none';
             textEl.textContent = '同步失败';
         }
     }
@@ -2545,12 +2572,14 @@
         const progressBar = document.getElementById('syncProgressBar');
         const progressFill = document.getElementById('syncProgressFill');
         const progressText = document.getElementById('syncProgressText');
+        const detailInfo = document.getElementById('syncDetailInfo');
 
         statusEl.classList.add('syncing');
         textEl.textContent = '刷新中...';
         progressBar.classList.add('active');
         progressFill.style.width = '0%';
         progressText.textContent = '检查新邮件...';
+        detailInfo.style.display = 'none';
 
         try {
             const response = await fetch('/api/mail/sync-new', { method: 'POST' });
@@ -2564,11 +2593,7 @@
                         const statusData = await statusRes.json();
 
                         if (statusData.syncing) {
-                            const percent = statusData.total > 0
-                                ? Math.round((statusData.current / statusData.total) * 100)
-                                : statusData.current;
-                            progressFill.style.width = percent + '%';
-                            progressText.textContent = statusData.message || '刷新中...';
+                            updateSyncProgressUI(statusData);
                             textEl.textContent = '刷新中...';
                         } else {
                             clearInterval(pollInterval);
@@ -2576,6 +2601,7 @@
                             progressText.textContent = '完成';
                             textEl.textContent = '就绪';
                             statusEl.classList.remove('syncing');
+                            detailInfo.style.display = 'none';
 
                             setTimeout(() => {
                                 progressBar.classList.remove('active');

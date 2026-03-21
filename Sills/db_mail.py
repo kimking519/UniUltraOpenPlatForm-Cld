@@ -867,7 +867,9 @@ def acquire_sync_lock(lock_id: str) -> bool:
         return True
 
 
-def update_sync_progress(current: int, total: int, message: str = "") -> bool:
+def update_sync_progress(current: int, total: int, message: str = "",
+                          sync_start_date: str = None, sync_end_date: str = None,
+                          total_emails: int = None, synced_emails: int = None) -> bool:
     """
     更新同步进度
 
@@ -875,16 +877,34 @@ def update_sync_progress(current: int, total: int, message: str = "") -> bool:
         current: 当前进度
         total: 总数
         message: 进度消息
+        sync_start_date: 同步开始日期
+        sync_end_date: 同步结束日期
+        total_emails: 总邮件数
+        synced_emails: 已同步邮件数
 
     Returns:
         是否更新成功
     """
     with get_db_connection() as conn:
-        conn.execute("""
-            UPDATE mail_sync_lock
-            SET progress_current = ?, progress_total = ?, progress_message = ?
-            WHERE id = 1
-        """, (current, total, message))
+        # 构建动态更新语句
+        updates = ["progress_current = ?", "progress_total = ?", "progress_message = ?"]
+        params = [current, total, message]
+
+        if sync_start_date is not None:
+            updates.append("sync_start_date = ?")
+            params.append(sync_start_date)
+        if sync_end_date is not None:
+            updates.append("sync_end_date = ?")
+            params.append(sync_end_date)
+        if total_emails is not None:
+            updates.append("total_emails = ?")
+            params.append(total_emails)
+        if synced_emails is not None:
+            updates.append("synced_emails = ?")
+            params.append(synced_emails)
+
+        sql = f"UPDATE mail_sync_lock SET {', '.join(updates)} WHERE id = 1"
+        conn.execute(sql, params)
         conn.commit()
         return True
 
@@ -894,7 +914,8 @@ def get_sync_progress() -> Dict[str, Any]:
     获取同步进度
 
     Returns:
-        {syncing: bool, current: int, total: int, message: str}
+        {syncing: bool, current: int, total: int, message: str,
+         sync_start_date: str, sync_end_date: str, total_emails: int, synced_emails: int, percent: int}
     """
     with get_db_connection() as conn:
         row = conn.execute("SELECT * FROM mail_sync_lock WHERE id = 1").fetchone()
@@ -903,14 +924,33 @@ def get_sync_progress() -> Dict[str, Any]:
             if lock.get('expires_at'):
                 expires = datetime.fromisoformat(lock['expires_at'])
                 if expires > datetime.now():
+                    total_emails = lock.get('total_emails', 0) or 0
+                    synced_emails = lock.get('synced_emails', 0) or 0
+                    percent = int((synced_emails / total_emails) * 100) if total_emails > 0 else 0
                     return {
                         "syncing": True,
                         "current": lock.get('progress_current', 0) or 0,
                         "total": lock.get('progress_total', 0) or 0,
                         "message": lock.get('progress_message', '') or '',
-                        "status": "syncing"
+                        "status": "syncing",
+                        "sync_start_date": lock.get('sync_start_date', '') or '',
+                        "sync_end_date": lock.get('sync_end_date', '') or '',
+                        "total_emails": total_emails,
+                        "synced_emails": synced_emails,
+                        "percent": percent
                     }
-    return {"syncing": False, "current": 0, "total": 0, "message": "", "status": "idle"}
+    return {
+        "syncing": False,
+        "current": 0,
+        "total": 0,
+        "message": "",
+        "status": "idle",
+        "sync_start_date": "",
+        "sync_end_date": "",
+        "total_emails": 0,
+        "synced_emails": 0,
+        "percent": 0
+    }
 
 
 def release_sync_lock() -> bool:

@@ -375,7 +375,11 @@ def init_db():
         expires_at DATETIME,
         progress_total INTEGER DEFAULT 0,
         progress_current INTEGER DEFAULT 0,
-        progress_message TEXT DEFAULT ''
+        progress_message TEXT DEFAULT '',
+        sync_start_date TEXT,
+        sync_end_date TEXT,
+        total_emails INTEGER DEFAULT 0,
+        synced_emails INTEGER DEFAULT 0
     );
 
     -- 全局设置表（存储同步间隔等系统配置）
@@ -482,6 +486,16 @@ def init_db():
             conn.execute("ALTER TABLE mail_sync_lock ADD COLUMN progress_current INTEGER DEFAULT 0")
             conn.execute("ALTER TABLE mail_sync_lock ADD COLUMN progress_message TEXT DEFAULT ''")
             print("[DB] 迁移完成：mail_sync_lock 添加进度字段")
+        except sqlite3.OperationalError:
+            pass  # 列已存在，忽略
+
+        # 迁移：为 mail_sync_lock 添加同步统计字段
+        try:
+            conn.execute("ALTER TABLE mail_sync_lock ADD COLUMN sync_start_date TEXT")
+            conn.execute("ALTER TABLE mail_sync_lock ADD COLUMN sync_end_date TEXT")
+            conn.execute("ALTER TABLE mail_sync_lock ADD COLUMN total_emails INTEGER DEFAULT 0")
+            conn.execute("ALTER TABLE mail_sync_lock ADD COLUMN synced_emails INTEGER DEFAULT 0")
+            print("[DB] 迁移完成：mail_sync_lock 添加同步统计字段")
         except sqlite3.OperationalError:
             pass  # 列已存在，忽略
 

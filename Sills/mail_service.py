@@ -562,12 +562,25 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
         sync_days = get_sync_days()
         date_range = get_sync_date_range()
 
-        # 确定同步范围描述
+        # 确定同步范围描述和日期
         if date_range[0] and date_range[1]:
             sync_desc = f"{date_range[0]} 至 {date_range[1]}"
+            sync_start = date_range[0]
+            sync_end = date_range[1]
         else:
+            from datetime import datetime, timedelta
+            sync_start = (datetime.now() - timedelta(days=sync_days)).strftime('%Y-%m-%d')
+            sync_end = datetime.now().strftime('%Y-%m-%d')
             sync_desc = f"最近{sync_days}天"
-        update_sync_progress(0, 100, f"连接邮件服务器（同步范围: {sync_desc}）...")
+
+        # 初始化进度（包含日期范围）
+        update_sync_progress(
+            0, 100, f"连接邮件服务器...",
+            sync_start_date=sync_start,
+            sync_end_date=sync_end,
+            total_emails=0,
+            synced_emails=0
+        )
 
         imap_client = IMAPClient(config)
         imap_client.connect()
@@ -585,7 +598,25 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
         total_saved = 0
         total_updated = 0
         total_processed = 0
+        grand_total_emails = 0  # 所有文件夹总邮件数
 
+        # 先统计总邮件数
+        for folder_name, is_sent, folder_label in folders_to_sync:
+            try:
+                emails = imap_client.fetch_emails(
+                    folder=folder_name,
+                    days=sync_days,
+                    date_range=date_range if date_range[0] and date_range[1] else None
+                )
+                if emails:
+                    grand_total_emails += len(emails)
+            except Exception as e:
+                print(f"[Mail] 统计 {folder_name} 邮件数失败: {e}")
+
+        # 更新总邮件数
+        update_sync_progress(5, 100, f"共发现 {grand_total_emails} 封邮件", total_emails=grand_total_emails)
+
+        # 重新选择文件夹进行同步
         for folder_name, is_sent, folder_label in folders_to_sync:
             try:
                 update_sync_progress(10, 100, f"获取{folder_label}...")
@@ -604,14 +635,23 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
                 for email_data in emails:
                     email_data['is_sent'] = is_sent
 
-                total_emails = len(emails)
-                update_sync_progress(20, 100, f"{folder_label}发现 {total_emails} 封邮件")
+                folder_emails = len(emails)
+                update_sync_progress(20, 100, f"{folder_label}发现 {folder_emails} 封邮件")
 
                 for idx, email_data in enumerate(emails):
                     total_processed += 1
-                    # 更新进度
-                    progress = min(90, 20 + int((total_processed / (total_processed + 10)) * 70))
-                    update_sync_progress(progress, 100, f"处理 {folder_label} {idx + 1}/{total_emails}")
+                    total_saved += 1
+                    # 计算进度百分比
+                    if grand_total_emails > 0:
+                        percent = int((total_processed / grand_total_emails) * 100)
+                    else:
+                        percent = 0
+                    # 更新进度（包含已同步数）
+                    update_sync_progress(
+                        percent, 100,
+                        f"处理 {folder_label} {idx + 1}/{folder_emails}",
+                        synced_emails=total_processed
+                    )
 
                     # 检查是否已存在
                     if email_data.get('message_id'):
