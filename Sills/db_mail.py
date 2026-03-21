@@ -251,6 +251,144 @@ def mark_email_read(mail_id: int) -> bool:
         return True
 
 
+# ============ 草稿箱功能 ============
+
+def save_draft(mail_data: Dict[str, Any]) -> int:
+    """
+    保存草稿
+
+    Args:
+        mail_data: 草稿数据字典，包含 to_addr, cc_addr, subject, content, html_content 等
+
+    Returns:
+        新草稿的ID
+    """
+    from Sills.base import get_db_connection
+
+    with get_db_connection() as conn:
+        cursor = conn.execute("""
+            INSERT INTO uni_mail (subject, from_addr, to_addr, cc_addr, content, html_content,
+                                  is_sent, is_draft, sync_status, account_id)
+            VALUES (?, ?, ?, ?, ?, ?, 0, 1, 'draft', ?)
+        """, (
+            mail_data.get('subject'),
+            mail_data.get('from_addr', ''),
+            mail_data.get('to_addr'),
+            mail_data.get('cc_addr'),
+            mail_data.get('content'),
+            mail_data.get('html_content'),
+            mail_data.get('account_id')
+        ))
+        conn.commit()
+        return cursor.lastrowid
+
+
+def get_draft_list(page: int = 1, limit: int = 20, search: str = None, account_id: int = None) -> Dict[str, Any]:
+    """
+    获取草稿列表（分页）
+    """
+    offset = (page - 1) * limit
+    params = []
+    count_params = []
+
+    query = "SELECT * FROM uni_mail WHERE is_draft = 1 AND is_deleted = 0"
+    count_query = "SELECT COUNT(*) FROM uni_mail WHERE is_draft = 1 AND is_deleted = 0"
+
+    if account_id is not None:
+        query += " AND account_id = ?"
+        count_query += " AND account_id = ?"
+        params.append(account_id)
+        count_params.append(account_id)
+
+    if search:
+        query += " AND (subject LIKE ? OR to_addr LIKE ?)"
+        count_query += " AND (subject LIKE ? OR to_addr LIKE ?)"
+        search_param = f"%{search}%"
+        params.extend([search_param, search_param])
+        count_params.extend([search_param, search_param])
+
+    query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+
+    with get_db_connection() as conn:
+        total_count = conn.execute(count_query, count_params).fetchone()[0]
+        rows = conn.execute(query, params).fetchall()
+
+    items = []
+    for row in rows:
+        item = dict(row)
+        content = item.get('content', '') or ''
+        import re
+        content_clean = re.sub(r'<[^>]+>', '', content)
+        content_clean = re.sub(r'\s+', ' ', content_clean).strip()
+        item['content_preview'] = content_clean[:100]
+        item['body_truncated'] = len(content_clean) > 100
+        items.append(item)
+
+    return {
+        "items": items,
+        "total_count": total_count,
+        "page": page,
+        "page_size": limit,
+        "total_pages": (total_count + limit - 1) // limit if total_count > 0 else 0
+    }
+
+
+def get_draft_by_id(draft_id: int) -> Optional[Dict[str, Any]]:
+    """获取单个草稿详情"""
+    with get_db_connection() as conn:
+        row = conn.execute("SELECT * FROM uni_mail WHERE id = ? AND is_draft = 1", (draft_id,)).fetchone()
+        if row:
+            return dict(row)
+    return None
+
+
+def update_draft(draft_id: int, mail_data: Dict[str, Any]) -> bool:
+    """更新草稿"""
+    with get_db_connection() as conn:
+        result = conn.execute("""
+            UPDATE uni_mail SET
+                subject = ?,
+                to_addr = ?,
+                cc_addr = ?,
+                content = ?,
+                html_content = ?
+            WHERE id = ? AND is_draft = 1
+        """, (
+            mail_data.get('subject'),
+            mail_data.get('to_addr'),
+            mail_data.get('cc_addr'),
+            mail_data.get('content'),
+            mail_data.get('html_content'),
+            draft_id
+        ))
+        conn.commit()
+        return result.rowcount > 0
+
+
+def delete_draft(draft_id: int) -> bool:
+    """删除草稿"""
+    with get_db_connection() as conn:
+        result = conn.execute("DELETE FROM uni_mail WHERE id = ? AND is_draft = 1", (draft_id,))
+        conn.commit()
+        return result.rowcount > 0
+
+
+def get_draft_count(account_id: int = None) -> int:
+    """获取草稿数量"""
+    with get_db_connection() as conn:
+        if account_id is not None:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM uni_mail WHERE is_draft = 1 AND is_deleted = 0 AND account_id = ?",
+                (account_id,)
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM uni_mail WHERE is_draft = 1 AND is_deleted = 0"
+            ).fetchone()
+        return row[0] if row else 0
+
+
 def get_unread_count(account_id: int = None) -> int:
     """获取未读邮件数量"""
     with get_db_connection() as conn:

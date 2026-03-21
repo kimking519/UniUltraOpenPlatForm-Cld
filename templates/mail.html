@@ -1131,6 +1131,13 @@
                 </svg>
                 已发送
             </li>
+            <li class="folder-item" data-folder="draft" onclick="switchFolder('draft')">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+                草稿箱
+                <span class="folder-badge" id="draftBadge" style="display: none;">0</span>
+            </li>
             <li class="folder-item" data-folder="trash" onclick="switchFolder('trash')">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -1435,6 +1442,7 @@
     </div>
     <div class="compose-panel-footer">
         <button class="btn-send" onclick="sendEmail()">发送</button>
+        <button class="btn btn-secondary" onclick="saveDraft()" style="margin-left: 8px;">存草稿</button>
         <button class="btn-attachment" onclick="document.getElementById('fileInput').click()" title="添加附件">
             <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
@@ -2044,7 +2052,7 @@
 
     // Load emails
     async function loadEmails() {
-        const folder = currentFolder; // 'inbox', 'sent', or 'trash'
+        const folder = currentFolder; // 'inbox', 'sent', 'draft', or 'trash'
         const search = document.getElementById('searchInput').value;
 
         try {
@@ -2053,15 +2061,20 @@
                 // 加载回收站邮件
                 const response = await fetch(`/api/mail/trash?page=${currentPage}&page_size=${pageSize}${search ? '&search=' + encodeURIComponent(search) : ''}`);
                 data = await response.json();
+            } else if (folder === 'draft') {
+                // 加载草稿箱
+                const response = await fetch(`/api/mail/draft?page=${currentPage}&page_size=${pageSize}${search ? '&search=' + encodeURIComponent(search) : ''}`);
+                data = await response.json();
             } else {
                 const response = await fetch(`/api/mail/list?folder=${folder}&page=${currentPage}&page_size=${pageSize}${search ? '&search=' + encodeURIComponent(search) : ''}`);
                 data = await response.json();
             }
 
-            renderEmailList(data.items, folder === 'trash');
+            renderEmailList(data.items, folder === 'trash', folder === 'draft');
             renderPagination(data);
             updateBadge(data.total_count);
-            loadTrashCount(); // 更新回收站badge
+            loadTrashCount();
+            loadDraftCount();
         } catch (error) {
             console.error('Load emails error:', error);
         }
@@ -2084,30 +2097,50 @@
         }
     }
 
+    // Load draft count
+    async function loadDraftCount() {
+        try {
+            const response = await fetch('/api/mail/draft?page=1&page_size=1');
+            const data = await response.json();
+            const badge = document.getElementById('draftBadge');
+            if (data.total_count > 0) {
+                badge.textContent = data.total_count > 99 ? '99+' : data.total_count;
+                badge.style.display = 'inline';
+            } else {
+                badge.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Load draft count error:', error);
+        }
+    }
+
     // Render email list
-    function renderEmailList(emails, isTrash = false) {
+    function renderEmailList(emails, isTrash = false, isDraft = false) {
         const container = document.getElementById('mailList');
 
         if (emails.length === 0) {
-            const emptyText = isTrash ? '回收站是空的' : '暂无邮件';
+            let emptyText = '暂无邮件';
+            if (isTrash) emptyText = '回收站是空的';
+            if (isDraft) emptyText = '草稿箱是空的';
             container.innerHTML = `
                 <div class="mail-empty">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                     </svg>
                     <p>${emptyText}</p>
-                    ${isTrash ? '<button class="btn btn-primary" style="margin-top: 10px;" onclick="closeSettingsView()">返回收件箱</button>' : ''}
+                    ${(isTrash || isDraft) ? '<button class="btn btn-primary" style="margin-top: 10px;" onclick="switchFolder(\'inbox\')">返回收件箱</button>' : ''}
                 </div>
             `;
             return;
         }
 
+        // 草稿箱显示收件人，其他显示发件人
         container.innerHTML = emails.map(email => `
-            <div class="mail-item ${email.is_read ? '' : 'unread'}" onclick="openEmail(${email.id})">
+            <div class="mail-item ${email.is_read ? '' : 'unread'}" onclick="${isDraft ? `openDraft(${email.id})` : `openEmail(${email.id})`}">
                 <input type="checkbox" class="mail-checkbox" data-id="${email.id}" onclick="event.stopPropagation()">
                 <div class="mail-sender">
-                    <div class="sender-name">${escapeHtml(email.from_name || '')}</div>
-                    <div class="sender-email">${escapeHtml(email.from_addr)}</div>
+                    <div class="sender-name">${escapeHtml(isDraft ? (email.to_addr || '未填写收件人') : (email.from_name || ''))}</div>
+                    <div class="sender-email">${escapeHtml(isDraft ? '' : email.from_addr)}</div>
                 </div>
                 <div>
                     <div class="mail-subject">${escapeHtml(email.subject || '(无主题)')}</div>
@@ -2610,6 +2643,7 @@
     let pendingEmailData = null;  // 待发送的邮件数据
     let sendTimeout = null;       // 发送定时器
     let undoSeconds = 5;          // 撤销时间（秒）
+    let editingDraftId = null;    // 当前编辑的草稿ID
 
     async function sendEmail() {
         const to = document.getElementById('composeTo').value;
@@ -2759,18 +2793,87 @@
             const result = await response.json();
 
             if (result.success) {
-                if (currentFolder === 'sent') {
+                // 发送成功，如果是编辑草稿则删除原草稿
+                if (editingDraftId) {
+                    await fetch(`/api/mail/draft/${editingDraftId}`, { method: 'DELETE' });
+                    editingDraftId = null;
+                    loadDraftCount();
+                }
+                if (currentFolder === 'sent' || currentFolder === 'draft') {
                     loadEmails();
                 }
                 showToast('邮件发送成功', 'success');
             } else {
-                showToast('发送失败: ' + (result.message || result.error || '未知错误'), 'error');
+                // 发送失败，显示提示
+                if (result.draft_saved) {
+                    showToast('发送失败，已自动保存到草稿箱', 'error');
+                    loadDraftCount();
+                } else {
+                    showToast('发送失败: ' + (result.message || result.error || '未知错误'), 'error');
+                }
             }
         } catch (error) {
             showToast('发送失败: ' + error.message, 'error');
         }
 
         pendingEmailData = null;
+    }
+
+    // Save draft
+    async function saveDraft() {
+        const to = document.getElementById('composeTo').value;
+        const cc = document.getElementById('composeCc').value;
+        const subject = document.getElementById('composeSubject').value;
+        const composeBodyEl = document.getElementById('composeBody');
+        const htmlBody = composeBodyEl.innerHTML;
+        const body = composeBodyEl.innerText || composeBodyEl.textContent;
+
+        try {
+            const response = await fetch('/api/mail/draft', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ to, cc, subject, body, html_body: htmlBody })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showToast('草稿已保存', 'success');
+                closeComposePanel();
+                loadDraftCount();
+            } else {
+                showToast('保存草稿失败', 'error');
+            }
+        } catch (error) {
+            console.error('Save draft error:', error);
+            showToast('保存草稿失败', 'error');
+        }
+    }
+
+    // Open draft for editing
+    async function openDraft(draftId) {
+        try {
+            const response = await fetch(`/api/mail/draft/${draftId}`);
+            const result = await response.json();
+
+            if (result.success && result.draft) {
+                const draft = result.draft;
+                currentMailId = draftId;
+
+                // 打开编辑面板
+                openComposePanel();
+                document.getElementById('composeTo').value = draft.to_addr || '';
+                document.getElementById('composeCc').value = draft.cc_addr || '';
+                document.getElementById('composeSubject').value = draft.subject || '';
+                document.getElementById('composeBody').innerHTML = draft.html_content || draft.content || '';
+
+                // 记录是编辑草稿
+                editingDraftId = draftId;
+            }
+        } catch (error) {
+            console.error('Open draft error:', error);
+            showToast('打开草稿失败', 'error');
+        }
     }
 
     // 显示消息提示
@@ -2831,6 +2934,21 @@
                 }
             } catch (error) {
                 console.error('Delete email error:', error);
+                showToast('删除失败', 'error');
+            }
+        } else if (currentFolder === 'draft') {
+            // 草稿箱中删除草稿
+            if (!confirm('确定要删除这封草稿吗？')) return;
+            try {
+                const response = await fetch(`/api/mail/draft/${currentMailId}`, { method: 'DELETE' });
+                if (response.ok) {
+                    closeDetailPanel();
+                    loadEmails();
+                    loadDraftCount();
+                    showToast('草稿已删除', 'success');
+                }
+            } catch (error) {
+                console.error('Delete draft error:', error);
                 showToast('删除失败', 'error');
             }
         } else {

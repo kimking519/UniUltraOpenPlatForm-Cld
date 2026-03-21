@@ -1990,7 +1990,27 @@ async def api_mail_send(
     if result["success"]:
         return {"success": True, "message": "邮件发送成功", "message_id": result.get("message_id")}
     else:
-        return {"success": False, "message": f"发送失败: {result.get('error', '未知错误')}"}
+        # 发送失败，自动保存草稿
+        from Sills.db_mail import save_draft
+        account = get_mail_config()
+        account_id = account.get('id') if account else None
+
+        draft_data = {
+            'subject': subject,
+            'to_addr': to,
+            'cc_addr': cc,
+            'content': body,
+            'html_content': html_body,
+            'account_id': account_id
+        }
+        draft_id = save_draft(draft_data)
+
+        return {
+            "success": False,
+            "message": f"发送失败: {result.get('error', '未知错误')}",
+            "draft_saved": True,
+            "draft_id": draft_id
+        }
 
 
 @app.post("/api/mail/send-with-attachments")
@@ -2061,7 +2081,27 @@ async def api_mail_send_with_attachments(
     if result["success"]:
         return {"success": True, "message": "邮件发送成功", "message_id": result.get("message_id")}
     else:
-        return {"success": False, "message": f"发送失败: {result.get('error', '未知错误')}"}
+        # 发送失败，自动保存草稿
+        from Sills.db_mail import save_draft
+        account = get_mail_config()
+        account_id = account.get('id') if account else None
+
+        draft_data = {
+            'subject': subject,
+            'to_addr': to,
+            'cc_addr': cc,
+            'content': body,
+            'html_content': html_body,
+            'account_id': account_id
+        }
+        draft_id = save_draft(draft_data)
+
+        return {
+            "success": False,
+            "message": f"发送失败: {result.get('error', '未知错误')}",
+            "draft_saved": True,
+            "draft_id": draft_id
+        }
 
 
 @app.post("/api/mail/sync")
@@ -2634,6 +2674,85 @@ async def api_mail_empty_trash(current_user: dict = Depends(login_required)):
     from Sills.db_mail import empty_trash
     deleted = empty_trash()
     return {"success": True, "deleted": deleted}
+
+
+# ============ 草稿箱 API ============
+
+@app.get("/api/mail/draft")
+async def api_mail_draft_list(
+    page: int = 1,
+    page_size: int = 20,
+    search: str = None,
+    current_user: dict = Depends(login_required)
+):
+    """获取草稿列表"""
+    from Sills.db_mail import get_draft_list
+    account = get_mail_config()
+    account_id = account.get('id') if account else None
+    result = get_draft_list(page=page, limit=page_size, search=search, account_id=account_id)
+    return result
+
+
+@app.post("/api/mail/draft")
+async def api_mail_save_draft(request: Request, current_user: dict = Depends(login_required)):
+    """保存草稿"""
+    from Sills.db_mail import save_draft
+    data = await request.json()
+
+    account = get_mail_config()
+    account_id = account.get('id') if account else None
+
+    draft_data = {
+        'subject': data.get('subject', ''),
+        'to_addr': data.get('to', ''),
+        'cc_addr': data.get('cc', ''),
+        'content': data.get('body', ''),
+        'html_content': data.get('html_body', ''),
+        'account_id': account_id
+    }
+
+    draft_id = save_draft(draft_data)
+    return {"success": True, "draft_id": draft_id}
+
+
+@app.get("/api/mail/draft/{draft_id}")
+async def api_mail_get_draft(draft_id: int, current_user: dict = Depends(login_required)):
+    """获取草稿详情"""
+    from Sills.db_mail import get_draft_by_id
+    draft = get_draft_by_id(draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="草稿不存在")
+    return {"success": True, "draft": draft}
+
+
+@app.put("/api/mail/draft/{draft_id}")
+async def api_mail_update_draft(
+    draft_id: int,
+    request: Request,
+    current_user: dict = Depends(login_required)
+):
+    """更新草稿"""
+    from Sills.db_mail import update_draft
+    data = await request.json()
+
+    draft_data = {
+        'subject': data.get('subject', ''),
+        'to_addr': data.get('to', ''),
+        'cc_addr': data.get('cc', ''),
+        'content': data.get('body', ''),
+        'html_content': data.get('html_body', '')
+    }
+
+    success = update_draft(draft_id, draft_data)
+    return {"success": success}
+
+
+@app.delete("/api/mail/draft/{draft_id}")
+async def api_mail_delete_draft(draft_id: int, current_user: dict = Depends(login_required)):
+    """删除草稿"""
+    from Sills.db_mail import delete_draft
+    success = delete_draft(draft_id)
+    return {"success": success}
 
 
 @app.get("/api/mail/{mail_id}")
