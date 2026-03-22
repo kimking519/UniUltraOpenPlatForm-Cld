@@ -190,6 +190,37 @@ class IMAPClient:
         print("[Mail] 未找到发件箱文件夹")
         return None
 
+    def find_spam_folder(self) -> Optional[str]:
+        """
+        自动查找垃圾邮件文件夹
+
+        Returns:
+            垃圾邮件文件夹原始名称，未找到返回None
+        """
+        folders = self.list_folders()
+
+        # 常见的垃圾邮件文件夹名称
+        spam_names = [
+            'Spam', 'Junk', 'Junk E-mail', '垃圾邮件', '垃圾箱',
+            'Bulk Mail', '垃圾信', '&V4NXPpCuTvY-'  # IMAP UTF-7 编码的"垃圾邮件"
+        ]
+
+        # 先精确匹配解码后的名称
+        for raw_name, decoded_name in folders:
+            if decoded_name in spam_names or raw_name in spam_names:
+                print(f"[Mail] 找到垃圾邮件文件夹: {raw_name} ({decoded_name})")
+                return raw_name
+
+        # 再模糊匹配
+        for raw_name, decoded_name in folders:
+            decoded_lower = decoded_name.lower()
+            if 'spam' in decoded_lower or 'junk' in decoded_lower or '垃圾' in decoded_name:
+                print(f"[Mail] 模糊匹配找到垃圾邮件文件夹: {raw_name} ({decoded_name})")
+                return raw_name
+
+        print("[Mail] 未找到垃圾邮件文件夹")
+        return None
+
     def fetch_emails(self, folder: str = 'INBOX', days: int = 90, since_date: datetime = None, date_range: tuple = None) -> List[Dict[str, Any]]:
         """
         获取邮件列表
@@ -728,15 +759,25 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
         imap_client = IMAPClient(config)
         imap_client.connect()
 
-        # 自动检测发件箱
+        # 自动检测发件箱和垃圾邮件文件夹
         update_sync_progress(5, 100, "检测邮箱文件夹...")
         sent_folder = imap_client.find_sent_folder()
         print(f"[Mail] 检测到发件箱: {sent_folder}")
 
-        # 同步收件箱和发件箱
-        folders_to_sync = [('INBOX', 0, '收件箱')]
+        spam_folder = imap_client.find_spam_folder()
+        print(f"[Mail] 检测到垃圾邮件文件夹: {spam_folder}")
+
+        # 获取或创建本地垃圾邮件文件夹
+        from Sills.db_mail import get_or_create_spam_folder
+        spam_folder_id = get_or_create_spam_folder(current_account_id) if spam_folder else None
+
+        # 同步收件箱、发件箱、垃圾邮件
+        # (文件夹名, is_sent, 显示标签, 本地folder_id)
+        folders_to_sync = [('INBOX', 0, '收件箱', None)]
         if sent_folder:
-            folders_to_sync.append((sent_folder, 1, '发件箱'))
+            folders_to_sync.append((sent_folder, 1, '发件箱', None))
+        if spam_folder:
+            folders_to_sync.append((spam_folder, 0, '垃圾邮件', spam_folder_id))
 
         total_saved = 0
         total_updated = 0
@@ -751,7 +792,7 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
 
         # 按文件夹获取新邮件
         all_emails_data = []
-        for folder_name, is_sent, folder_label in folders_to_sync:
+        for folder_name, is_sent, folder_label, local_folder_id in folders_to_sync:
             try:
                 update_sync_progress(5, 100, f"扫描{folder_label}UID...")
 
@@ -786,6 +827,9 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
                         email_data['is_sent'] = is_sent
                         email_data['folder_label'] = folder_label
                         email_data['imap_folder'] = folder_name
+                        # 设置本地文件夹ID（垃圾邮件文件夹）
+                        if local_folder_id:
+                            email_data['folder_id'] = local_folder_id
                     all_emails_data.extend(emails)
 
             except Exception as e:

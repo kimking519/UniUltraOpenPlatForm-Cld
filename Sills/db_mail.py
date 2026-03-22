@@ -163,8 +163,8 @@ def save_email(mail_data: Dict[str, Any]) -> int:
         cursor = conn.execute("""
             INSERT INTO uni_mail (subject, from_addr, from_name, to_addr, cc_addr, content, html_content,
                                   received_at, sent_at, is_sent, message_id, sync_status, account_id,
-                                  imap_uid, imap_folder)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                  imap_uid, imap_folder, folder_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             mail_data.get('subject'),
             mail_data.get('from_addr'),
@@ -180,7 +180,8 @@ def save_email(mail_data: Dict[str, Any]) -> int:
             mail_data.get('sync_status', 'completed'),
             mail_data.get('account_id'),
             mail_data.get('imap_uid'),
-            mail_data.get('imap_folder')
+            mail_data.get('imap_folder'),
+            mail_data.get('folder_id')
         ))
         conn.commit()
         return cursor.lastrowid
@@ -1186,6 +1187,41 @@ def get_folder_by_id(folder_id: int) -> Optional[Dict[str, Any]]:
         if row:
             return dict(row)
     return None
+
+
+def get_or_create_spam_folder(account_id: int = None) -> int:
+    """
+    获取或创建垃圾邮件文件夹
+
+    Args:
+        account_id: 账户ID
+
+    Returns:
+        垃圾邮件文件夹ID
+    """
+    with get_db_connection() as conn:
+        # 查找是否已存在垃圾邮件文件夹
+        if account_id is not None:
+            row = conn.execute(
+                "SELECT id FROM mail_folder WHERE folder_name = '垃圾邮件' AND (account_id = ? OR account_id IS NULL)",
+                (account_id,)
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT id FROM mail_folder WHERE folder_name = '垃圾邮件'"
+            ).fetchone()
+
+        if row:
+            return row[0]
+
+        # 创建垃圾邮件文件夹
+        cursor = conn.execute(
+            "INSERT INTO mail_folder (folder_name, folder_icon, sort_order, account_id) VALUES (?, ?, ?, ?)",
+            ('垃圾邮件', '🗑️', 100, account_id)
+        )
+        conn.commit()
+        print(f"[DB] 创建垃圾邮件文件夹，ID: {cursor.lastrowid}")
+        return cursor.lastrowid
 
 
 def add_folder(folder_data: Dict[str, Any]) -> int:
