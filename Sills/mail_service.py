@@ -821,23 +821,33 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
         print(f"[Mail] 检测到垃圾邮件文件夹: {spam_folder}")
 
         # 获取或创建本地垃圾邮件文件夹
-        from Sills.db_mail import get_or_create_spam_folder, get_or_create_system_folder
+        from Sills.db_mail import get_or_create_spam_folder
         spam_folder_id = get_or_create_spam_folder(current_account_id) if spam_folder else None
 
-        # 自动检测系统邮件文件夹（退信、系统通知等）
-        system_folder = imap_client.find_system_folder()
-        print(f"[Mail] 检测到系统邮件文件夹: {system_folder}")
-        system_folder_id = get_or_create_system_folder(current_account_id) if system_folder else None
+        # 获取所有文件夹，同步除垃圾邮件外的其他文件夹到收件箱
+        all_folders = imap_client.list_folders()
+        other_folders = []
+        for raw_name, decoded_name in all_folders:
+            # 跳过已处理的文件夹
+            if raw_name == 'INBOX' or raw_name == sent_folder or raw_name == spam_folder:
+                continue
+            # 跳过草稿箱
+            if '草稿' in decoded_name or 'draft' in decoded_name.lower():
+                continue
+            # 其他文件夹都同步到收件箱
+            other_folders.append(raw_name)
+            print(f"[Mail] 其他文件夹同步到收件箱: {decoded_name}")
 
-        # 同步收件箱、发件箱、垃圾邮件、系统邮件
+        # 同步收件箱、发件箱、垃圾邮件、其他文件夹（全部归入收件箱）
         # (文件夹名, is_sent, 显示标签, 本地folder_id)
         folders_to_sync = [('INBOX', 0, '收件箱', None)]
         if sent_folder:
             folders_to_sync.append((sent_folder, 1, '发件箱', None))
         if spam_folder:
             folders_to_sync.append((spam_folder, 0, '垃圾邮件', spam_folder_id))
-        if system_folder:
-            folders_to_sync.append((system_folder, 0, '系统邮件', system_folder_id))
+        # 其他文件夹都归入收件箱
+        for folder_name in other_folders:
+            folders_to_sync.append((folder_name, 0, '收件箱', None))
 
         total_saved = 0
         total_updated = 0
@@ -991,12 +1001,12 @@ def sync_inbox_async() -> Dict[str, Any]:
 
 def sync_new_emails(background_tasks=None) -> Dict[str, Any]:
     """
-    增量同步：只获取上次同步后的新邮件
+    增量同步：对比服务器UID和本地UID，只获取本地没有的邮件
 
     Returns:
         {"status": "completed", "new_count": int}
     """
-    from Sills.db_mail import get_latest_mail_time
+    from Sills.db_mail import get_local_uids
     from datetime import datetime
 
     lock_id = str(uuid.uuid4())
@@ -1015,17 +1025,7 @@ def sync_new_emails(background_tasks=None) -> Dict[str, Any]:
             return {"status": "error", "message": "Mail config not found"}
 
         current_account_id = config.get('id')
-        update_sync_progress(0, 100, "检查最新邮件时间...")
-
-        # 获取最新邮件时间
-        latest_time_str = get_latest_mail_time(current_account_id, 0)
-        since_date = None
-        if latest_time_str:
-            try:
-                since_date = datetime.fromisoformat(latest_time_str.replace('Z', '+00:00'))
-                print(f"[Mail] 增量同步，起始时间: {since_date}")
-            except Exception as e:
-                print(f"[Mail] 解析时间失败: {e}")
+        update_sync_progress(0, 100, "连接邮件服务器...")
 
         imap_client = IMAPClient(config)
         imap_client.connect()
@@ -1034,97 +1034,121 @@ def sync_new_emails(background_tasks=None) -> Dict[str, Any]:
         update_sync_progress(10, 100, "检测邮箱文件夹...")
         sent_folder = imap_client.find_sent_folder()
         spam_folder = imap_client.find_spam_folder()
-        system_folder = imap_client.find_system_folder()
 
-        # 同步收件箱、发件箱、垃圾邮件、系统邮件
+        # 获取所有文件夹，同步除垃圾邮件外的其他文件夹到收件箱
+        all_folders = imap_client.list_folders()
+        other_folders = []
+        for raw_name, decoded_name in all_folders:
+            # 跳过已处理的文件夹
+            if raw_name == 'INBOX' or raw_name == sent_folder or raw_name == spam_folder:
+                continue
+            # 跳过草稿箱
+            if '草稿' in decoded_name or 'draft' in decoded_name.lower():
+                continue
+            # 其他文件夹都同步到收件箱
+            other_folders.append(raw_name)
+
+        # 同步收件箱、发件箱、垃圾邮件、其他文件夹（全部归入收件箱）
         folders_to_sync = [('INBOX', 0, '收件箱')]
         if sent_folder:
             folders_to_sync.append((sent_folder, 1, '发件箱'))
         if spam_folder:
             folders_to_sync.append((spam_folder, 0, '垃圾邮件'))
-        if system_folder:
-            folders_to_sync.append((system_folder, 0, '系统邮件'))
+        # 其他文件夹都归入收件箱
+        for folder_name in other_folders:
+            folders_to_sync.append((folder_name, 0, '收件箱'))
 
         total_saved = 0
-        total_processed = 0
-
-        # 先获取所有新邮件并统计总数
-        all_emails_data = []
-        for folder_name, is_sent, folder_label in folders_to_sync:
-            try:
-                update_sync_progress(10, 100, f"扫描{folder_label}新邮件...")
-                print(f"[Mail] 增量同步文件夹: {folder_name}")
-                # 使用since_date进行增量同步
-                emails = imap_client.fetch_emails(folder=folder_name, days=7, since_date=since_date)
-                if emails:
-                    for email_data in emails:
-                        email_data['is_sent'] = is_sent
-                        email_data['folder_label'] = folder_label
-                        email_data['imap_folder'] = folder_name
-                    all_emails_data.extend(emails)
-                    print(f"[Mail] {folder_label}: {len(emails)} 封新邮件")
-            except Exception as e:
-                print(f"[Mail] 扫描 {folder_name} 失败: {e}")
-
-        grand_total_emails = len(all_emails_data)
-        print(f"[Mail] 总计 {grand_total_emails} 封新邮件待同步")
-
-        # 设置同步日期范围（增量同步使用最近7天）
-        from datetime import datetime, timedelta
-        sync_start = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-        sync_end = datetime.now().strftime('%Y-%m-%d')
-
-        # 更新总邮件数
-        update_sync_progress(20, 100, f"共发现 {grand_total_emails} 封新邮件",
-                           sync_start_date=sync_start, sync_end_date=sync_end,
-                           total_emails=grand_total_emails, synced_emails=0)
 
         # 获取分批处理配置
         batch_size = config.get('sync_batch_size') or 100
         pause_seconds = config.get('sync_pause_seconds') or 1.0
 
-        # 同步邮件（分批处理）
-        import time
-        for idx, email_data in enumerate(all_emails_data):
-            # 检查是否已存在
-            is_new_email = True
-            if email_data.get('message_id'):
-                from Sills.db_mail import get_db_connection
-                with get_db_connection() as conn:
-                    existing = conn.execute(
-                        "SELECT id FROM uni_mail WHERE message_id = ?",
-                        (email_data['message_id'],)
-                    ).fetchone()
-                    if existing:
-                        is_new_email = False
+        # 收集所有需要同步的UID
+        update_sync_progress(20, 100, "扫描服务器UID...")
+        all_uids_to_fetch = []  # [(folder_name, is_sent, folder_label, uid), ...]
 
-            # 保存新邮件
-            if is_new_email:
+        for folder_name, is_sent, folder_label in folders_to_sync:
+            try:
+                print(f"[Mail] 检查文件夹: {folder_name}")
+                # 获取服务器上的UID列表（轻量操作）
+                server_uids = imap_client.get_uid_list(folder=folder_name, days=365)
+                if not server_uids:
+                    print(f"[Mail] {folder_label}: 无邮件")
+                    continue
+
+                # 获取本地已存储的UID
+                local_uids = get_local_uids(folder_name, current_account_id)
+
+                # 计算差集：需要同步的新UID
+                new_uids = set(server_uids) - local_uids
+                print(f"[Mail] {folder_label}: 服务器{len(server_uids)}封, 本地{len(local_uids)}封, 新增{len(new_uids)}封")
+
+                for uid in new_uids:
+                    all_uids_to_fetch.append((folder_name, is_sent, folder_label, uid))
+
+            except Exception as e:
+                print(f"[Mail] 扫描 {folder_name} 失败: {e}")
+
+        grand_total_emails = len(all_uids_to_fetch)
+        print(f"[Mail] 总计 {grand_total_emails} 封新邮件待同步")
+
+        if grand_total_emails == 0:
+            update_sync_progress(100, 100, "完成！无新邮件")
+            imap_client.disconnect()
+            return {"status": "completed", "new_count": 0, "message": "无新邮件"}
+
+        # 设置同步日期范围
+        from datetime import timedelta
+        sync_start = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        sync_end = datetime.now().strftime('%Y-%m-%d')
+
+        # 更新总邮件数
+        update_sync_progress(30, 100, f"共发现 {grand_total_emails} 封新邮件",
+                           sync_start_date=sync_start, sync_end_date=sync_end,
+                           total_emails=grand_total_emails, synced_emails=0)
+
+        # 按文件夹分组，批量获取邮件
+        import time
+        from collections import defaultdict
+        uids_by_folder = defaultdict(list)
+        for folder_name, is_sent, folder_label, uid in all_uids_to_fetch:
+            uids_by_folder[(folder_name, is_sent, folder_label)].append(uid)
+
+        processed_count = 0
+        for (folder_name, is_sent, folder_label), uids in uids_by_folder.items():
+            print(f"[Mail] 同步 {folder_label} 的 {len(uids)} 封邮件...")
+
+            # 批量获取邮件
+            batch_uids = []
+            for uid in uids:
+                batch_uids.append(uid)
+
+            # 使用 fetch_emails_by_uid 批量获取
+            emails = imap_client.fetch_emails_by_uid(folder_name, batch_uids)
+
+            for email_data in emails:
+                email_data['is_sent'] = is_sent
+                email_data['folder_label'] = folder_label
+                email_data['imap_folder'] = folder_name
                 email_data['account_id'] = current_account_id
+
+                # 保存邮件
                 save_email(email_data)
                 total_saved += 1
+                processed_count += 1
 
-            # 更新已处理数量
-            total_processed += 1
-
-            # 计算进度百分比并更新
-            if grand_total_emails > 0:
-                percent = int((total_processed / grand_total_emails) * 100)
-            else:
-                percent = 0
-
-            folder_label = email_data.get('folder_label', '')
-            current_batch = (idx // batch_size) + 1
-            total_batches = (grand_total_emails + batch_size - 1) // batch_size if grand_total_emails > 0 else 0
-            update_sync_progress(
-                percent, 100,
-                f"批次 {current_batch}/{total_batches} - {folder_label} {idx + 1}/{grand_total_emails}",
-                synced_emails=total_processed
-            )
+                # 更新进度
+                percent = int(30 + (processed_count / grand_total_emails) * 65)
+                update_sync_progress(
+                    percent, 100,
+                    f"{folder_label} {processed_count}/{grand_total_emails}",
+                    synced_emails=processed_count
+                )
 
             # 分批暂停
-            if (idx + 1) % batch_size == 0 and idx + 1 < grand_total_emails:
-                print(f"[Mail] 增量同步批次完成，暂停 {pause_seconds} 秒...")
+            if len(uids) >= batch_size:
+                print(f"[Mail] 批次完成，暂停 {pause_seconds} 秒...")
                 time.sleep(pause_seconds)
 
         update_sync_progress(95, 100, "断开连接...")
