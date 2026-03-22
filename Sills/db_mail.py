@@ -28,7 +28,10 @@ def get_mail_list(page: int = 1, limit: int = 20, is_sent: int = 0,
     params = [is_sent]
     count_params = [is_sent]
 
-    query = "SELECT * FROM uni_mail WHERE is_sent = ? AND is_deleted = 0"
+    # 列表视图只查询必要字段，避免加载大字段（content, html_content）
+    select_fields = "id, subject, from_addr, from_name, to_addr, received_at, sent_at, is_sent, is_read, message_id, account_id, folder_id"
+
+    query = f"SELECT {select_fields} FROM uni_mail WHERE is_sent = ? AND is_deleted = 0"
     count_query = "SELECT COUNT(*) FROM uni_mail WHERE is_sent = ? AND is_deleted = 0"
 
     # 收件箱只显示未分类的邮件（folder_id IS NULL）
@@ -69,14 +72,9 @@ def get_mail_list(page: int = 1, limit: int = 20, is_sent: int = 0,
     items = []
     for row in rows:
         item = dict(row)
-        # 截断内容预览，清理HTML标签
-        content = item.get('content', '') or ''
-        # 移除HTML标签
-        import re
-        content_clean = re.sub(r'<[^>]+>', '', content)
-        content_clean = re.sub(r'\s+', ' ', content_clean).strip()
-        item['content_preview'] = content_clean[:100]
-        item['body_truncated'] = len(content_clean) > 100
+        # 列表视图不需要内容预览（大字段已排除）
+        item['content_preview'] = ''
+        item['body_truncated'] = False
         items.append(item)
 
     return {
@@ -105,7 +103,10 @@ def get_trash_list(page: int = 1, limit: int = 20, search: str = None, account_i
     params = []
     count_params = []
 
-    query = "SELECT * FROM uni_mail WHERE is_deleted = 1"
+    # 列表视图只查询必要字段，避免加载大字段
+    select_fields = "id, subject, from_addr, from_name, to_addr, received_at, sent_at, is_sent, is_read, message_id, account_id, folder_id, deleted_at"
+
+    query = f"SELECT {select_fields} FROM uni_mail WHERE is_deleted = 1"
     count_query = "SELECT COUNT(*) FROM uni_mail WHERE is_deleted = 1"
 
     # 回收站不按账户过滤，显示所有已删除邮件
@@ -127,12 +128,8 @@ def get_trash_list(page: int = 1, limit: int = 20, search: str = None, account_i
     items = []
     for row in rows:
         item = dict(row)
-        import re
-        content = item.get('content', '') or ''
-        content_clean = re.sub(r'<[^>]+>', '', content)
-        content_clean = re.sub(r'\s+', ' ', content_clean).strip()
-        item['content_preview'] = content_clean[:100]
-        item['body_truncated'] = len(content_clean) > 100
+        item['content_preview'] = ''
+        item['body_truncated'] = False
         items.append(item)
 
     return {
@@ -295,7 +292,10 @@ def get_draft_list(page: int = 1, limit: int = 20, search: str = None, account_i
     params = []
     count_params = []
 
-    query = "SELECT * FROM uni_mail WHERE is_draft = 1 AND is_deleted = 0"
+    # 列表视图只查询必要字段，避免加载大字段
+    select_fields = "id, subject, from_addr, from_name, to_addr, received_at, sent_at, is_sent, is_read, message_id, account_id, folder_id, created_at"
+
+    query = f"SELECT {select_fields} FROM uni_mail WHERE is_draft = 1 AND is_deleted = 0"
     count_query = "SELECT COUNT(*) FROM uni_mail WHERE is_draft = 1 AND is_deleted = 0"
 
     if account_id is not None:
@@ -321,12 +321,8 @@ def get_draft_list(page: int = 1, limit: int = 20, search: str = None, account_i
     items = []
     for row in rows:
         item = dict(row)
-        content = item.get('content', '') or ''
-        import re
-        content_clean = re.sub(r'<[^>]+>', '', content)
-        content_clean = re.sub(r'\s+', ' ', content_clean).strip()
-        item['content_preview'] = content_clean[:100]
-        item['body_truncated'] = len(content_clean) > 100
+        item['content_preview'] = ''
+        item['body_truncated'] = False
         items.append(item)
 
     return {
@@ -464,7 +460,10 @@ def get_blacklisted_list(page: int = 1, limit: int = 20, search: str = None, acc
     params = []
     count_params = []
 
-    query = "SELECT * FROM uni_mail WHERE is_blacklisted = 1 AND is_deleted = 0"
+    # 列表视图只查询必要字段，避免加载大字段
+    select_fields = "id, subject, from_addr, from_name, to_addr, received_at, sent_at, is_sent, is_read, message_id, account_id, folder_id, created_at"
+
+    query = f"SELECT {select_fields} FROM uni_mail WHERE is_blacklisted = 1 AND is_deleted = 0"
     count_query = "SELECT COUNT(*) FROM uni_mail WHERE is_blacklisted = 1 AND is_deleted = 0"
 
     if account_id is not None:
@@ -490,12 +489,8 @@ def get_blacklisted_list(page: int = 1, limit: int = 20, search: str = None, acc
     items = []
     for row in rows:
         item = dict(row)
-        content = item.get('content', '') or ''
-        import re
-        content_clean = re.sub(r'<[^>]+>', '', content)
-        content_clean = re.sub(r'\s+', ' ', content_clean).strip()
-        item['content_preview'] = content_clean[:100]
-        item['body_truncated'] = len(content_clean) > 100
+        item['content_preview'] = ''
+        item['body_truncated'] = False
         items.append(item)
 
     return {
@@ -1411,7 +1406,10 @@ def get_mails_by_folder(folder_id: int, page: int = 1, limit: int = 20,
     params = [folder_id]
     count_params = [folder_id]
 
-    query = "SELECT * FROM uni_mail WHERE folder_id = ? AND is_sent = 0"
+    # 列表视图只查询必要字段，避免加载大字段
+    select_fields = "id, subject, from_addr, from_name, to_addr, received_at, sent_at, is_sent, is_read, message_id, account_id, folder_id, created_at"
+
+    query = f"SELECT {select_fields} FROM uni_mail WHERE folder_id = ? AND is_sent = 0"
     count_query = "SELECT COUNT(*) FROM uni_mail WHERE folder_id = ? AND is_sent = 0"
 
     if account_id is not None:
@@ -1437,12 +1435,8 @@ def get_mails_by_folder(folder_id: int, page: int = 1, limit: int = 20,
     items = []
     for row in rows:
         item = dict(row)
-        content = item.get('content', '') or ''
-        import re
-        content_clean = re.sub(r'<[^>]+>', '', content)
-        content_clean = re.sub(r'\s+', ' ', content_clean).strip()
-        item['content_preview'] = content_clean[:100]
-        item['body_truncated'] = len(content_clean) > 100
+        item['content_preview'] = ''
+        item['body_truncated'] = False
         items.append(item)
 
     return {
