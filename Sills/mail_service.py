@@ -805,12 +805,13 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
         print(f"[Mail] 检测到垃圾邮件文件夹: {spam_folder}")
 
         # 获取或创建本地垃圾邮件文件夹
-        from Sills.db_mail import get_or_create_spam_folder
+        from Sills.db_mail import get_or_create_spam_folder, get_or_create_system_folder
         spam_folder_id = get_or_create_spam_folder(current_account_id) if spam_folder else None
 
         # 自动检测系统邮件文件夹（退信、系统通知等）
         system_folder = imap_client.find_system_folder()
         print(f"[Mail] 检测到系统邮件文件夹: {system_folder}")
+        system_folder_id = get_or_create_system_folder(current_account_id) if system_folder else None
 
         # 同步收件箱、发件箱、垃圾邮件、系统邮件
         # (文件夹名, is_sent, 显示标签, 本地folder_id)
@@ -820,7 +821,7 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
         if spam_folder:
             folders_to_sync.append((spam_folder, 0, '垃圾邮件', spam_folder_id))
         if system_folder:
-            folders_to_sync.append((system_folder, 0, '系统邮件', None))
+            folders_to_sync.append((system_folder, 0, '系统邮件', system_folder_id))
 
         total_saved = 0
         total_updated = 0

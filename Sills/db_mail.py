@@ -1219,6 +1219,41 @@ def get_or_create_spam_folder(account_id: int = None) -> int:
         return cursor.lastrowid
 
 
+def get_or_create_system_folder(account_id: int = None) -> int:
+    """
+    获取或创建系统邮件文件夹
+
+    Args:
+        account_id: 账户ID
+
+    Returns:
+        系统邮件文件夹ID
+    """
+    with get_db_connection() as conn:
+        # 查找是否已存在系统邮件文件夹
+        if account_id is not None:
+            row = conn.execute(
+                "SELECT id FROM mail_folder WHERE folder_name = '系统邮件' AND (account_id = ? OR account_id IS NULL)",
+                (account_id,)
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT id FROM mail_folder WHERE folder_name = '系统邮件'"
+            ).fetchone()
+
+        if row:
+            return row[0]
+
+        # 创建系统邮件文件夹
+        cursor = conn.execute(
+            "INSERT INTO mail_folder (folder_name, folder_icon, sort_order, account_id) VALUES (?, ?, ?, ?)",
+            ('系统邮件', '🔔', 90, account_id)
+        )
+        conn.commit()
+        print(f"[DB] 创建系统邮件文件夹，ID: {cursor.lastrowid}")
+        return cursor.lastrowid
+
+
 def add_folder(folder_data: Dict[str, Any]) -> int:
     """添加文件夹"""
     with get_db_connection() as conn:
