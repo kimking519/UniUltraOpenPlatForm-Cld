@@ -1873,6 +1873,7 @@
     // State
     let currentFolder = 'inbox';
     let currentPage = 1;
+    let totalPages = 1;
     let currentMailId = null;
     let clients = [];
     let orders = [];
@@ -2346,6 +2347,8 @@
     // Render pagination
     function renderPagination(data) {
         const container = document.getElementById('pagination');
+
+        totalPages = data.total_pages || 1;
 
         if (data.total_pages <= 1) {
             container.innerHTML = '';
@@ -3903,9 +3906,8 @@
             const result = await response.json();
 
             if (result.success) {
-                updateSyncRangeDisplay('quick', days);
+                updateSyncRangeDisplay('quick', days, null, null, true);
                 document.getElementById('customDateRange').style.display = 'none';
-                alert(`同步范围已设置为最近 ${days} 天`);
             } else {
                 alert('保存失败: ' + (result.message || '未知错误'));
             }
@@ -3955,8 +3957,7 @@
             const result = await response.json();
 
             if (result.success) {
-                updateSyncRangeDisplay('custom', null, startDate, endDate);
-                alert(`同步范围已设置为 ${startDate} 至 ${endDate}`);
+                updateSyncRangeDisplay('custom', null, startDate, endDate, true);
             } else {
                 alert('保存失败: ' + (result.message || '未知错误'));
             }
@@ -4000,24 +4001,25 @@
     }
 
     // Update sync range display
-    function updateSyncRangeDisplay(mode, days, startDate, endDate) {
+    function updateSyncRangeDisplay(mode, days, startDate, endDate, showSaved) {
         const textEl = document.getElementById('syncRangeText');
+        const prefix = showSaved ? '已保存：' : '';
         if (mode === 'quick') {
             if (days === 365) {
-                textEl.textContent = '最近 1 年';
+                textEl.textContent = `${prefix}最近 1 年`;
             } else if (days === 180) {
-                textEl.textContent = '最近 180 天';
+                textEl.textContent = `${prefix}最近 180 天`;
             } else if (days === 90) {
-                textEl.textContent = '最近 90 天';
+                textEl.textContent = `${prefix}最近 90 天`;
             } else if (days === 30) {
-                textEl.textContent = '最近 30 天';
+                textEl.textContent = `${prefix}最近 30 天`;
             } else if (days === 7) {
-                textEl.textContent = '最近 7 天';
+                textEl.textContent = `${prefix}最近 7 天`;
             } else {
-                textEl.textContent = `最近 ${days} 天`;
+                textEl.textContent = `${prefix}最近 ${days} 天`;
             }
         } else if (mode === 'custom') {
-            textEl.textContent = `${startDate} 至 ${endDate}`;
+            textEl.textContent = `${prefix}${startDate} 至 ${endDate}`;
         }
     }
 
@@ -4762,8 +4764,50 @@
         setTimeout(() => dropZone.classList.remove('active'), 500);
     }
 
-    // Esc 快捷键 - 回到初始状态
+    // 快捷键处理
     document.addEventListener('keydown', (e) => {
+        // End 键 - 滚动到邮件列表底部
+        if (e.key === 'End') {
+            const mailList = document.getElementById('mailList');
+            if (mailList) {
+                mailList.scrollTo({
+                    top: mailList.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }
+            return;
+        }
+
+        // Home 键 - 滚动到邮件列表顶部
+        if (e.key === 'Home') {
+            const mailList = document.getElementById('mailList');
+            if (mailList) {
+                mailList.scrollTo({
+                    top: 0,
+                    behavior: 'smooth'
+                });
+            }
+            return;
+        }
+
+        // PgDn 键 - 下一页
+        if (e.key === 'PageDown') {
+            e.preventDefault();
+            if (currentPage < totalPages) {
+                goToPage(currentPage + 1);
+            }
+            return;
+        }
+
+        // PgUp 键 - 上一页
+        if (e.key === 'PageUp') {
+            e.preventDefault();
+            if (currentPage > 1) {
+                goToPage(currentPage - 1);
+            }
+            return;
+        }
+
         if (e.key === 'Escape') {
             // 关闭写信面板
             const composePanel = document.getElementById('composePanel');
