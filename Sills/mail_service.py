@@ -230,10 +230,11 @@ class IMAPClient:
         """
         folders = self.list_folders()
 
-        # 常见的系统邮件文件夹名称
+        # 常见的系统邮件/退信文件夹名称
         system_names = [
             'System', 'System Messages', '系统邮件', '系统通知',
             'Notifications', 'Notices', 'Alerts',
+            'Undelivered', 'Bounced', 'Returned',
             '&fPt+35AAT+E-'  # IMAP UTF-7 编码的"系统邮件"
         ]
 
@@ -243,11 +244,26 @@ class IMAPClient:
                 print(f"[Mail] 找到系统邮件文件夹: {raw_name} ({decoded_name})")
                 return raw_name
 
-        # 再模糊匹配
+        # 再模糊匹配（系统邮件、退信等）
         for raw_name, decoded_name in folders:
             decoded_lower = decoded_name.lower()
             if 'system' in decoded_lower or '系统' in decoded_name or 'notification' in decoded_lower:
                 print(f"[Mail] 模糊匹配找到系统邮件文件夹: {raw_name} ({decoded_name})")
+                return raw_name
+
+        # 查找退信文件夹（退回、bounced等）
+        for raw_name, decoded_name in folders:
+            decoded_lower = decoded_name.lower()
+            if '退回' in decoded_name or '退信' in decoded_name or 'bounced' in decoded_lower or 'undelivered' in decoded_lower:
+                # 优先选择包含"退回"的文件夹
+                if '退回' in decoded_name and '/' not in decoded_name:
+                    print(f"[Mail] 找到退信文件夹: {raw_name} ({decoded_name})")
+                    return raw_name
+
+        # 如果有"自定义垃圾邮件/退回"这样的文件夹，返回父文件夹
+        for raw_name, decoded_name in folders:
+            if '退回' in decoded_name:
+                print(f"[Mail] 找到退信文件夹（含子目录）: {raw_name} ({decoded_name})")
                 return raw_name
 
         print("[Mail] 未找到系统邮件文件夹")
