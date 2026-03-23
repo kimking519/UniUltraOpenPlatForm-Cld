@@ -871,15 +871,19 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
         total_updated = 0
         total_processed = 0
 
-        # === UID预过滤优化：只获取本地没有的邮件 ===
-        from Sills.db_mail import get_local_uids, get_local_message_ids
+        # === 流式处理：分批获取并立即写入数据库，避免内存溢出 ===
+        from Sills.db_mail import get_local_uids, get_local_message_ids, get_db_connection
+        import gc
+        import time
 
         # 先获取本地已有的Message-ID作为备用（处理UID为空的情况）
         local_message_ids = get_local_message_ids(current_account_id)
         print(f"[Mail] 本地已有 {len(local_message_ids)} 封邮件")
 
-        # 按文件夹获取新邮件
-        all_emails_data = []
+        # 第一遍：统计所有文件夹的新邮件总数（不下载内容）
+        folders_with_new_uids = []  # [(folder_name, is_sent, folder_label, local_folder_id, new_uids), ...]
+        grand_total_new = 0
+
         for folder_name, is_sent, folder_label, local_folder_id in folders_to_sync:
             try:
                 update_sync_progress(5, 100, f"扫描{folder_label}UID...")
@@ -902,89 +906,94 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
                 new_uids = list(set(server_uids) - local_uids)
                 print(f"[Mail] {folder_label}: 服务器 {len(server_uids)} 封, 本地 {len(local_uids)} 封, 新增 {len(new_uids)} 封")
 
-                if not new_uids:
-                    print(f"[Mail] {folder_label}: 无新邮件需要同步")
-                    continue
-
-                # Step 4: 只获取新邮件
-                update_sync_progress(10, 100, f"获取{folder_label}新邮件...")
-                emails = imap_client.fetch_emails_by_uid(folder_name, new_uids)
-
-                if emails:
-                    for email_data in emails:
-                        email_data['is_sent'] = is_sent
-                        email_data['folder_label'] = folder_label
-                        email_data['imap_folder'] = folder_name
-                        # 设置本地文件夹ID（垃圾邮件文件夹）
-                        if local_folder_id:
-                            email_data['folder_id'] = local_folder_id
-                    all_emails_data.extend(emails)
+                if new_uids:
+                    folders_with_new_uids.append((folder_name, is_sent, folder_label, local_folder_id, new_uids))
+                    grand_total_new += len(new_uids)
 
             except Exception as e:
                 print(f"[Mail] 扫描 {folder_name} 失败: {e}")
                 import traceback
                 traceback.print_exc()
 
-        grand_total_emails = len(all_emails_data)
-        print(f"[Mail] 总计 {grand_total_emails} 封邮件待同步")
+        print(f"[Mail] 总计 {grand_total_new} 封新邮件待同步")
+        update_sync_progress(10, 100, f"共发现 {grand_total_new} 封新邮件", total_emails=grand_total_new)
 
-        # 更新总邮件数
-        update_sync_progress(10, 100, f"共发现 {grand_total_emails} 封邮件", total_emails=grand_total_emails)
+        # 第二遍：流式处理 - 分批获取并立即写入数据库
+        fetch_batch_size = 50  # IMAP 每批获取数量
+        total_saved = 0
+        total_updated = 0
+        total_processed = 0
 
-        # 同步邮件（分批处理）
-        import time
-        batch_count = 0
-        for idx, email_data in enumerate(all_emails_data):
-            # 检查是否已存在
-            is_new_email = True
-            if email_data.get('message_id'):
-                from Sills.db_mail import get_db_connection
-                with get_db_connection() as conn:
-                    existing = conn.execute(
-                        "SELECT id, account_id FROM uni_mail WHERE message_id = ?",
-                        (email_data['message_id'],)
-                    ).fetchone()
-                    if existing:
-                        existing_id, existing_account_id = existing
-                        # 如果邮件存在但 account_id 不是当前账户，更新为当前账户
-                        if existing_account_id != current_account_id:
-                            conn.execute(
-                                "UPDATE uni_mail SET account_id = ? WHERE id = ?",
-                                (current_account_id, existing_id)
-                            )
-                            conn.commit()
-                            total_updated += 1
-                        is_new_email = False
+        for folder_name, is_sent, folder_label, local_folder_id, new_uids in folders_with_new_uids:
+            # 分批获取邮件
+            for batch_start in range(0, len(new_uids), fetch_batch_size):
+                batch_uids = new_uids[batch_start:batch_start + fetch_batch_size]
 
-            # 保存新邮件
-            if is_new_email:
-                email_data['account_id'] = current_account_id
-                save_email(email_data)
-                total_saved += 1
+                # 检查取消
+                if is_sync_cancelled():
+                    update_sync_progress(0, 100, "同步已取消")
+                    return {"status": "cancelled", "message": "同步已取消"}
 
-            # 更新已处理数量
-            total_processed += 1
+                update_sync_progress(
+                    int(10 + (total_processed / grand_total_new) * 85) if grand_total_new > 0 else 50,
+                    100,
+                    f"获取{folder_label}邮件 {total_processed + 1}-{min(total_processed + fetch_batch_size, grand_total_new)}/{grand_total_new}",
+                    synced_emails=total_processed
+                )
 
-            # 计算进度百分比并更新
-            if grand_total_emails > 0:
-                percent = int((total_processed / grand_total_emails) * 100)
-            else:
-                percent = 0
+                # 获取一批邮件
+                emails = imap_client.fetch_emails_by_uid(folder_name, batch_uids)
 
-            folder_label = email_data.get('folder_label', '')
-            current_batch = (idx // batch_size) + 1
-            total_batches = (grand_total_emails + batch_size - 1) // batch_size
-            update_sync_progress(
-                percent, 100,
-                f"批次 {current_batch}/{total_batches} - {folder_label} {idx + 1}/{grand_total_emails}",
-                synced_emails=total_processed
-            )
+                # 立即处理并写入数据库
+                for email_data in emails:
+                    email_data['is_sent'] = is_sent
+                    email_data['folder_label'] = folder_label
+                    email_data['imap_folder'] = folder_name
+                    email_data['account_id'] = current_account_id
+                    if local_folder_id:
+                        email_data['folder_id'] = local_folder_id
 
-            # 分批暂停：每处理完一批后暂停，让系统喘息
-            if (idx + 1) % batch_size == 0 and idx + 1 < grand_total_emails:
-                batch_count += 1
-                print(f"[Mail] 批次 {batch_count} 完成，暂停 {pause_seconds} 秒...")
-                time.sleep(pause_seconds)
+                    # 检查是否已存在
+                    is_new_email = True
+                    if email_data.get('message_id'):
+                        with get_db_connection() as conn:
+                            existing = conn.execute(
+                                "SELECT id, account_id FROM uni_mail WHERE message_id = ?",
+                                (email_data['message_id'],)
+                            ).fetchone()
+                            if existing:
+                                existing_id, existing_account_id = existing
+                                if existing_account_id != current_account_id:
+                                    conn.execute(
+                                        "UPDATE uni_mail SET account_id = ? WHERE id = ?",
+                                        (current_account_id, existing_id)
+                                    )
+                                    conn.commit()
+                                    total_updated += 1
+                                is_new_email = False
+
+                    # 保存新邮件
+                    if is_new_email:
+                        save_email(email_data)
+                        total_saved += 1
+
+                    total_processed += 1
+
+                # 更新进度
+                percent = int(10 + (total_processed / grand_total_new) * 85) if grand_total_new > 0 else 50
+                update_sync_progress(
+                    percent, 100,
+                    f"同步{folder_label} {total_processed}/{grand_total_new}",
+                    synced_emails=total_processed
+                )
+
+                # 释放内存
+                emails.clear()
+                gc.collect()
+
+                # 批次间暂停，让系统喘息
+                if batch_start + fetch_batch_size < len(new_uids):
+                    time.sleep(pause_seconds)
 
         update_sync_progress(95, 100, "断开连接...")
         imap_client.disconnect()
