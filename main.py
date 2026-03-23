@@ -991,6 +991,63 @@ async def get_server_env_api():
     """获取服务器环境信息"""
     return {"success": True, "env": get_server_env()}
 
+@app.get("/api/server/memory")
+async def get_server_memory_api():
+    """获取服务器内存使用情况（支持WSL）"""
+    try:
+        import psutil
+
+        # 当前进程内存
+        process = psutil.Process()
+        process_memory_mb = process.memory_info().rss / 1024 / 1024
+
+        # 系统内存
+        virtual_mem = psutil.virtual_memory()
+        total_mb = virtual_mem.total / 1024 / 1024
+        available_mb = virtual_mem.available / 1024 / 1024
+        used_mb = virtual_mem.used / 1024 / 1024
+        percent = virtual_mem.percent
+
+        # WSL特殊处理：尝试获取WSL内存限制
+        wsl_memory_limit = None
+        server_env = get_server_env()
+        if server_env == "WSL":
+            try:
+                # 尝试从/proc/meminfo获取MemTotal作为WSL限制
+                with open("/proc/meminfo", "r") as f:
+                    for line in f:
+                        if line.startswith("MemTotal:"):
+                            wsl_memory_limit = float(line.split()[1]) / 1024  # KB to MB
+                            break
+            except:
+                pass
+
+        result = {
+            "success": True,
+            "env": server_env,
+            "process": {
+                "memory_mb": round(process_memory_mb, 2),
+                "name": process.name()
+            },
+            "system": {
+                "total_mb": round(total_mb, 2),
+                "available_mb": round(available_mb, 2),
+                "used_mb": round(used_mb, 2),
+                "percent": percent
+            }
+        }
+
+        if wsl_memory_limit:
+            result["wsl"] = {
+                "memory_limit_mb": round(wsl_memory_limit, 2)
+            }
+
+        return result
+    except ImportError:
+        return {"success": False, "message": "psutil未安装，请运行: pip install psutil"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
 @app.post("/api/offer/update")
 async def offer_update_api(offer_id: str = Form(...), field: str = Form(...), value: str = Form(...), current_user: dict = Depends(login_required)):
     if current_user['rule'] not in ['3', '0']:
