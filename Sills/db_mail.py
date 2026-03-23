@@ -143,13 +143,13 @@ def get_trash_list(page: int = 1, limit: int = 20, search: str = None, account_i
 
 def save_email(mail_data: Dict[str, Any]) -> int:
     """
-    保存邮件到数据库
+    保存邮件到数据库（防止重复插入）
 
     Args:
         mail_data: 邮件数据字典
 
     Returns:
-        新邮件的ID
+        新邮件的ID，如果已存在返回已有ID
     """
     # 将空字符串的message_id转为None，避免唯一约束冲突
     message_id = mail_data.get('message_id')
@@ -157,6 +157,19 @@ def save_email(mail_data: Dict[str, Any]) -> int:
         message_id = None
 
     with get_db_connection() as conn:
+        # 先检查是否已存在（通过imap_uid + imap_folder + account_id）
+        imap_uid = mail_data.get('imap_uid')
+        imap_folder = mail_data.get('imap_folder')
+        account_id = mail_data.get('account_id')
+
+        if imap_uid and imap_folder and account_id:
+            existing = conn.execute(
+                "SELECT id FROM uni_mail WHERE imap_uid = ? AND imap_folder = ? AND account_id = ?",
+                (imap_uid, imap_folder, account_id)
+            ).fetchone()
+            if existing:
+                return existing[0]  # 已存在，返回已有ID
+
         cursor = conn.execute("""
             INSERT INTO uni_mail (subject, from_addr, from_name, to_addr, cc_addr, content, html_content,
                                   received_at, sent_at, is_sent, message_id, sync_status, account_id,
@@ -1545,4 +1558,54 @@ def get_local_message_ids(account_id: int) -> set:
             (account_id,)
         ).fetchall()
         return {row[0] for row in rows if row[0] is not None}
+
+
+def cleanup_duplicate_emails(account_id: int = None) -> dict:
+    """
+    清理重复邮件，保留最早的一条
+
+    Args:
+        account_id: 指定账户ID，为None时清理所有账户
+
+    Returns:
+        {"deleted": 删除数量, "kept": 保留数量}
+    """
+    with get_db_connection() as conn:
+        # 查找重复邮件（相同imap_uid + imap_folder + account_id）
+        if account_id:
+            duplicates = conn.execute("""
+                SELECT imap_uid, imap_folder, account_id, COUNT(*) as cnt,
+                       GROUP_CONCAT(id ORDER BY id) as ids
+                FROM uni_mail
+                WHERE imap_uid IS NOT NULL AND account_id = ?
+                GROUP BY imap_uid, imap_folder, account_id
+                HAVING COUNT(*) > 1
+            """, (account_id,)).fetchall()
+        else:
+            duplicates = conn.execute("""
+                SELECT imap_uid, imap_folder, account_id, COUNT(*) as cnt,
+                       GROUP_CONCAT(id ORDER BY id) as ids
+                FROM uni_mail
+                WHERE imap_uid IS NOT NULL
+                GROUP BY imap_uid, imap_folder, account_id
+                HAVING COUNT(*) > 1
+            """).fetchall()
+
+        deleted_count = 0
+        kept_count = 0
+
+        for row in duplicates:
+            ids = row['ids'].split(',')
+            # 保留第一个（最早插入的），删除其余的
+            keep_id = ids[0]
+            delete_ids = ids[1:]
+
+            if delete_ids:
+                placeholders = ','.join('?' * len(delete_ids))
+                conn.execute(f"DELETE FROM uni_mail WHERE id IN ({placeholders})", delete_ids)
+                deleted_count += len(delete_ids)
+                kept_count += 1
+
+        conn.commit()
+        return {"deleted": deleted_count, "kept": kept_count}
 

@@ -3088,6 +3088,14 @@ async def api_mail_batch_delete(request: Request, current_user: dict = Depends(l
     return {"success": True, "deleted": deleted}
 
 
+@app.post("/api/mail/cleanup-duplicates")
+async def api_mail_cleanup_duplicates(current_user: dict = Depends(login_required)):
+    """清理重复邮件"""
+    from Sills.db_mail import cleanup_duplicate_emails
+    result = cleanup_duplicate_emails()
+    return {"success": True, **result}
+
+
 @app.post("/api/mail/{mail_id}/read")
 async def api_mail_mark_read(mail_id: int, current_user: dict = Depends(login_required)):
     """标记邮件为已读"""

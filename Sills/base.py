@@ -584,12 +584,18 @@ def init_db():
         except sqlite3.OperationalError:
             pass  # 列已存在，忽略
 
-        # 迁移：添加 UID+文件夹索引
+        # 迁移：添加 UID+文件夹唯一约束（防止重复同步）
         try:
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_mail_uid_folder ON uni_mail(imap_uid, imap_folder)")
-            print("[DB] 迁移完成：uni_mail 添加 idx_mail_uid_folder 索引")
-        except sqlite3.OperationalError:
-            pass  # 索引已存在，忽略
+            # 先删除旧索引
+            conn.execute("DROP INDEX IF EXISTS idx_mail_uid_folder")
+            # 创建唯一约束（SQLite用UNIQUE索引实现）
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_mail_uid_folder_account ON uni_mail(imap_uid, imap_folder, account_id) WHERE imap_uid IS NOT NULL")
+            print("[DB] 迁移完成：uni_mail 添加唯一约束 (imap_uid, imap_folder, account_id)")
+        except sqlite3.OperationalError as e:
+            if "UNIQUE constraint" in str(e) or "already exists" in str(e):
+                pass  # 约束已存在或数据有重复，忽略
+            else:
+                print(f"[DB] 迁移警告：{e}")
 
         conn.executescript(schema)
         conn.execute("""
