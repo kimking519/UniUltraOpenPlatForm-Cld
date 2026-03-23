@@ -2406,9 +2406,11 @@
         }
 
         container.innerHTML = `
+            <button onclick="goToPage(1)" ${currentPage <= 1 ? 'disabled' : ''}>首页</button>
             <button onclick="goToPage(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>上一页</button>
             <span>第 ${currentPage} / ${data.total_pages} 页</span>
             <button onclick="goToPage(${currentPage + 1})" ${currentPage >= data.total_pages ? 'disabled' : ''}>下一页</button>
+            <button onclick="goToPage(${data.total_pages})" ${currentPage >= data.total_pages ? 'disabled' : ''}>尾页</button>
         `;
     }
 
