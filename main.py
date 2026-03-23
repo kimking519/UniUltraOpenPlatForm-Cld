@@ -2026,8 +2026,8 @@ async def api_mail_list(
     current_user: dict = Depends(login_required)
 ):
     """获取邮件列表（用户隔离）"""
-    # 限制每页数量在1-100之间
-    page_size = max(1, min(100, page_size))
+    # 限制每页数量在1-1000之间
+    page_size = max(1, min(1000, page_size))
     is_sent = 1 if folder == "sent" else 0
     # 获取当前邮件账户ID
     config = get_mail_config()
@@ -2817,6 +2817,7 @@ async def api_get_mails_by_folder(
     current_user: dict = Depends(login_required)
 ):
     """获取指定文件夹的邮件列表"""
+    page_size = max(1, min(1000, page_size))
     account = get_mail_config()
     account_id = account.get('id') if account else None
 
@@ -2833,6 +2834,7 @@ async def api_mail_trash_list(
 ):
     """获取回收站邮件列表"""
     from Sills.db_mail import get_trash_list
+    page_size = max(1, min(1000, page_size))
     account = get_mail_config()
     account_id = account.get('id') if account else None
     result = get_trash_list(page=page, limit=page_size, search=search, account_id=account_id)
@@ -2858,6 +2860,7 @@ async def api_mail_draft_list(
 ):
     """获取草稿列表"""
     from Sills.db_mail import get_draft_list
+    page_size = max(1, min(1000, page_size))
     account = get_mail_config()
     account_id = account.get('id') if account else None
     result = get_draft_list(page=page, limit=page_size, search=search, account_id=account_id)
@@ -2937,6 +2940,7 @@ async def api_mail_blacklisted_list(
 ):
     """获取黑名单邮件列表"""
     from Sills.db_mail import get_blacklisted_list
+    page_size = max(1, min(1000, page_size))
     account = get_mail_config()
     account_id = account.get('id') if account else None
     result = get_blacklisted_list(page=page, limit=page_size, search=search, account_id=account_id)
