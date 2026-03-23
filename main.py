@@ -3088,6 +3088,18 @@ async def api_mail_batch_delete(request: Request, current_user: dict = Depends(l
     return {"success": True, "deleted": deleted}
 
 
+@app.post("/api/mail/batch-restore")
+async def api_mail_batch_restore(request: Request, current_user: dict = Depends(login_required)):
+    """批量恢复邮件（从回收站）"""
+    from Sills.db_mail import batch_restore_emails
+    data = await request.json()
+    mail_ids = data.get('ids', [])
+    if not mail_ids:
+        return {"success": False, "message": "未选择邮件"}
+    restored = batch_restore_emails(mail_ids)
+    return {"success": True, "restored": restored}
+
+
 @app.post("/api/mail/cleanup-duplicates")
 async def api_mail_cleanup_duplicates(current_user: dict = Depends(login_required)):
     """清理重复邮件"""

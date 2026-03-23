@@ -1170,6 +1170,12 @@
             </svg>
             清空回收站
         </button>
+        <button class="btn btn-secondary" onclick="batchRestoreMails()" id="batchRestoreBtn" style="display: none; color: #10B981; border-color: #10B981;">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            批量恢复 (<span id="selectedCountRestore">0</span>)
+        </button>
         <button class="btn btn-secondary" onclick="batchDeleteMails()" id="batchDeleteBtn" style="display: none; color: #EF4444; border-color: #EF4444;">
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -3306,11 +3312,22 @@
         const checkedCheckboxes = document.querySelectorAll('.mail-checkbox:checked');
         const count = checkedCheckboxes.length;
         const btn = document.getElementById('batchDeleteBtn');
+        const restoreBtn = document.getElementById('batchRestoreBtn');
         const countSpan = document.getElementById('selectedCount');
+        const countSpanRestore = document.getElementById('selectedCountRestore');
         const selectAllCheckbox = document.getElementById('selectAll');
 
         countSpan.textContent = count;
-        btn.style.display = count > 0 ? 'inline-flex' : 'none';
+        countSpanRestore.textContent = count;
+
+        // 回收站显示批量恢复按钮，其他文件夹显示批量删除按钮
+        if (currentFolder === 'trash') {
+            btn.style.display = 'none';
+            restoreBtn.style.display = count > 0 ? 'inline-flex' : 'none';
+        } else {
+            btn.style.display = count > 0 ? 'inline-flex' : 'none';
+            restoreBtn.style.display = 'none';
+        }
 
         // Update select all checkbox state
         if (selectAllCheckbox && checkboxes.length > 0) {
@@ -3345,6 +3362,36 @@
             }
         } catch (error) {
             alert('删除失败: ' + error.message);
+        }
+    }
+
+    // Batch restore emails (from trash)
+    async function batchRestoreMails() {
+        const checkboxes = document.querySelectorAll('.mail-checkbox:checked');
+        const ids = Array.from(checkboxes).map(cb => parseInt(cb.dataset.id));
+
+        if (ids.length === 0) return;
+
+        if (!confirm(`确定要恢复选中的 ${ids.length} 封邮件吗？`)) return;
+
+        try {
+            const response = await fetch('/api/mail/batch-restore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                loadEmails();
+                loadInboxCount();
+                showToast(`已恢复 ${result.restored} 封邮件`, 'success');
+            } else {
+                showToast('恢复失败: ' + (result.message || '未知错误'), 'error');
+            }
+        } catch (error) {
+            showToast('恢复失败: ' + error.message, 'error');
         }
     }
 

@@ -266,6 +266,17 @@ def batch_delete_emails(mail_ids: list) -> int:
         return result.rowcount
 
 
+def batch_restore_emails(mail_ids: list) -> int:
+    """批量恢复邮件（从回收站）"""
+    if not mail_ids:
+        return 0
+    with get_db_connection() as conn:
+        placeholders = ','.join('?' * len(mail_ids))
+        result = conn.execute(f"UPDATE uni_mail SET is_deleted = 0, deleted_at = NULL WHERE id IN ({placeholders})", mail_ids)
+        conn.commit()
+        return result.rowcount
+
+
 def mark_email_read(mail_id: int) -> bool:
     """标记邮件为已读"""
     with get_db_connection() as conn:
