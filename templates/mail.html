@@ -263,6 +263,7 @@
         font-size: 0.85rem;
         color: var(--text-muted);
         margin-right: 0.5rem;
+        white-space: nowrap;
     }
 
     .page-size-select {
@@ -1926,7 +1927,7 @@
         // 恢复每页数量设置
         const pageSizeSelect = document.getElementById('pageSizeSelect');
         if (pageSizeSelect) {
-            pageSizeSelect.value = pageSize;
+            pageSizeSelect.value = String(pageSize);
         }
 
         loadInboxCount();
