@@ -6,8 +6,11 @@ from datetime import datetime
 import threading
 import gc
 
-# 数据库路径
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uni_platform.db")
+# 导入数据库配置
+from Sills.db_config import DATABASE_TYPE, SQLITE_PATH, PG_CONFIG, is_postgresql, is_sqlite
+
+# 数据库路径（兼容旧代码）
+DB_PATH = SQLITE_PATH
 
 # 线程本地存储用于连接池
 _local = threading.local()
@@ -19,6 +22,28 @@ _connection_lock = threading.Lock()
 # 连接池配置
 POOL_SIZE = 10
 POOL_TIMEOUT = 5.0
+
+# PostgreSQL 连接池（延迟初始化）
+_pg_pool = None
+
+
+def _init_pg_pool():
+    """初始化 PostgreSQL 连接池"""
+    global _pg_pool
+    if _pg_pool is None and is_postgresql():
+        try:
+            import psycopg2
+            from psycopg2 import pool
+            _pg_pool = pool.ThreadedConnectionPool(
+                minconn=1,
+                maxconn=POOL_SIZE,
+                **PG_CONFIG
+            )
+            print(f"[DB] PostgreSQL 连接池已初始化: {PG_CONFIG['host']}:{PG_CONFIG['port']}/{PG_CONFIG['database']}")
+        except Exception as e:
+            print(f"[DB] PostgreSQL 连接池初始化失败: {e}")
+            raise
+    return _pg_pool
 
 
 def _is_wsl_windows_path(db_path):
@@ -91,14 +116,74 @@ def get_db_path():
 
 
 def get_db_connection():
-    """获取数据库连接，使用 WAL 模式和优化配置"""
-    conn = sqlite3.connect(get_db_path(), timeout=POOL_TIMEOUT, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.executescript(PRAGMA_OPTIMIZATIONS)
-    # 追踪连接
-    with _connection_lock:
-        _active_connections.add(conn)
-    return conn
+    """获取数据库连接，支持 SQLite 和 PostgreSQL"""
+    if is_postgresql():
+        # PostgreSQL 模式
+        pool = _init_pg_pool()
+        conn = pool.getconn()
+        # 追踪连接
+        with _connection_lock:
+            _active_connections.add(conn)
+        return _PgConnectionWrapper(conn, pool)
+    else:
+        # SQLite 模式
+        conn = sqlite3.connect(get_db_path(), timeout=POOL_TIMEOUT, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(PRAGMA_OPTIMIZATIONS)
+        # 追踪连接
+        with _connection_lock:
+            _active_connections.add(conn)
+        return conn
+
+
+class _PgConnectionWrapper:
+    """PostgreSQL 连接包装器，模拟 SQLite 接口"""
+
+    def __init__(self, conn, pool):
+        self._conn = conn
+        self._pool = pool
+
+    def execute(self, sql, params=None):
+        """执行 SQL，自动转换占位符"""
+        # 将 ? 占位符转换为 %s
+        pg_sql = sql.replace('?', '%s')
+        cur = self._conn.cursor()
+        if params:
+            cur.execute(pg_sql, params)
+        else:
+            cur.execute(pg_sql)
+        return cur
+
+    def executescript(self, script):
+        """执行脚本（PostgreSQL 不需要 PRAGMA）"""
+        # 忽略 PRAGMA 语句
+        pass
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        """归还连接到池"""
+        with _connection_lock:
+            _active_connections.discard(self._conn)
+        self._pool.putconn(self._conn)
+
+    def cursor(self):
+        return self._conn.cursor()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            self.commit()
+        else:
+            self.rollback()
+        self.close()
+        return False
 
 
 class ConnectionContext:
@@ -211,6 +296,30 @@ def close_all_connections():
 
 
 def init_db():
+    """初始化数据库，支持 SQLite 和 PostgreSQL"""
+    if is_postgresql():
+        _init_db_postgresql()
+    else:
+        _init_db_sqlite()
+
+
+def _init_db_postgresql():
+    """初始化 PostgreSQL 数据库"""
+    from Sills.pg_schema import PG_SCHEMA, PG_DEFAULT_ADMIN
+
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        # 执行 schema
+        cur.execute(PG_SCHEMA)
+        # 插入默认管理员
+        cur.execute(PG_DEFAULT_ADMIN)
+        conn.commit()
+    print("[DB] PostgreSQL 数据库初始化完成")
+    clear_cache()
+
+
+def _init_db_sqlite():
+    """初始化 SQLite 数据库"""
     schema = """
     CREATE TABLE IF NOT EXISTS uni_daily (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

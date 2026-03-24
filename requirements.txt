@@ -3,3 +3,5 @@ uvicorn
 jinja2
 python-multipart
 psutil
+python-dotenv
+psycopg2-binary
