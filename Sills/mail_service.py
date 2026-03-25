@@ -802,9 +802,9 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
         sync_days = get_sync_days()
         date_range = get_sync_date_range()
 
-        # 获取分批处理配置（默认：每批100封，暂停1秒）
+        # 获取分批处理配置（默认：每批100封，暂停0.1秒）
         batch_size = config.get('sync_batch_size') or 100
-        pause_seconds = config.get('sync_pause_seconds') or 1.0
+        pause_seconds = config.get('sync_pause_seconds') or 0.1
         print(f"[Mail] 分批配置: 每批 {batch_size} 封, 暂停 {pause_seconds} 秒")
 
         # 确定同步范围描述和日期
@@ -961,7 +961,7 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
                     # 获取一批邮件
                     emails = imap_client.fetch_emails_by_uid(folder_name, batch_uids)
 
-                    # 立即处理并写入数据库
+                    # 为每封邮件添加元数据
                     for email_data in emails:
                         email_data['is_sent'] = is_sent
                         email_data['folder_label'] = folder_label
@@ -970,10 +970,11 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
                         if local_folder_id:
                             email_data['folder_id'] = local_folder_id
 
-                        # 保存邮件（save_email内部已做重复检查）
-                        saved_id = save_email(email_data)
-                        total_saved += 1
-                        total_processed += 1
+                    # 批量保存邮件（一次事务，更高效）
+                    from Sills.db_mail import batch_save_emails
+                    saved_in_batch = batch_save_emails(emails)
+                    total_saved += saved_in_batch
+                    total_processed += len(emails)
 
                     # 更新进度
                     percent = int(10 + (total_processed / grand_total_new) * 85) if grand_total_new > 0 else 50
@@ -1103,7 +1104,7 @@ def sync_new_emails(background_tasks=None) -> Dict[str, Any]:
 
         # 获取分批处理配置
         batch_size = config.get('sync_batch_size') or 100
-        pause_seconds = config.get('sync_pause_seconds') or 1.0
+        pause_seconds = config.get('sync_pause_seconds') or 0.1
 
         # 收集所有需要同步的UID
         update_sync_progress(20, 100, "扫描服务器UID...")

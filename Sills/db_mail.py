@@ -206,6 +206,83 @@ def save_email(mail_data: Dict[str, Any]) -> int:
         return cursor.lastrowid
 
 
+def batch_save_emails(emails_data: list) -> int:
+    """
+    批量保存邮件到数据库（一次事务，更高效）
+
+    Args:
+        emails_data: 邮件数据字典列表
+
+    Returns:
+        成功保存的邮件数量
+    """
+    if not emails_data:
+        return 0
+
+    saved_count = 0
+    with get_db_connection() as conn:
+        for mail_data in emails_data:
+            # 将空字符串的message_id转为None
+            message_id = mail_data.get('message_id')
+            if message_id == '':
+                message_id = None
+
+            imap_uid = mail_data.get('imap_uid')
+            imap_folder = mail_data.get('imap_folder')
+            account_id = mail_data.get('account_id')
+
+            # 检查重复
+            skip = False
+            if imap_uid and imap_folder and account_id:
+                existing = conn.execute(
+                    "SELECT id FROM uni_mail WHERE imap_uid = ? AND imap_folder = ? AND account_id = ?",
+                    (imap_uid, imap_folder, account_id)
+                ).fetchone()
+                if existing:
+                    skip = True
+
+            if not skip and message_id:
+                existing = conn.execute(
+                    "SELECT id FROM uni_mail WHERE message_id = ?",
+                    (message_id,)
+                ).fetchone()
+                if existing:
+                    skip = True
+
+            if skip:
+                continue
+
+            conn.execute("""
+                INSERT INTO uni_mail (subject, from_addr, from_name, to_addr, cc_addr, content, html_content,
+                                      received_at, sent_at, is_sent, message_id, sync_status, account_id,
+                                      imap_uid, imap_folder, folder_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                mail_data.get('subject'),
+                mail_data.get('from_addr'),
+                mail_data.get('from_name'),
+                mail_data.get('to_addr'),
+                mail_data.get('cc_addr'),
+                mail_data.get('content'),
+                mail_data.get('html_content'),
+                mail_data.get('received_at'),
+                mail_data.get('sent_at'),
+                mail_data.get('is_sent', 0),
+                message_id,
+                mail_data.get('sync_status', 'completed'),
+                mail_data.get('account_id'),
+                mail_data.get('imap_uid'),
+                mail_data.get('imap_folder'),
+                mail_data.get('folder_id')
+            ))
+            saved_count += 1
+
+        # 一次性提交所有邮件
+        conn.commit()
+
+    return saved_count
+
+
 def delete_email(mail_id: int) -> bool:
     """删除邮件（移入回收站）"""
     with get_db_connection() as conn:
