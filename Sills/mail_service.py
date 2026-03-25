@@ -984,7 +984,7 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
         # (文件夹名, is_sent, 显示标签, 本地folder_id)
         folders_to_sync = [('INBOX', 0, '收件箱', None)]
         if sent_folder:
-            folders_to_sync.append((sent_folder, 1, '发件箱', sent_folder_id))
+            folders_to_sync.append((sent_folder, 1, '发件箱', None))  # 已发送不需要folder_id
         if draft_folder:
             folders_to_sync.append((draft_folder, 0, '草稿箱', draft_folder_id))
         if spam_folder:
@@ -1226,7 +1226,7 @@ def sync_new_emails(background_tasks=None) -> Dict[str, Any]:
         # (文件夹名, is_sent, 显示标签, 本地folder_id)
         folders_to_sync = [('INBOX', 0, '收件箱', None)]
         if sent_folder:
-            folders_to_sync.append((sent_folder, 1, '发件箱', sent_folder_id))
+            folders_to_sync.append((sent_folder, 1, '发件箱', None))  # 已发送不需要folder_id
         if draft_folder:
             folders_to_sync.append((draft_folder, 0, '草稿箱', draft_folder_id))
         if spam_folder:
@@ -1444,7 +1444,7 @@ def refresh_emails(background_tasks=None) -> Dict[str, Any]:
         # 构建要同步的文件夹列表
         folders_to_sync = [('INBOX', 0, '收件箱', None)]
         if sent_folder:
-            folders_to_sync.append((sent_folder, 1, '发件箱', sent_folder_id))
+            folders_to_sync.append((sent_folder, 1, '发件箱', None))  # 已发送不需要folder_id
         if draft_folder:
             folders_to_sync.append((draft_folder, 0, '草稿箱', draft_folder_id))
         if spam_folder:
