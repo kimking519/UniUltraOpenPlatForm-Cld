@@ -188,7 +188,7 @@ class IMAPClient:
 
         # 常见的发件箱名称（按优先级）
         sent_names = [
-            'Sent', 'Sent Items', 'Sent Messages', '已发送', '发件箱',
+            'Sent', 'Sent Items', 'Sent Messages', '已发送', '发件箱', '发送',
             'INBOX.Sent', 'INBOX/Sent', 'Sent Mail'
         ]
 
@@ -201,7 +201,7 @@ class IMAPClient:
         # 再模糊匹配
         for raw_name, decoded_name in folders:
             decoded_lower = decoded_name.lower()
-            if 'sent' in decoded_lower or '发件' in decoded_name:
+            if 'sent' in decoded_lower or '发件' in decoded_name or '发送' in decoded_name:
                 print(f"[Mail] 模糊匹配找到发件箱: {raw_name} ({decoded_name})")
                 return raw_name
 
@@ -857,7 +857,7 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
                 if decoded_name in sent_names or raw_name in sent_names:
                     sent_folder = raw_name
                     print(f"[Mail] 找到发件箱: {raw_name} ({decoded_name})")
-                elif 'sent' in decoded_lower or '发件' in decoded_name:
+                elif 'sent' in decoded_lower or '发件' in decoded_name or '发送' in decoded_name:
                     sent_folder = raw_name
                     print(f"[Mail] 模糊匹配找到发件箱: {raw_name} ({decoded_name})")
 
