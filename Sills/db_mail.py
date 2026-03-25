@@ -574,9 +574,12 @@ def unmark_email_as_blacklisted(mail_id: int) -> bool:
 
 def auto_classify_blacklist(account_id: int = None) -> int:
     """
-    自动将黑名单邮箱的邮件标记为黑名单邮件
+    自动将黑名单邮箱的邮件标记为黑名单邮件，并移动到黑名单文件夹
     返回：被标记的邮件数量
     """
+    # 先获取或创建黑名单文件夹
+    blacklist_folder_id = get_or_create_blacklist_folder(account_id)
+
     with get_db_connection() as conn:
         # 获取黑名单邮箱列表
         if account_id is not None:
@@ -596,11 +599,11 @@ def auto_classify_blacklist(account_id: int = None) -> int:
         count = 0
 
         for email in blacklist_emails:
-            # 更新所有来自该邮箱的邮件
+            # 更新所有来自该邮箱的邮件：设置黑名单标记并移动到黑名单文件夹
             result = conn.execute("""
-                UPDATE uni_mail SET is_blacklisted = 1
+                UPDATE uni_mail SET is_blacklisted = 1, folder_id = ?
                 WHERE from_addr LIKE ? AND is_blacklisted = 0 AND is_deleted = 0
-            """, (f"%{email}%",))
+            """, (blacklist_folder_id, f"%{email}%"))
             count += result.rowcount
 
         conn.commit()
@@ -1284,6 +1287,41 @@ def get_or_create_system_folder(account_id: int = None) -> int:
         )
         conn.commit()
         print(f"[DB] 创建系统邮件文件夹，ID: {cursor.lastrowid}")
+        return cursor.lastrowid
+
+
+def get_or_create_blacklist_folder(account_id: int = None) -> int:
+    """
+    获取或创建黑名单文件夹
+
+    Args:
+        account_id: 账户ID
+
+    Returns:
+        黑名单文件夹ID
+    """
+    with get_db_connection() as conn:
+        # 查找是否已存在黑名单文件夹
+        if account_id is not None:
+            row = conn.execute(
+                "SELECT id FROM mail_folder WHERE folder_name = '黑名单' AND (account_id = ? OR account_id IS NULL)",
+                (account_id,)
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT id FROM mail_folder WHERE folder_name = '黑名单'"
+            ).fetchone()
+
+        if row:
+            return row[0]
+
+        # 创建黑名单文件夹
+        cursor = conn.execute(
+            "INSERT INTO mail_folder (folder_name, folder_icon, sort_order, account_id) VALUES (?, ?, ?, ?)",
+            ('黑名单', '🚫', 110, account_id)
+        )
+        conn.commit()
+        print(f"[DB] 创建黑名单文件夹，ID: {cursor.lastrowid}")
         return cursor.lastrowid
 
 
