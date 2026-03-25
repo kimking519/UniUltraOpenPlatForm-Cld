@@ -1036,7 +1036,10 @@ def get_sync_progress() -> Dict[str, Any]:
         if row:
             lock = dict(row)
             if lock.get('expires_at'):
-                expires = datetime.fromisoformat(lock['expires_at'])
+                # PostgreSQL 返回 datetime 对象，SQLite 返回字符串
+                expires = lock['expires_at']
+                if isinstance(expires, str):
+                    expires = datetime.fromisoformat(expires)
                 if expires > datetime.now():
                     total_emails = lock.get('total_emails', 0) or 0
                     synced_emails = lock.get('synced_emails', 0) or 0
