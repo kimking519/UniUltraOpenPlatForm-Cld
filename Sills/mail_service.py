@@ -964,10 +964,8 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
         if not draft_folder:
             print("[Mail] ⚠️ 警告：未检测到草稿箱，请检查邮箱文件夹命名")
 
-        # 获取或创建本地文件夹
-        from Sills.db_mail import get_or_create_sent_folder, get_or_create_draft_folder, get_or_create_spam_folder
-        sent_folder_id = get_or_create_sent_folder(current_account_id) if sent_folder else None
-        draft_folder_id = get_or_create_draft_folder(current_account_id) if draft_folder else None
+        # 只获取垃圾邮件文件夹ID（已发送和草稿箱通过is_sent和is_draft字段区分，不需要folder_id）
+        from Sills.db_mail import get_or_create_spam_folder
         spam_folder_id = get_or_create_spam_folder(current_account_id) if spam_folder else None
 
         # 处理其他文件夹（已在上面的 all_folders 中获取）
@@ -982,11 +980,12 @@ def sync_inbox(background_tasks=None) -> Dict[str, Any]:
 
         # 同步收件箱、发件箱、垃圾邮件、草稿箱、其他文件夹
         # (文件夹名, is_sent, 显示标签, 本地folder_id)
+        # 已发送通过is_sent=1区分，草稿箱通过is_draft=1区分，都不需要folder_id
         folders_to_sync = [('INBOX', 0, '收件箱', None)]
         if sent_folder:
-            folders_to_sync.append((sent_folder, 1, '发件箱', None))  # 已发送不需要folder_id
+            folders_to_sync.append((sent_folder, 1, '发件箱', None))
         if draft_folder:
-            folders_to_sync.append((draft_folder, 0, '草稿箱', draft_folder_id))
+            folders_to_sync.append((draft_folder, 0, '草稿箱', None))
         if spam_folder:
             folders_to_sync.append((spam_folder, 0, '垃圾邮件', spam_folder_id))
         # 其他文件夹都归入收件箱
@@ -1206,10 +1205,8 @@ def sync_new_emails(background_tasks=None) -> Dict[str, Any]:
         spam_folder = imap_client.find_spam_folder()
         draft_folder = imap_client.find_draft_folder()
 
-        # 获取或创建本地文件夹
-        from Sills.db_mail import get_or_create_sent_folder, get_or_create_draft_folder, get_or_create_spam_folder
-        sent_folder_id = get_or_create_sent_folder(current_account_id) if sent_folder else None
-        draft_folder_id = get_or_create_draft_folder(current_account_id) if draft_folder else None
+        # 只获取垃圾邮件文件夹ID（已发送和草稿箱通过is_sent和is_draft字段区分，不需要folder_id）
+        from Sills.db_mail import get_or_create_spam_folder
         spam_folder_id = get_or_create_spam_folder(current_account_id) if spam_folder else None
 
         # 获取所有文件夹，同步除垃圾邮件外的其他文件夹到收件箱
@@ -1224,11 +1221,12 @@ def sync_new_emails(background_tasks=None) -> Dict[str, Any]:
 
         # 同步收件箱、发件箱、垃圾邮件、草稿箱、其他文件夹
         # (文件夹名, is_sent, 显示标签, 本地folder_id)
+        # 已发送通过is_sent=1区分，草稿箱通过is_draft=1区分，都不需要folder_id
         folders_to_sync = [('INBOX', 0, '收件箱', None)]
         if sent_folder:
-            folders_to_sync.append((sent_folder, 1, '发件箱', None))  # 已发送不需要folder_id
+            folders_to_sync.append((sent_folder, 1, '发件箱', None))
         if draft_folder:
-            folders_to_sync.append((draft_folder, 0, '草稿箱', draft_folder_id))
+            folders_to_sync.append((draft_folder, 0, '草稿箱', None))  # 草稿箱不需要folder_id
         if spam_folder:
             folders_to_sync.append((spam_folder, 0, '垃圾邮件', spam_folder_id))
         # 其他文件夹都归入收件箱
@@ -1435,18 +1433,18 @@ def refresh_emails(background_tasks=None) -> Dict[str, Any]:
         spam_folder = imap_client.find_spam_folder()
         draft_folder = imap_client.find_draft_folder()
 
-        # 获取或创建本地文件夹
-        from Sills.db_mail import get_or_create_sent_folder, get_or_create_draft_folder, get_or_create_spam_folder
-        sent_folder_id = get_or_create_sent_folder(current_account_id) if sent_folder else None
-        draft_folder_id = get_or_create_draft_folder(current_account_id) if draft_folder else None
+        # 只获取垃圾邮件文件夹ID（已发送和草稿箱不需要folder_id，通过is_sent和is_draft字段区分）
+        from Sills.db_mail import get_or_create_spam_folder
         spam_folder_id = get_or_create_spam_folder(current_account_id) if spam_folder else None
 
         # 构建要同步的文件夹列表
+        # (文件夹名, is_sent, 显示标签, 本地folder_id)
+        # 已发送通过is_sent=1区分，草稿箱通过is_draft=1区分，都不需要folder_id
         folders_to_sync = [('INBOX', 0, '收件箱', None)]
         if sent_folder:
-            folders_to_sync.append((sent_folder, 1, '发件箱', None))  # 已发送不需要folder_id
+            folders_to_sync.append((sent_folder, 1, '发件箱', None))
         if draft_folder:
-            folders_to_sync.append((draft_folder, 0, '草稿箱', draft_folder_id))
+            folders_to_sync.append((draft_folder, 0, '草稿箱', None))
         if spam_folder:
             folders_to_sync.append((spam_folder, 0, '垃圾邮件', spam_folder_id))
 
