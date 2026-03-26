@@ -1,10 +1,12 @@
 """
 SQLite 到 PostgreSQL 数据迁移脚本
-用法: python migrate_to_pgsql.py
+用法: python migrate_to_pgsql.py [--clean]
+    --clean  清空目标数据库后重新迁移
 """
 import sqlite3
 import os
 import sys
+import argparse
 from datetime import datetime
 
 # 尝试加载环境变量
@@ -21,6 +23,13 @@ except ImportError:
     print("[错误] psycopg2 未安装，请运行: pip install psycopg2-binary")
     sys.exit(1)
 
+# 导入 PostgreSQL Schema
+try:
+    from Sills.pg_schema import PG_SCHEMA, PG_DEFAULT_ADMIN
+except ImportError:
+    print("[错误] 无法导入 pg_schema.py")
+    sys.exit(1)
+
 
 # PostgreSQL 配置
 PG_CONFIG = {
@@ -33,6 +42,27 @@ PG_CONFIG = {
 
 # SQLite 路径
 SQLITE_PATH = os.path.join(os.path.dirname(__file__), 'uni_platform.db')
+
+# 表迁移顺序（按外键依赖）
+TABLE_ORDER = [
+    'uni_daily',      # 无依赖
+    'uni_emp',        # 无依赖
+    'uni_vendor',     # 无依赖
+    'mail_config',    # 无依赖
+    'uni_cli',        # 依赖 uni_emp
+    'mail_folder',    # 依赖 mail_config
+    'uni_quote',      # 依赖 uni_cli
+    'uni_offer',      # 依赖 uni_quote, uni_vendor, uni_emp
+    'uni_order',      # 依赖 uni_cli, uni_offer
+    'uni_buy',        # 依赖 uni_order, uni_vendor
+    'uni_mail',       # 依赖 mail_config, mail_folder
+    'uni_mail_rel',   # 依赖 uni_mail
+    'mail_sync_lock', # 无依赖
+    'global_settings',# 无依赖
+    'mail_filter_rule',# 依赖 mail_folder
+    'mail_blacklist', # 依赖 mail_config
+    'uni_mail_synced_uid', # 依赖 mail_config
+]
 
 
 def get_sqlite_connection():
@@ -155,6 +185,22 @@ def create_table_pg(pg_conn, table_name, columns):
     print(f"  [创建表] {table_name}")
 
 
+def clean_value(value):
+    """清理数据值，处理 PostgreSQL 不支持的字符"""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        # 移除 NUL 字符 (0x00)
+        return value.replace('\x00', '').replace('\0', '')
+    if isinstance(value, bytes):
+        # 转换 bytes 为 str，移除 NUL
+        try:
+            return value.decode('utf-8', errors='replace').replace('\x00', '').replace('\0', '')
+        except:
+            return None
+    return value
+
+
 def migrate_table_data(sqlite_conn, pg_conn, table_name):
     """迁移表数据"""
     # 获取 SQLite 数据
@@ -169,17 +215,21 @@ def migrate_table_data(sqlite_conn, pg_conn, table_name):
     col_names = ', '.join(f'"{col}"' for col in columns)
     placeholders = ', '.join(['%s'] * len(columns))
 
-    sql = f'INSERT INTO "{table_name}" ({col_names}) VALUES ({placeholders})'
+    sql = f'INSERT INTO "{table_name}" ({col_names}) VALUES ({placeholders}) ON CONFLICT DO NOTHING'
 
     migrated = 0
     with pg_conn.cursor() as cur:
         for row in rows:
             try:
-                values = [row[col] for col in columns]
+                # 清理所有值
+                values = [clean_value(row[col]) for col in columns]
                 cur.execute(sql, values)
-                migrated += 1
+                if cur.rowcount > 0:
+                    migrated += 1
             except Exception as e:
-                print(f"    [警告] 行插入失败: {e}")
+                # 只在第一次错误时打印详细信息
+                if migrated == 0:
+                    print(f"    [警告] 行插入失败: {str(e)[:100]}")
 
     pg_conn.commit()
     print(f"  [迁移] {table_name}: {migrated} 行")
@@ -214,6 +264,10 @@ def create_indexes(pg_conn, sqlite_conn, table_name):
 
 
 def main():
+    parser = argparse.ArgumentParser(description='SQLite 到 PostgreSQL 数据迁移')
+    parser.add_argument('--clean', action='store_true', help='清空目标数据库后重新迁移')
+    args = parser.parse_args()
+
     print("=" * 60)
     print("SQLite → PostgreSQL 数据迁移")
     print("=" * 60)
@@ -234,28 +288,32 @@ def main():
     sqlite_conn = get_sqlite_connection()
     pg_conn = get_pg_connection()
 
-    # 获取表列表
-    print("\n[步骤 2] 获取表列表...")
-    tables = get_table_list(sqlite_conn)
-    print(f"  发现 {len(tables)} 个表: {', '.join(tables)}")
+    # 清空目标数据库
+    if args.clean:
+        print("\n[步骤 2] 清空目标数据库...")
+        with pg_conn.cursor() as cur:
+            cur.execute("DROP SCHEMA public CASCADE")
+            cur.execute("CREATE SCHEMA public")
+            cur.execute("GRANT ALL ON SCHEMA public TO public")
+        pg_conn.commit()
+        print("  已清空数据库")
 
-    # 迁移每个表
-    print("\n[步骤 3] 创建表结构并迁移数据...")
+    # 创建表结构（使用 pg_schema.py 中的定义）
+    print("\n[步骤 3] 创建表结构...")
+    with pg_conn.cursor() as cur:
+        cur.execute(PG_SCHEMA)
+        cur.execute(PG_DEFAULT_ADMIN)
+    pg_conn.commit()
+    print("  表结构创建完成")
+
+    # 获取 SQLite 表列表
+    print("\n[步骤 4] 迁移数据...")
     total_rows = 0
 
-    for table in tables:
+    for table in TABLE_ORDER:
         print(f"\n处理表: {table}")
-        columns = get_table_schema(sqlite_conn, table)
-
-        # 创建表
-        create_table_pg(pg_conn, table, columns)
-
-        # 迁移数据
         rows = migrate_table_data(sqlite_conn, pg_conn, table)
         total_rows += rows
-
-        # 创建索引
-        create_indexes(pg_conn, sqlite_conn, table)
 
     # 关闭连接
     sqlite_conn.close()

@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS uni_quote (
     inquiry_mpn TEXT NOT NULL,
     quoted_mpn TEXT,
     inquiry_brand TEXT,
+    quoted_brand TEXT,
     inquiry_qty INTEGER,
     actual_qty INTEGER,
     target_price_rmb DOUBLE PRECISION,
