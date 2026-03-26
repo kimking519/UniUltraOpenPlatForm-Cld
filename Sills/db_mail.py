@@ -9,6 +9,17 @@ from Sills.base import get_db_connection
 from Sills.crypto_utils import encrypt_password, decrypt_password
 
 
+def _clean_text(text):
+    """
+    清理文本中的 NUL 字符（PostgreSQL 不支持字符串中的 NUL 字符）
+    """
+    if text is None:
+        return None
+    if isinstance(text, str):
+        return text.replace('\x00', '')
+    return text
+
+
 def get_mail_list(page: int = 1, limit: int = 20, is_sent: int = 0,
                   search: str = None, account_id: int = None) -> Dict[str, Any]:
     """
@@ -203,22 +214,22 @@ def save_email(mail_data: Dict[str, Any]) -> int:
                                   imap_uid, imap_folder, folder_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            mail_data.get('subject'),
-            mail_data.get('from_addr'),
-            mail_data.get('from_name'),
-            mail_data.get('to_addr'),
-            mail_data.get('cc_addr'),
-            mail_data.get('content'),
-            mail_data.get('html_content'),
-            mail_data.get('received_at'),
-            mail_data.get('sent_at'),
+            _clean_text(mail_data.get('subject')),
+            _clean_text(mail_data.get('from_addr')),
+            _clean_text(mail_data.get('from_name')),
+            _clean_text(mail_data.get('to_addr')),
+            _clean_text(mail_data.get('cc_addr')),
+            _clean_text(mail_data.get('content')),
+            _clean_text(mail_data.get('html_content')),
+            _clean_text(mail_data.get('received_at')),
+            _clean_text(mail_data.get('sent_at')),
             mail_data.get('is_sent', 0),
             mail_data.get('is_draft', 0),
-            message_id,
-            mail_data.get('sync_status', 'completed'),
+            _clean_text(message_id),
+            _clean_text(mail_data.get('sync_status', 'completed')),
             mail_data.get('account_id'),
-            mail_data.get('imap_uid'),
-            mail_data.get('imap_folder'),
+            _clean_text(mail_data.get('imap_uid')),
+            _clean_text(mail_data.get('imap_folder')),
             mail_data.get('folder_id')
         ))
         conn.commit()
@@ -277,22 +288,22 @@ def batch_save_emails(emails_data: list) -> int:
                                       imap_uid, imap_folder, folder_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                mail_data.get('subject'),
-                mail_data.get('from_addr'),
-                mail_data.get('from_name'),
-                mail_data.get('to_addr'),
-                mail_data.get('cc_addr'),
-                mail_data.get('content'),
-                mail_data.get('html_content'),
-                mail_data.get('received_at'),
-                mail_data.get('sent_at'),
+                _clean_text(mail_data.get('subject')),
+                _clean_text(mail_data.get('from_addr')),
+                _clean_text(mail_data.get('from_name')),
+                _clean_text(mail_data.get('to_addr')),
+                _clean_text(mail_data.get('cc_addr')),
+                _clean_text(mail_data.get('content')),
+                _clean_text(mail_data.get('html_content')),
+                _clean_text(mail_data.get('received_at')),
+                _clean_text(mail_data.get('sent_at')),
                 mail_data.get('is_sent', 0),
                 mail_data.get('is_draft', 0),
-                message_id,
-                mail_data.get('sync_status', 'completed'),
+                _clean_text(message_id),
+                _clean_text(mail_data.get('sync_status', 'completed')),
                 mail_data.get('account_id'),
-                mail_data.get('imap_uid'),
-                mail_data.get('imap_folder'),
+                _clean_text(mail_data.get('imap_uid')),
+                _clean_text(mail_data.get('imap_folder')),
                 mail_data.get('folder_id')
             ))
             saved_count += 1
