@@ -40,7 +40,12 @@
     .page-actions {
         margin-left: auto;
         display: flex;
+        align-items: center;
         gap: 0.5rem;
+        flex-wrap: nowrap;
+    }
+    .page-actions span {
+        white-space: nowrap;
     }
     .data-card {
         background: var(--card-bg);
@@ -68,16 +73,16 @@
         <input type="text" name="search" value="{{ search }}" placeholder="搜索客户编号或名称...">
         <button type="submit" class="btn btn-primary btn-sm">搜索</button>
         <input type="hidden" name="page_size" value="{{ page_size }}">
-        <span style="color: var(--text-secondary); font-size: 0.875rem; margin-left: 0.5rem;">每页</span>
-        <select name="page_size" onchange="this.form.submit()" style="padding: 0.4rem; border: 1px solid var(--border); border-radius: 4px;">
+    </form>
+    <div class="page-actions">
+        <span style="color: var(--text-secondary); font-size: 0.875rem;">每页</span>
+        <select onchange="changePageSize(this.value)" style="padding: 0.4rem; border: 1px solid var(--border); border-radius: 4px;">
             <option value="20" {% if page_size == 20 %}selected{% endif %}>20</option>
             <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
             <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
         </select>
         <span style="color: var(--text-secondary); font-size: 0.875rem;">条</span>
-    </form>
-    {% if current_user.rule == '3' or current_user.rule == '0' %}
-    <div class="page-actions">
+        {% if current_user.rule == '3' or current_user.rule == '0' %}
         <button class="btn btn-ghost btn-sm" onclick="toggleModal('importModal')">
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
@@ -96,8 +101,8 @@
             </svg>
             新增客户
         </button>
+        {% endif %}
     </div>
-    {% endif %}
 </div>
 
 <div class="data-card">
