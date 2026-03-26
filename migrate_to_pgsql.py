@@ -218,21 +218,28 @@ def migrate_table_data(sqlite_conn, pg_conn, table_name):
     sql = f'INSERT INTO "{table_name}" ({col_names}) VALUES ({placeholders}) ON CONFLICT DO NOTHING'
 
     migrated = 0
-    with pg_conn.cursor() as cur:
-        for row in rows:
-            try:
-                # 清理所有值
-                values = [clean_value(row[col]) for col in columns]
+    skipped = 0
+    first_error = True
+
+    for row in rows:
+        try:
+            # 清理所有值
+            values = [clean_value(row[col]) for col in columns]
+            with pg_conn.cursor() as cur:
                 cur.execute(sql, values)
                 if cur.rowcount > 0:
                     migrated += 1
-            except Exception as e:
-                # 只在第一次错误时打印详细信息
-                if migrated == 0:
-                    print(f"    [警告] 行插入失败: {str(e)[:100]}")
+                else:
+                    skipped += 1
+            pg_conn.commit()
+        except Exception as e:
+            pg_conn.rollback()
+            skipped += 1
+            if first_error:
+                print(f"    [警告] 跳过无效数据: {str(e)[:80]}...")
+                first_error = False
 
-    pg_conn.commit()
-    print(f"  [迁移] {table_name}: {migrated} 行")
+    print(f"  [迁移] {table_name}: {migrated} 行成功, {skipped} 行跳过")
     return migrated
 
 
