@@ -36,7 +36,18 @@ def add_cli(data):
     try:
         if 'cli_id' not in data or not data['cli_id']:
             data['cli_id'] = get_next_cli_id()
-            
+
+        # 检查客户名称是否已存在
+        cli_name = data.get('cli_name', '')
+        if cli_name:
+            with get_db_connection() as conn:
+                existing = conn.execute(
+                    "SELECT cli_id FROM uni_cli WHERE cli_name = ?",
+                    (cli_name,)
+                ).fetchone()
+                if existing:
+                    return False, f"客户名称 '{cli_name}' 已存在"
+
         # Defaults
         if 'region' not in data or not data['region']:
             data['region'] = '韩国'
@@ -44,11 +55,11 @@ def add_cli(data):
             data['credit_level'] = 'A'
         if 'margin_rate' not in data or not str(data['margin_rate']).strip():
             data['margin_rate'] = 10.0
-            
+
         columns = ', '.join(data.keys())
         placeholders = ', '.join(['?'] * len(data))
         sql = f"INSERT INTO uni_cli ({columns}) VALUES ({placeholders})"
-        
+
         with get_db_connection() as conn:
             conn.execute(sql, list(data.values()))
             conn.commit()

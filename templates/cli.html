@@ -64,9 +64,17 @@
         客户表
     </h1>
     <!-- 搜索框放到标题后面 -->
-    <form action="/cli" method="get" class="header-search">
+    <form action="/cli" method="get" class="header-search" style="display: flex; align-items: center; gap: 0.5rem;">
         <input type="text" name="search" value="{{ search }}" placeholder="搜索客户编号或名称...">
         <button type="submit" class="btn btn-primary btn-sm">搜索</button>
+        <input type="hidden" name="page_size" value="{{ page_size }}">
+        <span style="color: var(--text-secondary); font-size: 0.875rem; margin-left: 0.5rem;">每页</span>
+        <select name="page_size" onchange="this.form.submit()" style="padding: 0.4rem; border: 1px solid var(--border); border-radius: 4px;">
+            <option value="20" {% if page_size == 20 %}selected{% endif %}>20</option>
+            <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+            <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+        </select>
+        <span style="color: var(--text-secondary); font-size: 0.875rem;">条</span>
     </form>
     {% if current_user.rule == '3' or current_user.rule == '0' %}
     <div class="page-actions">
@@ -185,14 +193,24 @@
     </div>
 
     <!-- Pagination -->
-    {% if total_pages > 1 %}
-    <div style="display: flex; justify-content: center; gap: 0.5rem; padding: 1rem;">
-        {% for p in range(1, total_pages + 1) %}
-        <a href="/cli?page={{ p }}&search={{ search }}" class="btn {% if p == active_page %}btn-primary{% endif %}"
-            style="text-decoration: none; padding: 0.5rem 1rem; border: 1px solid var(--border);">{{ p }}</a>
-        {% endfor %}
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-top: 1px solid var(--border);">
+        <div style="color: var(--text-secondary); font-size: 0.875rem;">
+            共 {{ total_count }} 条记录，第 {{ page }} / {{ total_pages }} 页
+        </div>
+        {% if total_pages > 1 %}
+        <div style="display: flex; gap: 0.5rem;">
+            {% for p in range(1, total_pages + 1) %}
+            <a href="/cli?page={{ p }}&page_size={{ page_size }}&search={{ search }}" class="btn {% if p == page %}btn-primary{% endif %}"
+                style="text-decoration: none; padding: 0.5rem 1rem; border: 1px solid var(--border);">{{ p }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
     </div>
-    {% endif %}
+    <script>
+    function changePageSize(size) {
+        window.location.href = `/cli?page=1&page_size=${size}&search={{ search }}`;
+    }
+    </script>
 </div>
 
 <!-- Add Modal -->

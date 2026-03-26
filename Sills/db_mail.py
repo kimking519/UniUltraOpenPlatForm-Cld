@@ -34,10 +34,10 @@ def get_mail_list(page: int = 1, limit: int = 20, is_sent: int = 0,
     query = f"SELECT {select_fields} FROM uni_mail WHERE is_sent = ? AND is_deleted = 0"
     count_query = "SELECT COUNT(*) FROM uni_mail WHERE is_sent = ? AND is_deleted = 0"
 
-    # 收件箱只显示未分类的邮件（folder_id IS NULL）
+    # 收件箱只显示未分类的邮件（folder_id IS NULL）且非草稿
     if is_sent == 0:
-        query += " AND folder_id IS NULL"
-        count_query += " AND folder_id IS NULL"
+        query += " AND folder_id IS NULL AND is_draft = 0"
+        count_query += " AND folder_id IS NULL AND is_draft = 0"
 
     # 用户隔离：按账户ID过滤
     if account_id is not None:
@@ -164,26 +164,44 @@ def save_email(mail_data: Dict[str, Any]) -> int:
         # 检查1：通过imap_uid + imap_folder + account_id
         if imap_uid and imap_folder and account_id:
             existing = conn.execute(
-                "SELECT id FROM uni_mail WHERE imap_uid = ? AND imap_folder = ? AND account_id = ?",
+                "SELECT id, is_sent, is_draft FROM uni_mail WHERE imap_uid = ? AND imap_folder = ? AND account_id = ?",
                 (imap_uid, imap_folder, account_id)
             ).fetchone()
             if existing:
+                # 如果is_sent或is_draft不同，更新它们
+                new_is_sent = mail_data.get('is_sent', 0)
+                new_is_draft = mail_data.get('is_draft', 0)
+                if existing[1] != new_is_sent or existing[2] != new_is_draft:
+                    conn.execute(
+                        "UPDATE uni_mail SET is_sent = ?, is_draft = ? WHERE id = ?",
+                        (new_is_sent, new_is_draft, existing[0])
+                    )
+                    conn.commit()
                 return existing[0]
 
         # 检查2：通过message_id（同一封邮件可能在不同文件夹有相同message_id）
         if message_id:
             existing = conn.execute(
-                "SELECT id FROM uni_mail WHERE message_id = ?",
+                "SELECT id, is_sent, is_draft FROM uni_mail WHERE message_id = ?",
                 (message_id,)
             ).fetchone()
             if existing:
+                # 如果is_sent或is_draft不同，更新它们
+                new_is_sent = mail_data.get('is_sent', 0)
+                new_is_draft = mail_data.get('is_draft', 0)
+                if existing[1] != new_is_sent or existing[2] != new_is_draft:
+                    conn.execute(
+                        "UPDATE uni_mail SET is_sent = ?, is_draft = ? WHERE id = ?",
+                        (new_is_sent, new_is_draft, existing[0])
+                    )
+                    conn.commit()
                 return existing[0]
 
         cursor = conn.execute("""
             INSERT INTO uni_mail (subject, from_addr, from_name, to_addr, cc_addr, content, html_content,
-                                  received_at, sent_at, is_sent, message_id, sync_status, account_id,
+                                  received_at, sent_at, is_sent, is_draft, message_id, sync_status, account_id,
                                   imap_uid, imap_folder, folder_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             mail_data.get('subject'),
             mail_data.get('from_addr'),
@@ -195,6 +213,7 @@ def save_email(mail_data: Dict[str, Any]) -> int:
             mail_data.get('received_at'),
             mail_data.get('sent_at'),
             mail_data.get('is_sent', 0),
+            mail_data.get('is_draft', 0),
             message_id,
             mail_data.get('sync_status', 'completed'),
             mail_data.get('account_id'),
@@ -254,9 +273,9 @@ def batch_save_emails(emails_data: list) -> int:
 
             conn.execute("""
                 INSERT INTO uni_mail (subject, from_addr, from_name, to_addr, cc_addr, content, html_content,
-                                      received_at, sent_at, is_sent, message_id, sync_status, account_id,
+                                      received_at, sent_at, is_sent, is_draft, message_id, sync_status, account_id,
                                       imap_uid, imap_folder, folder_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 mail_data.get('subject'),
                 mail_data.get('from_addr'),
@@ -268,6 +287,7 @@ def batch_save_emails(emails_data: list) -> int:
                 mail_data.get('received_at'),
                 mail_data.get('sent_at'),
                 mail_data.get('is_sent', 0),
+                mail_data.get('is_draft', 0),
                 message_id,
                 mail_data.get('sync_status', 'completed'),
                 mail_data.get('account_id'),

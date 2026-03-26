@@ -5121,6 +5121,21 @@
                 switchFolder('inbox');
             }
         }
+
+        // Delete 键 - 删除已选择的邮件到回收站
+        if (e.key === 'Delete') {
+            const checkedCheckboxes = document.querySelectorAll('.mail-checkbox:checked');
+            if (checkedCheckboxes.length > 0) {
+                // 有选中的邮件，执行批量删除
+                e.preventDefault();
+                batchDeleteMails();
+            } else if (currentMailId) {
+                // 没有选中邮件但有打开的邮件详情，删除当前邮件
+                e.preventDefault();
+                deleteCurrentEmail();
+            }
+            return;
+        }
     });
 </script>
 {% endblock %}

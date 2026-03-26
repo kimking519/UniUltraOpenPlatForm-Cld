@@ -485,17 +485,19 @@ async def vendor_delete_api(vendor_id: str = Form(...), current_user: dict = Dep
     return {"success": success, "message": msg}
 
 @app.get("/cli", response_class=HTMLResponse)
-async def cli_page(request: Request, page: int = 1, search: str = "", current_user: dict = Depends(login_required)):
+async def cli_page(request: Request, page: int = 1, page_size: int = 20, search: str = "", current_user: dict = Depends(login_required)):
+    # 限制每页最多100条
+    page_size = min(max(1, page_size), 100)
     search_kwargs = {"cli_name": search} if search else None
-    result = get_paginated_list("uni_cli", page=page, search_kwargs=search_kwargs)
-    
+    result = get_paginated_list("uni_cli", page=page, page_size=page_size, search_kwargs=search_kwargs)
+
     # Needs employees for dropdown
     employees, _ = get_emp_list(page=1, page_size=1000)
-    
+
     return templates.TemplateResponse("cli.html", {
         "request": request, "active_page": "cli", "current_user": current_user,
-        "items": result["items"], "total_pages": result["total_pages"], 
-        "page": page, "search": search, "employees": employees
+        "items": result["items"], "total_pages": result["total_pages"], "total_count": result["total_count"],
+        "page": page, "page_size": page_size, "search": search, "employees": employees
     })
 
 @app.post("/cli/add")
