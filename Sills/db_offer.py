@@ -41,8 +41,8 @@ def get_offer_list(page=1, page_size=10, search_kw="", start_date="", end_date="
             'LeadTime: ' || COALESCE(o.delivery_date, '') || ' | ' ||
             'Transferred: ' || COALESCE(o.is_transferred, '未转') || ' | ' ||
             'Remark: ' || COALESCE(o.remark, '')) as combined_offer_info,
-            ROUND(o.offer_price_rmb - o.cost_price_rmb, 3) as profit,
-            CAST(ROUND((o.offer_price_rmb - o.cost_price_rmb) * o.quoted_qty, 0) AS INTEGER) as total_profit
+            ROUND(CAST(o.offer_price_rmb - o.cost_price_rmb AS numeric), 3) as profit,
+            CAST(ROUND(CAST((o.offer_price_rmb - o.cost_price_rmb) * o.quoted_qty AS numeric), 0) AS INTEGER) as total_profit
     {base_query}
     ORDER BY o.created_at DESC
     LIMIT ? OFFSET ?
