@@ -71,6 +71,8 @@ CREATE TABLE IF NOT EXISTS uni_quote (
     actual_qty INTEGER,
     target_price_rmb DOUBLE PRECISION,
     cost_price_rmb DOUBLE PRECISION,
+    offer_price_rmb DOUBLE PRECISION,
+    platform TEXT,
     date_code TEXT,
     delivery_date TEXT,
     status TEXT DEFAULT '询价中',
