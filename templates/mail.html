@@ -1923,8 +1923,7 @@
 /* Folder Manager Styles */
 .folder-manager-item {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
     padding: 0.75rem;
     background: var(--bg-main);
     border: 1px solid var(--border);
@@ -1932,15 +1931,30 @@
     margin-bottom: 0.5rem;
 }
 
+.folder-manager-item .folder-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
 .folder-manager-item .folder-info {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.folder-manager-item .folder-info span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .folder-manager-item .folder-actions {
     display: flex;
     gap: 0.5rem;
+    flex-shrink: 0;
 }
 
 .folder-manager-item .folder-actions button {
@@ -2123,14 +2137,23 @@
         folders.forEach(f => folderMap[f.id] = f.folder_name);
 
         container.innerHTML = rules.map(rule => `
-            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.5rem; background: var(--bg-main); border-radius: var(--radius); margin-bottom: 0.5rem; font-size: 0.85rem;">
-                <div>
+            <div id="ruleRow_${rule.id}" style="display: flex; align-items: center; justify-content: space-between; padding: 0.5rem; background: var(--bg-main); border-radius: var(--radius); margin-bottom: 0.5rem; font-size: 0.85rem;">
+                <div class="rule-display">
                     <span style="color: var(--primary); font-weight: 500;">${escapeHtml(folderMap[rule.folder_id] || '未知文件夹')}</span>
                     <span style="color: var(--text-muted); margin: 0 0.5rem;">→</span>
                     <span style="color: var(--text-main);">${escapeHtml(rule.keyword)}</span>
                     <span style="color: var(--text-muted); font-size: 0.75rem; margin-left: 0.5rem;">优先级:${rule.priority}</span>
                 </div>
-                <button onclick="deleteFilterRule(${rule.id})" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; background: #EF4444; color: white; border: none; border-radius: var(--radius); cursor: pointer;">删除</button>
+                <div class="rule-edit" style="display: none; flex: 1; gap: 0.5rem; align-items: center;">
+                    <input type="text" id="editKeyword_${rule.id}" value="${escapeHtml(rule.keyword)}" style="flex: 1; padding: 0.25rem 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); font-size: 0.85rem;">
+                    <input type="number" id="editPriority_${rule.id}" value="${rule.priority}" style="width: 60px; padding: 0.25rem 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); font-size: 0.85rem;">
+                </div>
+                <div class="rule-actions">
+                    <button onclick="editFilterRule(${rule.id})" class="btn-edit" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; background: var(--primary); color: white; border: none; border-radius: var(--radius); cursor: pointer; margin-right: 0.25rem;">编辑</button>
+                    <button onclick="saveFilterRule(${rule.id})" class="btn-save" style="display: none; padding: 0.2rem 0.5rem; font-size: 0.75rem; background: #10B981; color: white; border: none; border-radius: var(--radius); cursor: pointer; margin-right: 0.25rem;">保存</button>
+                    <button onclick="cancelEditRule(${rule.id})" class="btn-cancel" style="display: none; padding: 0.2rem 0.5rem; font-size: 0.75rem; background: #6B7280; color: white; border: none; border-radius: var(--radius); cursor: pointer; margin-right: 0.25rem;">取消</button>
+                    <button onclick="deleteFilterRule(${rule.id})" class="btn-delete" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; background: #EF4444; color: white; border: none; border-radius: var(--radius); cursor: pointer;">删除</button>
+                </div>
             </div>
         `).join('');
     }
@@ -2144,17 +2167,19 @@
 
         container.innerHTML = folders.map(folder => `
             <div class="folder-manager-item" data-folder-id="${folder.id}">
-                <div class="folder-info">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
-                    </svg>
-                    <span>${escapeHtml(folder.folder_name)}</span>
-                    <span style="color: var(--text-muted); font-size: 0.75rem;">(${folder.mail_count || 0}封邮件)</span>
+                <div class="folder-header">
+                    <div class="folder-info">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+                        </svg>
+                        <span>${escapeHtml(folder.folder_name)}</span>
+                        <span style="color: var(--text-muted); font-size: 0.75rem;">(${folder.mail_count || 0}封)</span>
+                    </div>
+                    <div class="folder-actions">
+                        <button onclick="deleteFolder(${folder.id})" style="background: #EF4444; color: white;">删除</button>
+                    </div>
                 </div>
-                <div class="folder-actions">
-                    <button onclick="deleteFolder(${folder.id})" style="background: #EF4444; color: white;">删除</button>
-                </div>
-                <div class="folder-rules" id="folderRules_${folder.id}" style="width: 100%; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--border);"></div>
+                <div class="folder-rules" id="folderRules_${folder.id}"></div>
             </div>
         `).join('');
     }
@@ -2172,13 +2197,15 @@
             }
 
             container.innerHTML = `
-                <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">过滤规则：</div>
-                ${rules.map(rule => `
-                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.25rem 0.5rem; background: var(--bg-main); border-radius: var(--radius); margin-bottom: 0.25rem; font-size: 0.8rem;">
-                        <span><span class="rule-keyword" style="color: var(--primary);">${escapeHtml(rule.keyword)}</span> <span style="color: var(--text-muted);">优先级:${rule.priority}</span></span>
-                        <button onclick="deleteFilterRule(${rule.id})" style="padding: 0.1rem 0.4rem; font-size: 0.7rem; background: #EF4444; color: white; border: none; border-radius: var(--radius); cursor: pointer;">删除</button>
-                    </div>
-                `).join('')}
+                <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--border);">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">过滤规则：</div>
+                    ${rules.map(rule => `
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.25rem 0.5rem; background: var(--card-bg); border-radius: var(--radius); margin-bottom: 0.25rem; font-size: 0.8rem;">
+                            <span><span class="rule-keyword" style="color: var(--primary);">${escapeHtml(rule.keyword)}</span> <span style="color: var(--text-muted);">优先级:${rule.priority}</span></span>
+                            <button onclick="deleteFilterRule(${rule.id})" style="padding: 0.1rem 0.4rem; font-size: 0.7rem; background: #EF4444; color: white; border: none; border-radius: var(--radius); cursor: pointer;">删除</button>
+                        </div>
+                    `).join('')}
+                </div>
             `;
         });
     }
@@ -2277,6 +2304,7 @@
     }
 
     async function deleteFilterRule(ruleId) {
+        if (!confirm('确定删除此规则？')) return;
         try {
             const response = await fetch('/api/mail/filter-rule/delete', {
                 method: 'POST',
@@ -2292,6 +2320,68 @@
         } catch (error) {
             console.error('Delete filter rule error:', error);
             alert('删除失败');
+        }
+    }
+
+    // 编辑过滤规则 - 显示编辑界面
+    function editFilterRule(ruleId) {
+        const row = document.getElementById(`ruleRow_${ruleId}`);
+        if (!row) return;
+
+        // 切换显示
+        row.querySelector('.rule-display').style.display = 'none';
+        row.querySelector('.rule-edit').style.display = 'flex';
+        row.querySelector('.btn-edit').style.display = 'none';
+        row.querySelector('.btn-save').style.display = 'inline-block';
+        row.querySelector('.btn-cancel').style.display = 'inline-block';
+        row.querySelector('.btn-delete').style.display = 'none';
+    }
+
+    // 取消编辑
+    function cancelEditRule(ruleId) {
+        const row = document.getElementById(`ruleRow_${ruleId}`);
+        if (!row) return;
+
+        // 恢复原始值
+        const keywordInput = document.getElementById(`editKeyword_${ruleId}`);
+        const priorityInput = document.getElementById(`editPriority_${ruleId}`);
+        keywordInput.value = keywordInput.defaultValue;
+        priorityInput.value = priorityInput.defaultValue;
+
+        // 切换显示
+        row.querySelector('.rule-display').style.display = 'block';
+        row.querySelector('.rule-edit').style.display = 'none';
+        row.querySelector('.btn-edit').style.display = 'inline-block';
+        row.querySelector('.btn-save').style.display = 'none';
+        row.querySelector('.btn-cancel').style.display = 'none';
+        row.querySelector('.btn-delete').style.display = 'inline-block';
+    }
+
+    // 保存编辑
+    async function saveFilterRule(ruleId) {
+        const keyword = document.getElementById(`editKeyword_${ruleId}`).value.trim();
+        const priority = parseInt(document.getElementById(`editPriority_${ruleId}`).value) || 0;
+
+        if (!keyword) {
+            alert('关键词不能为空');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/mail/filter-rule/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rule_id: ruleId, keyword, priority })
+            });
+            const data = await response.json();
+            if (data.success) {
+                await loadFolderManagerData();
+            } else {
+                alert(data.message || '保存失败');
+            }
+        } catch (error) {
+            console.error('Update filter rule error:', error);
+            alert('保存失败');
         }
     }
 
