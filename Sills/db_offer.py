@@ -340,7 +340,7 @@ def batch_import_offer_text(text, emp_id):
     # 新模板列索引：
     # 0: 日期, 1: 询价型号, 2: 报价型号, 3: 询价品牌, 4: 报价品牌,
     # 5: 询价数量, 6: 报价数量, 7: 目标价, 8: 成本价, 9: 报价,
-    # 10: 客户名称, 11: 批号, 12: 交期, 13: 备注
+    # 10: 客户名称, 11: 批号, 12: 交期, 13: 备注, 14: 状态
 
     for i, parts in enumerate(rows[start_idx:], start=start_idx + 1):
         if not parts or len(parts) < 1: continue
@@ -349,6 +349,12 @@ def batch_import_offer_text(text, emp_id):
             # 从日期自动生成需求编号（使用 db_quote 的生成函数）
             offer_date = parts[0] if len(parts) > 0 and parts[0].strip() else datetime.now().strftime('%Y-%m-%d')
             quote_id = None  # 报价记录不一定需要关联需求编号
+
+            # 验证状态值
+            status_val = parts[14] if len(parts) > 14 and parts[14].strip() else "询价中"
+            valid_status = ['询价中', '已报价', '缺货']
+            if status_val not in valid_status:
+                status_val = "询价中"
 
             data = {
                 "quote_id": quote_id,
@@ -365,7 +371,8 @@ def batch_import_offer_text(text, emp_id):
                 "cli_id": None,  # 通过客户名称匹配
                 "date_code": parts[11] if len(parts) > 11 else "",
                 "delivery_date": parts[12] if len(parts) > 12 else "",
-                "remark": parts[13] if len(parts) > 13 else ""
+                "remark": parts[13] if len(parts) > 13 else "",
+                "status": status_val
             }
 
             # Numeric values logic
