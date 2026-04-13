@@ -62,6 +62,9 @@ class ColumnDragger {
         e.preventDefault();
         const th = e.target.closest('th');
         if (!th || th.getAttribute('draggable') !== 'true' || th === this.draggedTh) return;
+
+        // 先清除所有列的边框，再给当前列添加边框
+        this.table.querySelectorAll('thead th').forEach(t => t.style.borderLeft = '');
         th.style.borderLeft = '3px solid #3b82f6';
     }
 
