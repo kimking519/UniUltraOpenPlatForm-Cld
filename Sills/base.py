@@ -429,6 +429,62 @@ def _init_db_postgresql():
         except Exception as e:
             print(f"[DB] 迁移检查: {e}")
 
+        # 迁移：uni_mail 表添加新字段（邮件分类、同步优化等功能）
+        mail_columns_to_add = [
+            ("mail_type", "INTEGER DEFAULT 0"),
+            ("original_recipient", "TEXT"),
+            ("is_sent", "INTEGER DEFAULT 0"),
+            ("is_read", "INTEGER DEFAULT 0"),
+            ("is_deleted", "INTEGER DEFAULT 0"),
+            ("deleted_at", "TIMESTAMP"),
+            ("is_draft", "INTEGER DEFAULT 0"),
+            ("is_blacklisted", "INTEGER DEFAULT 0"),
+            ("imap_uid", "INTEGER"),
+            ("imap_folder", "TEXT"),
+            ("account_id", "INTEGER"),
+            ("cc_addr", "TEXT"),
+            ("from_name", "TEXT"),
+            ("folder_id", "INTEGER"),
+            ("sync_status", "TEXT DEFAULT 'completed'"),
+            ("sync_error", "TEXT"),
+        ]
+        for col_name, col_def in mail_columns_to_add:
+            try:
+                cur.execute("""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name = 'uni_mail' AND column_name = %s
+                """, (col_name,))
+                if not cur.fetchone():
+                    cur.execute(f"ALTER TABLE uni_mail ADD COLUMN {col_name} {col_def}")
+                    print(f"[DB] 迁移：uni_mail 添加 {col_name} 列")
+            except Exception as e:
+                print(f"[DB] uni_mail {col_name} 列迁移: {e}")
+
+        # 迁移：uni_mail 表添加约束（如果列已存在但约束不存在）
+        try:
+            cur.execute("""
+                SELECT constraint_name FROM information_schema.table_constraints
+                WHERE table_name = 'uni_mail' AND constraint_type = 'CHECK'
+            """)
+            existing_checks = {row[0] for row in cur.fetchall()}
+            checks_to_add = [
+                ("chk_is_sent", "is_sent IN (0,1)"),
+                ("chk_is_read", "is_read IN (0,1)"),
+                ("chk_is_deleted", "is_deleted IN (0,1)"),
+                ("chk_is_draft", "is_draft IN (0,1)"),
+                ("chk_is_blacklisted", "is_blacklisted IN (0,1)"),
+                ("chk_mail_type", "mail_type IN (0,1,2,3,4)"),
+            ]
+            for constraint_name, check_def in checks_to_add:
+                if constraint_name not in existing_checks:
+                    try:
+                        cur.execute(f"ALTER TABLE uni_mail ADD CONSTRAINT {constraint_name} CHECK ({check_def})")
+                        print(f"[DB] 迁移：uni_mail 添加约束 {constraint_name}")
+                    except Exception:
+                        pass  # 约束可能已存在或有其他问题
+        except Exception as e:
+            print(f"[DB] uni_mail 约束检查: {e}")
+
         # 执行 schema
         cur.execute(PG_SCHEMA)
         # 插入默认管理员
