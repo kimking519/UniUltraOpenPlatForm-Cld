@@ -341,7 +341,7 @@ def batch_import_offer_text(text, emp_id):
     # 新模板列索引：
     # 0: 日期, 1: 询价型号, 2: 报价型号, 3: 询价品牌, 4: 报价品牌,
     # 5: 询价数量, 6: 报价数量, 7: 目标价, 8: 成本价, 9: 报价,
-    # 10: 供应商名称, 11: 货期, 12: 交期, 13: 备注
+    # 10: 客户名称, 11: 批号, 12: 交期, 13: 备注
 
     for i, parts in enumerate(rows[start_idx:], start=start_idx + 1):
         if not parts or len(parts) < 1: continue
@@ -363,7 +363,7 @@ def batch_import_offer_text(text, emp_id):
                 "target_price_rmb": 0.0,
                 "cost_price_rmb": 0.0,
                 "offer_price_rmb": 0.0,
-                "vendor_id": None,  # 通过供应商名称匹配
+                "cli_id": None,  # 通过客户名称匹配
                 "date_code": parts[11] if len(parts) > 11 else "",
                 "delivery_date": parts[12] if len(parts) > 12 else "",
                 "remark": parts[13] if len(parts) > 13 else ""
@@ -385,16 +385,16 @@ def batch_import_offer_text(text, emp_id):
             try: data["offer_price_rmb"] = float(parts[9]) if len(parts) > 9 and parts[9] else 0.0
             except: pass
 
-            # 通过供应商名称自动匹配供应商编号
-            vendor_name = parts[10] if len(parts) > 10 and parts[10].strip() else ""
-            if vendor_name:
+            # 通过客户名称自动匹配客户编号
+            cli_name = parts[10] if len(parts) > 10 and parts[10].strip() else ""
+            if cli_name:
                 with get_db_connection() as conn:
-                    vendor_row = conn.execute(
-                        "SELECT vendor_id FROM uni_vendor WHERE vendor_name = ?", (vendor_name,)
+                    cli_row = conn.execute(
+                        "SELECT cli_id FROM uni_cli WHERE cli_name = ?", (cli_name,)
                     ).fetchone()
-                    if vendor_row:
-                        data["vendor_id"] = vendor_row['vendor_id']
-                    # 如果找不到匹配，vendor_id 保持为 None，不影响导入
+                    if cli_row:
+                        data["cli_id"] = cli_row['cli_id']
+                    # 如果找不到匹配，cli_id 保持为 None，不影响导入
 
             if not data["inquiry_mpn"] and not data["quoted_mpn"]:
                 errors.append(f"第 {i} 行: 缺少型号信息")
