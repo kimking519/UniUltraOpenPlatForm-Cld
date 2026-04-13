@@ -16,16 +16,14 @@ class ColumnDragger {
         const headerRow = this.table.querySelector('thead tr');
         if (!headerRow) return;
 
-        // 给每个th分配唯一标识
+        // 给每个th分配唯一标识（基于列名，因为列名相对稳定）
         const ths = headerRow.querySelectorAll('th');
         ths.forEach((th, index) => {
-            // 使用现有data-field或生成唯一ID
-            const existingId = th.getAttribute('data-field') || th.getAttribute('data-col-id');
-            if (!existingId) {
-                th.setAttribute('data-col-id', `col_${index}`);
-            }
+            // 使用列名作为唯一标识（去掉特殊字符）
+            const colName = th.textContent.trim().replace(/[^\w\u4e00-\u9fa5]/g, '_');
+            th.setAttribute('data-col-name', colName);
 
-            // checkbox列和操作列不可拖拽
+            // checkbox列和sticky操作列不可拖拽
             if (th.querySelector('input[type="checkbox"]') || th.style.position === 'sticky') {
                 th.setAttribute('data-draggable', 'false');
                 return;
@@ -50,7 +48,7 @@ class ColumnDragger {
 
         this.draggedTh = th;
         e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', th.getAttribute('data-col-id'));
+        e.dataTransfer.setData('text/plain', th.getAttribute('data-col-name'));
 
         setTimeout(() => {
             th.style.opacity = '0.5';
@@ -76,11 +74,11 @@ class ColumnDragger {
         targetTh.style.borderLeft = '';
 
         // 获取两列的唯一标识
-        const fromId = this.draggedTh.getAttribute('data-col-id');
-        const toId = targetTh.getAttribute('data-col-id');
+        const fromName = this.draggedTh.getAttribute('data-col-name');
+        const toName = targetTh.getAttribute('data-col-name');
 
         // 交换列
-        this.swapColumnsById(fromId, toId);
+        this.swapColumnsByName(fromName, toName);
         this.saveColumnOrder();
     }
 
@@ -93,52 +91,59 @@ class ColumnDragger {
         this.draggedTh = null;
     }
 
-    swapColumnsById(fromId, toId) {
+    swapColumnsByName(fromName, toName) {
         const headerRow = this.table.querySelector('thead tr');
         const tbody = this.table.querySelector('tbody');
 
-        // 找到两列在当前DOM中的实际位置索引
-        const ths = Array.from(headerRow.querySelectorAll('th'));
-        const fromIndex = ths.findIndex(th => th.getAttribute('data-col-id') === fromId);
-        const toIndex = ths.findIndex(th => th.getAttribute('data-col-id') === toId);
+        // 重新获取当前的表头列表（每次都重新获取，避免引用问题）
+        const currentThs = Array.from(headerRow.querySelectorAll('th'));
+        const fromIndex = currentThs.findIndex(th => th.getAttribute('data-col-name') === fromName);
+        const toIndex = currentThs.findIndex(th => th.getAttribute('data-col-name') === toName);
 
         if (fromIndex === -1 || toIndex === -1) return;
 
-        // 交换表头
-        const fromTh = ths[fromIndex];
-        const toTh = ths[toIndex];
-
-        // 使用insertBefore实现交换
-        if (fromIndex < toIndex) {
-            toTh.parentNode.insertBefore(fromTh, toTh.nextSibling);
-        } else {
-            toTh.parentNode.insertBefore(fromTh, toTh);
-        }
+        // 关键：先交换表体，再交换表头
+        // 这样表体的索引计算基于原始顺序，不会受表头交换的影响
 
         // 交换表体每行的对应单元格
         const rows = tbody.querySelectorAll('tr');
         rows.forEach(row => {
             const cells = Array.from(row.querySelectorAll('td'));
-            const fromCell = cells[fromIndex];
-            const toCell = cells[toIndex];
+            // 跳过 colspan 的行（如"暂无数据"行）
+            if (cells.length === 1 && cells[0].hasAttribute('colspan')) return;
 
-            if (fromCell && toCell) {
-                if (fromIndex < toIndex) {
-                    toCell.parentNode.insertBefore(fromCell, toCell.nextSibling);
-                } else {
-                    toCell.parentNode.insertBefore(fromCell, toCell);
+            if (cells.length > fromIndex && cells.length > toIndex) {
+                const fromCell = cells[fromIndex];
+                const toCell = cells[toIndex];
+
+                if (fromCell && toCell) {
+                    if (fromIndex < toIndex) {
+                        toCell.parentNode.insertBefore(fromCell, toCell.nextSibling);
+                    } else {
+                        toCell.parentNode.insertBefore(fromCell, toCell);
+                    }
                 }
             }
         });
+
+        // 最后交换表头
+        const fromTh = currentThs[fromIndex];
+        const toTh = currentThs[toIndex];
+
+        if (fromIndex < toIndex) {
+            toTh.parentNode.insertBefore(fromTh, toTh.nextSibling);
+        } else {
+            toTh.parentNode.insertBefore(fromTh, toTh);
+        }
     }
 
     saveColumnOrder() {
         const headerRow = this.table.querySelector('thead tr');
         const ths = headerRow.querySelectorAll('th');
-        // 只保存可拖拽列的顺序（用唯一ID标识）
+        // 只保存可拖拽列的顺序（用列名标识）
         const order = Array.from(ths)
             .filter(th => th.getAttribute('draggable') === 'true')
-            .map(th => th.getAttribute('data-col-id'));
+            .map(th => th.getAttribute('data-col-name'));
         localStorage.setItem(this.storageKey, JSON.stringify(order));
     }
 
@@ -147,71 +152,73 @@ class ColumnDragger {
         if (!savedOrder) return;
 
         try {
-            const savedIds = JSON.parse(savedOrder);
+            const savedNames = JSON.parse(savedOrder);
             const headerRow = this.table.querySelector('thead tr');
             const tbody = this.table.querySelector('tbody');
+
+            // 检查保存的顺序是否有效
             const currentThs = Array.from(headerRow.querySelectorAll('th'));
+            const currentDraggable = currentThs.filter(th => th.getAttribute('draggable') === 'true');
 
-            // 获取当前可拖拽列的ID和索引
-            const currentDraggable = currentThs
-                .filter(th => th.getAttribute('draggable') === 'true')
-                .map(th => ({ id: th.getAttribute('data-col-id'), th }));
-
-            // 检查数量是否匹配
-            if (savedIds.length !== currentDraggable.length) {
+            if (savedNames.length !== currentDraggable.length) {
                 localStorage.removeItem(this.storageKey);
                 return;
             }
 
-            // 检查所有保存的ID是否都存在
-            const allIdsExist = savedIds.every(id => currentDraggable.some(d => d.id === id));
-            if (!allIdsExist) {
+            // 验证所有保存的列名是否都存在
+            const allNamesExist = savedNames.every(name =>
+                currentDraggable.some(th => th.getAttribute('data-col-name') === name)
+            );
+            if (!allNamesExist) {
                 localStorage.removeItem(this.storageKey);
                 return;
             }
 
-            // 按保存的顺序重新排列
-            savedIds.forEach((targetId, newPos) => {
-                // 找到当前这个ID在哪
-                const currentPos = currentDraggable.findIndex(d => d.id === targetId);
+            // 按保存的顺序逐个移动列
+            for (let newPos = 0; newPos < savedNames.length; newPos++) {
+                const targetName = savedNames[newPos];
 
-                if (currentPos !== newPos) {
+                // 找到当前这个列在DOM中的实际位置
+                const currentThsNow = Array.from(headerRow.querySelectorAll('th'));
+                const currentPos = currentThsNow.findIndex(th => th.getAttribute('data-col-name') === targetName);
+
+                // 同时找到目标位置的列是谁
+                const targetPosTh = currentDraggable[newPos];
+                const targetPosIndex = currentThsNow.indexOf(targetPosTh);
+
+                if (currentPos !== targetPosIndex && currentPos !== -1) {
                     // 需要移动
-                    const fromTh = currentDraggable[currentPos].th;
-                    const toTh = currentDraggable[newPos].th;
+                    const fromTh = currentThsNow[currentPos];
+                    const toTh = currentThsNow[targetPosIndex];
 
-                    // 获取实际DOM索引
-                    const fromDomIndex = currentThs.indexOf(fromTh);
-                    const toDomIndex = currentThs.indexOf(toTh);
-
-                    // 交换表头
-                    if (fromDomIndex < toDomIndex) {
-                        toTh.parentNode.insertBefore(fromTh, toTh.nextSibling);
-                    } else {
-                        toTh.parentNode.insertBefore(fromTh, toTh);
-                    }
-
-                    // 交换表体
+                    // 先交换表体
                     const rows = tbody.querySelectorAll('tr');
                     rows.forEach(row => {
                         const cells = Array.from(row.querySelectorAll('td'));
-                        const fromCell = cells[fromDomIndex];
-                        const toCell = cells[toDomIndex];
+                        if (cells.length === 1 && cells[0].hasAttribute('colspan')) return;
 
-                        if (fromCell && toCell) {
-                            if (fromDomIndex < toDomIndex) {
-                                toCell.parentNode.insertBefore(fromCell, toCell.nextSibling);
-                            } else {
-                                toCell.parentNode.insertBefore(fromCell, toCell);
+                        if (cells.length > currentPos && cells.length > targetPosIndex) {
+                            const fromCell = cells[currentPos];
+                            const toCell = cells[targetPosIndex];
+
+                            if (fromCell && toCell) {
+                                if (currentPos < targetPosIndex) {
+                                    toCell.parentNode.insertBefore(fromCell, toCell.nextSibling);
+                                } else {
+                                    toCell.parentNode.insertBefore(fromCell, toCell);
+                                }
                             }
                         }
                     });
 
-                    // 更新currentThs数组（交换元素）
-                    currentThs[fromDomIndex] = fromTh;
-                    currentThs[toDomIndex] = toTh;
+                    // 再交换表头
+                    if (currentPos < targetPosIndex) {
+                        toTh.parentNode.insertBefore(fromTh, toTh.nextSibling);
+                    } else {
+                        toTh.parentNode.insertBefore(fromTh, toTh);
+                    }
                 }
-            });
+            }
 
         } catch (e) {
             console.error('恢复列顺序失败:', e);
