@@ -205,14 +205,14 @@ def add_offer(data, emp_id, conn=None):
             
             sql = """
             INSERT INTO uni_offer (
-                offer_id, offer_date, quote_id, inquiry_mpn, quoted_mpn, inquiry_brand, quoted_brand,
+                offer_id, offer_date, quote_id, cli_id, inquiry_mpn, quoted_mpn, inquiry_brand, quoted_brand,
                 inquiry_qty, actual_qty, quoted_qty, cost_price_rmb, offer_price_rmb,
                 price_kwr, price_usd, platform,
                 vendor_id, date_code, delivery_date, emp_id, offer_statement, remark, status, target_price_rmb, is_transferred
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
             params = (
-                offer_id, offer_date, quote_id,
+                offer_id, offer_date, quote_id, data.get('cli_id'),
                 inquiry_mpn, quoted_mpn,
                 inquiry_brand, quoted_brand,
                 inquiry_qty, actual_qty, quoted_qty,
