@@ -94,7 +94,7 @@ def get_offer_list(page=1, page_size=10, search_kw="", start_date="", end_date="
 
 def add_offer(data, emp_id, conn=None):
     try:
-        offer_date = datetime.now().strftime("%Y-%m-%d")
+        offer_date = data.get('offer_date') or datetime.now().strftime("%Y-%m-%d")
 
         quote_id = data.get('quote_id')
         if quote_id and str(quote_id).strip() == "":
