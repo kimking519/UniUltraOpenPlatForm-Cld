@@ -16,18 +16,21 @@ class ColumnDragger {
         const headerRow = this.table.querySelector('thead tr');
         if (!headerRow) return;
 
-        // 给每个th分配唯一标识（基于列名，因为列名相对稳定）
+        // 给每个th分配固定ID（基于初始位置，不受后续拖拽影响）
         const ths = headerRow.querySelectorAll('th');
+        let draggableIndex = 0;
         ths.forEach((th, index) => {
-            // 使用列名作为唯一标识（去掉特殊字符）
-            const colName = th.textContent.trim().replace(/[^\w\u4e00-\u9fa5]/g, '_');
-            th.setAttribute('data-col-name', colName);
-
             // checkbox列和sticky操作列不可拖拽
             if (th.querySelector('input[type="checkbox"]') || th.style.position === 'sticky') {
                 th.setAttribute('data-draggable', 'false');
+                th.setAttribute('data-col-id', `fixed_${index}`);
                 return;
             }
+
+            // 给可拖拽列分配固定ID
+            th.setAttribute('data-col-id', `drag_${draggableIndex}`);
+            th.setAttribute('data-draggable', 'true');
+            draggableIndex++;
 
             th.setAttribute('draggable', 'true');
             th.style.cursor = 'grab';
@@ -48,7 +51,7 @@ class ColumnDragger {
 
         this.draggedTh = th;
         e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', th.getAttribute('data-col-name'));
+        e.dataTransfer.setData('text/plain', th.getAttribute('data-col-id'));
 
         setTimeout(() => {
             th.style.opacity = '0.5';
@@ -74,11 +77,11 @@ class ColumnDragger {
         targetTh.style.borderLeft = '';
 
         // 获取两列的唯一标识
-        const fromName = this.draggedTh.getAttribute('data-col-name');
-        const toName = targetTh.getAttribute('data-col-name');
+        const fromId = this.draggedTh.getAttribute('data-col-id');
+        const toId = targetTh.getAttribute('data-col-id');
 
         // 交换列
-        this.swapColumnsByName(fromName, toName);
+        this.swapColumnsById(fromId, toId);
         this.saveColumnOrder();
     }
 
@@ -91,14 +94,14 @@ class ColumnDragger {
         this.draggedTh = null;
     }
 
-    swapColumnsByName(fromName, toName) {
+    swapColumnsById(fromId, toId) {
         const headerRow = this.table.querySelector('thead tr');
         const tbody = this.table.querySelector('tbody');
 
         // 重新获取当前的表头列表（每次都重新获取，避免引用问题）
         const currentThs = Array.from(headerRow.querySelectorAll('th'));
-        const fromIndex = currentThs.findIndex(th => th.getAttribute('data-col-name') === fromName);
-        const toIndex = currentThs.findIndex(th => th.getAttribute('data-col-name') === toName);
+        const fromIndex = currentThs.findIndex(th => th.getAttribute('data-col-id') === fromId);
+        const toIndex = currentThs.findIndex(th => th.getAttribute('data-col-id') === toId);
 
         if (fromIndex === -1 || toIndex === -1) return;
 
@@ -140,11 +143,12 @@ class ColumnDragger {
     saveColumnOrder() {
         const headerRow = this.table.querySelector('thead tr');
         const ths = headerRow.querySelectorAll('th');
-        // 只保存可拖拽列的顺序（用列名标识）
+        // 只保存可拖拽列的顺序（用固定ID标识）
         const order = Array.from(ths)
             .filter(th => th.getAttribute('draggable') === 'true')
-            .map(th => th.getAttribute('data-col-name'));
+            .map(th => th.getAttribute('data-col-id'));
         localStorage.setItem(this.storageKey, JSON.stringify(order));
+        console.log('[Drag] Saved order:', order);
     }
 
     restoreColumnOrder() {
@@ -152,44 +156,47 @@ class ColumnDragger {
         if (!savedOrder) return;
 
         try {
-            const savedNames = JSON.parse(savedOrder);
+            const savedIds = JSON.parse(savedOrder);
+            console.log('[Drag] Restoring order:', savedIds);
+
             const headerRow = this.table.querySelector('thead tr');
             const tbody = this.table.querySelector('tbody');
 
-            // 检查保存的顺序是否有效
-            const currentThs = Array.from(headerRow.querySelectorAll('th'));
-            const currentDraggable = currentThs.filter(th => th.getAttribute('draggable') === 'true');
+            // 获取所有列（包括不可拖拽的）
+            const allThs = Array.from(headerRow.querySelectorAll('th'));
+            const allDraggable = allThs.filter(th => th.getAttribute('draggable') === 'true');
 
-            if (savedNames.length !== currentDraggable.length) {
-                localStorage.removeItem(this.storageKey);
-                return;
-            }
-
-            // 验证所有保存的列名是否都存在
-            const allNamesExist = savedNames.every(name =>
-                currentDraggable.some(th => th.getAttribute('data-col-name') === name)
-            );
-            if (!allNamesExist) {
+            if (savedIds.length !== allDraggable.length) {
+                console.log('[Drag] Order mismatch, clearing');
                 localStorage.removeItem(this.storageKey);
                 return;
             }
 
             // 按保存的顺序逐个移动列
-            for (let newPos = 0; newPos < savedNames.length; newPos++) {
-                const targetName = savedNames[newPos];
+            for (let newPos = 0; newPos < savedIds.length; newPos++) {
+                const targetId = savedIds[newPos];
 
-                // 找到当前这个列在DOM中的实际位置
-                const currentThsNow = Array.from(headerRow.querySelectorAll('th'));
-                const currentPos = currentThsNow.findIndex(th => th.getAttribute('data-col-name') === targetName);
+                // 每次重新获取当前DOM状态
+                const currentThs = Array.from(headerRow.querySelectorAll('th'));
+                const currentPos = currentThs.findIndex(th => th.getAttribute('data-col-id') === targetId);
 
-                // 同时找到目标位置的列是谁
-                const targetPosTh = currentDraggable[newPos];
-                const targetPosIndex = currentThsNow.indexOf(targetPosTh);
+                // 找到目标位置应该放哪个元素（按savedIds顺序，newPos位置）
+                // 需要找到当前在newPos位置的draggable元素
+                let actualTargetIndex = -1;
+                let draggableCount = 0;
+                currentThs.forEach((th, i) => {
+                    if (th.getAttribute('draggable') === 'true') {
+                        if (draggableCount === newPos) {
+                            actualTargetIndex = i;
+                        }
+                        draggableCount++;
+                    }
+                });
 
-                if (currentPos !== targetPosIndex && currentPos !== -1) {
+                if (currentPos !== actualTargetIndex && currentPos !== -1 && actualTargetIndex !== -1) {
                     // 需要移动
-                    const fromTh = currentThsNow[currentPos];
-                    const toTh = currentThsNow[targetPosIndex];
+                    const fromTh = currentThs[currentPos];
+                    const toTh = currentThs[actualTargetIndex];
 
                     // 先交换表体
                     const rows = tbody.querySelectorAll('tr');
@@ -197,12 +204,12 @@ class ColumnDragger {
                         const cells = Array.from(row.querySelectorAll('td'));
                         if (cells.length === 1 && cells[0].hasAttribute('colspan')) return;
 
-                        if (cells.length > currentPos && cells.length > targetPosIndex) {
+                        if (cells.length > currentPos && cells.length > actualTargetIndex) {
                             const fromCell = cells[currentPos];
-                            const toCell = cells[targetPosIndex];
+                            const toCell = cells[actualTargetIndex];
 
                             if (fromCell && toCell) {
-                                if (currentPos < targetPosIndex) {
+                                if (currentPos < actualTargetIndex) {
                                     toCell.parentNode.insertBefore(fromCell, toCell.nextSibling);
                                 } else {
                                     toCell.parentNode.insertBefore(fromCell, toCell);
@@ -212,16 +219,20 @@ class ColumnDragger {
                     });
 
                     // 再交换表头
-                    if (currentPos < targetPosIndex) {
+                    if (currentPos < actualTargetIndex) {
                         toTh.parentNode.insertBefore(fromTh, toTh.nextSibling);
                     } else {
                         toTh.parentNode.insertBefore(fromTh, toTh);
                     }
+
+                    console.log(`[Drag] Moved ${targetId} from ${currentPos} to ${actualTargetIndex}`);
                 }
             }
 
+            console.log('[Drag] Order restored successfully');
+
         } catch (e) {
-            console.error('恢复列顺序失败:', e);
+            console.error('[Drag] Restore failed:', e);
             localStorage.removeItem(this.storageKey);
         }
     }
