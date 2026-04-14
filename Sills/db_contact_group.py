@@ -139,7 +139,7 @@ def count_contacts_by_criteria(criteria):
     """根据筛选条件统计联系人数量
 
     Args:
-        criteria: dict {country, domain, is_bounced, has_cli, cli_id}
+        criteria: dict {country, domain, cli_id, send_status, read_status, send_count, last_sent_days, has_cli}
 
     Returns:
         int 符合条件的联系人数
@@ -156,6 +156,10 @@ def count_contacts_by_criteria(criteria):
         where_clauses.append("cli_id = ?")
         params.append(criteria['cli_id'])
 
+    # 是否关联客户（勾选）
+    if criteria.get('has_cli'):
+        where_clauses.append("cli_id IS NOT NULL AND cli_id != ''")
+
     if criteria.get('country'):
         where_clauses.append("country = ?")
         params.append(criteria['country'])
@@ -164,16 +168,34 @@ def count_contacts_by_criteria(criteria):
         where_clauses.append("domain LIKE ?")
         params.append(f"%{criteria['domain']}%")
 
-    if criteria.get('is_bounced') is not None:
-        where_clauses.append("is_bounced = ?")
-        params.append(int(criteria['is_bounced']))
-
-    # has_cli筛选（仅在未指定具体cli_id时生效）
-    if not criteria.get('cli_id') and criteria.get('has_cli') is not None:
-        if criteria['has_cli']:
-            where_clauses.append("cli_id IS NOT NULL AND cli_id != ''")
+    # 发送状态
+    if criteria.get('send_status') is not None:
+        if criteria['send_status'] == 0:
+            where_clauses.append("send_count = 0")
         else:
-            where_clauses.append("(cli_id IS NULL OR cli_id = '')")
+            where_clauses.append("send_count > 0")
+
+    # 已读状态
+    if criteria.get('read_status') is not None:
+        where_clauses.append("is_read = ?")
+        params.append(criteria['read_status'])
+
+    # 发送次数范围
+    send_count_range = criteria.get('send_count')
+    if send_count_range:
+        if send_count_range == '0':
+            where_clauses.append("send_count = 0")
+        elif send_count_range == '1-3':
+            where_clauses.append("send_count BETWEEN 1 AND 3")
+        elif send_count_range == '4+':
+            where_clauses.append("send_count >= 4")
+
+    # 最后联系时间（X天内未联系）
+    last_sent_days = criteria.get('last_sent_days')
+    if last_sent_days:
+        where_clauses.append(
+            "(last_sent_at IS NULL OR datetime(last_sent_at) < datetime('now', 'localtime', '-{} days'))".format(last_sent_days)
+        )
 
     where_sql = "WHERE " + " AND ".join(where_clauses)
 
@@ -207,6 +229,10 @@ def get_group_contacts(group_id, page=1, page_size=100):
         where_clauses.append("cli_id = ?")
         params.append(criteria['cli_id'])
 
+    # 是否关联客户（勾选）
+    if criteria.get('has_cli'):
+        where_clauses.append("cli_id IS NOT NULL AND cli_id != ''")
+
     if criteria.get('country'):
         where_clauses.append("country = ?")
         params.append(criteria['country'])
@@ -215,16 +241,34 @@ def get_group_contacts(group_id, page=1, page_size=100):
         where_clauses.append("domain LIKE ?")
         params.append(f"%{criteria['domain']}%")
 
-    if criteria.get('is_bounced') is not None:
-        where_clauses.append("is_bounced = ?")
-        params.append(int(criteria['is_bounced']))
-
-    # has_cli筛选（仅在未指定具体cli_id时生效）
-    if not criteria.get('cli_id') and criteria.get('has_cli') is not None:
-        if criteria['has_cli']:
-            where_clauses.append("cli_id IS NOT NULL AND cli_id != ''")
+    # 发送状态
+    if criteria.get('send_status') is not None:
+        if criteria['send_status'] == 0:
+            where_clauses.append("send_count = 0")
         else:
-            where_clauses.append("(cli_id IS NULL OR cli_id = '')")
+            where_clauses.append("send_count > 0")
+
+    # 已读状态
+    if criteria.get('read_status') is not None:
+        where_clauses.append("is_read = ?")
+        params.append(criteria['read_status'])
+
+    # 发送次数范围
+    send_count_range = criteria.get('send_count')
+    if send_count_range:
+        if send_count_range == '0':
+            where_clauses.append("send_count = 0")
+        elif send_count_range == '1-3':
+            where_clauses.append("send_count BETWEEN 1 AND 3")
+        elif send_count_range == '4+':
+            where_clauses.append("send_count >= 4")
+
+    # 最后联系时间
+    last_sent_days = criteria.get('last_sent_days')
+    if last_sent_days:
+        where_clauses.append(
+            "(last_sent_at IS NULL OR datetime(last_sent_at) < datetime('now', 'localtime', '-{} days'))".format(last_sent_days)
+        )
 
     where_sql = "WHERE " + " AND ".join(where_clauses)
 

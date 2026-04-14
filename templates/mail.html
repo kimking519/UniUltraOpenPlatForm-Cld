@@ -1691,23 +1691,39 @@
                 <div id="groupTabContent" style="display: none;">
                     <div class="settings-section" style="margin-bottom: 15px; padding: 15px; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border);">
                         <h3 style="margin: 0 0 10px 0; font-size: 15px; color: var(--text-main);">添加联系人组</h3>
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <input type="text" id="newGroupName" placeholder="组名称" style="width: 180px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
-                            <select id="newGroupCli" style="width: 150px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                            <input type="text" id="newGroupName" placeholder="组名称" style="width: 160px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                            <select id="newGroupCli" style="width: 140px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
                                 <option value="">全部客户</option>
                             </select>
-                            <select id="newGroupCountry" style="width: 120px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                            <select id="newGroupCountry" style="width: 100px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
                                 <option value="">全部国家</option>
                             </select>
-                            <input type="text" id="newGroupDomain" placeholder="域名" style="width: 100px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
-                            <select id="newGroupBounced" style="width: 100px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
-                                <option value="">全部</option>
-                                <option value="0">排除退信</option>
-                                <option value="1">仅退信</option>
+                            <input type="text" id="newGroupDomain" placeholder="域名" style="width: 80px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                            <select id="newGroupSendStatus" style="width: 90px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                                <option value="">全部发送</option>
+                                <option value="0">未发送</option>
+                                <option value="1">已发送</option>
                             </select>
+                            <select id="newGroupReadStatus" style="width: 90px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                                <option value="">全部已读</option>
+                                <option value="0">未读</option>
+                                <option value="1">已读</option>
+                            </select>
+                            <select id="newGroupSendCount" style="width: 100px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                                <option value="">全部次数</option>
+                                <option value="0">0次</option>
+                                <option value="1-3">1-3次</option>
+                                <option value="4+">4次以上</option>
+                            </select>
+                            <input type="number" id="newGroupLastSent" placeholder="未联系天数" style="width: 100px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);" min="0" max="365">
+                            <label style="display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-main);">
+                                <input type="checkbox" id="newGroupHasCli" style="width: 16px; height: 16px;">
+                                已关联客户
+                            </label>
                             <button class="btn btn-primary btn-sm" onclick="EmailTaskManager.addGroup()">添加</button>
                         </div>
-                        <div style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">提示：选择客户可将该客户的所有联系人加入组</div>
+                        <div style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">提示：选择筛选条件后，组将自动包含符合条件的联系人</div>
                     </div>
                     <div class="settings-section" style="padding: 15px; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border);">
                         <h3 style="margin: 0 0 10px 0; font-size: 15px; color: var(--text-main);">联系人组列表</h3>
@@ -6144,12 +6160,20 @@
             const cliId = document.getElementById('newGroupCli').value;
             const country = document.getElementById('newGroupCountry').value;
             const domain = document.getElementById('newGroupDomain').value.trim();
-            const bounced = document.getElementById('newGroupBounced').value;
+            const sendStatus = document.getElementById('newGroupSendStatus').value;
+            const readStatus = document.getElementById('newGroupReadStatus').value;
+            const sendCount = document.getElementById('newGroupSendCount').value;
+            const lastSentDays = document.getElementById('newGroupLastSent').value;
+            const hasCli = document.getElementById('newGroupHasCli').checked;
 
             if (cliId) filterCriteria.cli_id = cliId;
             if (country) filterCriteria.country = country;
             if (domain) filterCriteria.domain = domain;
-            if (bounced) filterCriteria.is_bounced = parseInt(bounced);
+            if (sendStatus) filterCriteria.send_status = parseInt(sendStatus);
+            if (readStatus) filterCriteria.read_status = parseInt(readStatus);
+            if (sendCount) filterCriteria.send_count = sendCount;
+            if (lastSentDays) filterCriteria.last_sent_days = parseInt(lastSentDays);
+            if (hasCli) filterCriteria.has_cli = true;
 
             try {
                 const res = await fetch('/api/group/add', {
@@ -6159,11 +6183,16 @@
                 });
                 const data = await res.json();
                 if (data.success) {
+                    // 清空所有输入
                     document.getElementById('newGroupName').value = '';
                     document.getElementById('newGroupCli').value = '';
                     document.getElementById('newGroupCountry').value = '';
                     document.getElementById('newGroupDomain').value = '';
-                    document.getElementById('newGroupBounced').value = '';
+                    document.getElementById('newGroupSendStatus').value = '';
+                    document.getElementById('newGroupReadStatus').value = '';
+                    document.getElementById('newGroupSendCount').value = '';
+                    document.getElementById('newGroupLastSent').value = '';
+                    document.getElementById('newGroupHasCli').checked = false;
                     this.loadGroups();
                     alert(data.message);
                 } else {
