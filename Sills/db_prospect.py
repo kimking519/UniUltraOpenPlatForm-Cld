@@ -32,13 +32,18 @@ def get_next_prospect_id():
 
 
 def count_contacts_by_domain(domain):
-    """统计相同域名的联系人数量"""
+    """统计相同域名的联系人数量（支持www前缀模糊匹配）"""
     if not domain:
         return 0
+    domain = domain.lower().strip()
+    # 移除www前缀进行匹配
+    clean_domain = domain.replace('www.', '') if domain.startswith('www.') else domain
     with get_db_connection() as conn:
+        # 匹配domain字段或从email提取的域名
         count = conn.execute(
-            "SELECT COUNT(*) FROM uni_contact WHERE domain = ?",
-            (domain.lower(),)
+            """SELECT COUNT(*) FROM uni_contact
+               WHERE LOWER(domain) = ? OR LOWER(domain) = ?""",
+            (domain, clean_domain)
         ).fetchone()[0]
         return count
 
@@ -315,13 +320,15 @@ def convert_prospect_to_cli(prospect_id):
             """, (cli_id, prospect_id))
             conn.commit()
 
-        # 更新关联联系人的cli_id
+        # 更新关联联系人的cli_id（支持www前缀模糊匹配）
         if prospect['domain']:
+            domain = prospect['domain'].lower().strip()
+            clean_domain = domain.replace('www.', '') if domain.startswith('www.') else domain
             conn.execute("""
                 UPDATE uni_contact
                 SET cli_id = ?
-                WHERE domain = ? AND cli_id IS NULL
-            """, (cli_id, prospect['domain']))
+                WHERE (LOWER(domain) = ? OR LOWER(domain) = ?) AND (cli_id IS NULL OR cli_id = '')
+            """, (cli_id, domain, clean_domain))
             conn.commit()
 
         return True, f"转化成功，CLI ID: {cli_id}"
@@ -360,3 +367,32 @@ def get_prospect_countries():
             ORDER BY country
         """).fetchall()
         return [row[0] for row in rows]
+
+
+def refresh_all_contact_counts():
+    """刷新所有Prospect的关联联系人数量"""
+    with get_db_connection() as conn:
+        prospects = conn.execute(
+            "SELECT prospect_id, domain FROM uni_prospect"
+        ).fetchall()
+        updated_count = 0
+        for prospect in prospects:
+            prospect_id = prospect[0]
+            domain = prospect[1]
+            if domain:
+                domain = domain.lower().strip()
+                clean_domain = domain.replace('www.', '') if domain.startswith('www.') else domain
+                count = conn.execute(
+                    """SELECT COUNT(*) FROM uni_contact
+                       WHERE LOWER(domain) = ? OR LOWER(domain) = ?""",
+                    (domain, clean_domain)
+                ).fetchone()[0]
+            else:
+                count = 0
+            conn.execute(
+                "UPDATE uni_prospect SET contact_count = ? WHERE prospect_id = ?",
+                (count, prospect_id)
+            )
+            updated_count += 1
+        conn.commit()
+        return updated_count

@@ -4881,6 +4881,14 @@ async def api_prospect_countries(current_user: dict = Depends(login_required)):
     return {"success": True, "countries": get_prospect_countries()}
 
 
+@app.post("/api/prospect/refresh_counts")
+async def api_prospect_refresh_counts(current_user: dict = Depends(login_required)):
+    """刷新所有Prospect的关联联系人数量"""
+    from Sills.db_prospect import refresh_all_contact_counts
+    updated = refresh_all_contact_counts()
+    return {"success": True, "message": f"已更新 {updated} 条记录的联系人数量"}
+
+
 # ==================== 开发信管理模块 (Email Task Manager) ====================
 # 替换原有Marketing模块,支持任务管理、联系人组、发件人账号等功能
 
