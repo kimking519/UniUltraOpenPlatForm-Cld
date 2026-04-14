@@ -261,8 +261,17 @@ async def get_current_user(request: Request, emp_id: str = Cookie(None), rule: s
         return None
     return {"emp_id": emp_id, "rule": rule, "account": account}
 
-async def login_required(current_user: dict = Depends(get_current_user)):
+async def login_required(request: Request, current_user: dict = Depends(get_current_user)):
     if not current_user:
+        # 判断是否是API请求（路径以/api/开头）
+        if request.url.path.startswith('/api/'):
+            # API请求返回JSON错误响应
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                {"success": False, "message": "登录已过期，请重新登录"},
+                status_code=401
+            )
+        # 页面请求返回HTML重定向
         raise HTTPException(status_code=303, headers={"Location": "/login"})
     return current_user
 
@@ -4362,6 +4371,38 @@ async def api_contact_list(
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
+@app.get("/api/contact/template")
+async def api_contact_template(current_user: dict = Depends(login_required)):
+    """下载联系人导入模板"""
+    from openpyxl import Workbook
+    from fastapi.responses import StreamingResponse
+    import io
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "联系人导入模板"
+    ws.append(['域名*', '邮箱*', '姓名', '职位', '备注'])
+    ws.append(['example.com', 'zhangsan@example.com', '张三', '经理', '备注信息'])
+    ws.append(['test.com', 'lisi@test.com', '李四', '总监', ''])
+
+    # 设置列宽
+    ws.column_dimensions['A'].width = 20
+    ws.column_dimensions['B'].width = 25
+    ws.column_dimensions['C'].width = 15
+    ws.column_dimensions['D'].width = 15
+    ws.column_dimensions['E'].width = 30
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=contact_template.xlsx"}
+    )
+
+
 @app.get("/api/contact/{contact_id}")
 async def api_contact_get(contact_id: str, current_user: dict = Depends(login_required)):
     """获取联系人详情"""
@@ -4420,19 +4461,162 @@ async def api_contact_batch_delete(request: Request, current_user: dict = Depend
 
 @app.post("/api/contact/import")
 async def api_contact_import(request: Request, current_user: dict = Depends(login_required)):
-    """批量导入联系人"""
+    """批量导入联系人（支持文本和JSON数组）"""
     from Sills.db_contact import batch_import_contacts
+    import re
     data = await request.json()
-    contacts = data.get('contacts', [])
     auto_create_cli = data.get('auto_create_cli', False)
+
+    # 支持两种格式：contacts数组或data文本
+    contacts = data.get('contacts', [])
+    if not contacts and data.get('data'):
+        text = data.get('data', '')
+
+        # 第一步：清理引号和回车符
+        text = text.replace('"', '').replace("'", "").replace('\r', '')
+
+        # 第二步：将连续多个空格/制表符替换为单个制表符
+        text = re.sub(r'[ \t]{2,}', '\t', text)
+
+        # 第三步：智能合并跨行数据
+        # Excel复制时，带引号的单元格会导致换行，需要合并
+        lines = text.strip().split('\n')
+        merged_lines = []
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            if not line:
+                i += 1
+                continue
+
+            # 检查当前行是否缺少邮箱（只有域名，没有@）
+            parts = line.split('\t') if '\t' in line else line.split(',')
+            has_email = any('@' in p for p in parts)
+
+            if not has_email and i + 1 < len(lines):
+                # 当前行没有邮箱，检查下一行是否是邮箱
+                next_line = lines[i + 1].strip()
+                if '@' in next_line and ('@' in next_line.split('\t')[0] if '\t' in next_line else '@' in next_line.split(',')[0]):
+                    # 下一行是邮箱，合并
+                    line = line + '\t' + next_line
+                    i += 2
+                    merged_lines.append(line)
+                    continue
+
+            merged_lines.append(line)
+            i += 1
+
+        # 第四步：解析合并后的行
+        for line in merged_lines:
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split('\t') if '\t' in line else line.split(',')
+            # 清理每个字段内的换行符
+            parts = [p.strip().replace('\n', '').replace('\r', '') for p in parts]
+
+            # 需要至少2个字段，且第二个字段是有效邮箱
+            if len(parts) >= 2:
+                domain = parts[0] if len(parts) > 0 else ''
+                email = parts[1] if len(parts) > 1 else ''
+
+                # 验证邮箱格式
+                if email and '@' in email:
+                    contacts.append({
+                        'domain': domain,
+                        'email': email,
+                        'contact_name': parts[2] if len(parts) > 2 else '',
+                        'position': parts[3] if len(parts) > 3 else '',
+                        'remark': parts[4] if len(parts) > 4 else ''
+                    })
+
+    if not contacts:
+        return {"success": False, "message": "未提供数据"}
 
     success_count, errors, new_clients = batch_import_contacts(contacts, auto_create_cli)
     return {
         "success": True,
         "imported": success_count,
-        "errors": errors,
+        "skipped": len(contacts) - success_count,
+        "errors": errors[:10] if errors else [],
         "new_clients": new_clients
     }
+
+
+@app.post("/api/contact/import/file")
+async def api_contact_import_file(request: Request, current_user: dict = Depends(login_required)):
+    """通过Excel文件批量导入联系人"""
+    import io
+    from fastapi import UploadFile, File
+    from openpyxl import load_workbook
+    from Sills.db_contact import batch_import_contacts
+
+    print("===== 联系人文件导入开始 =====")
+    print(f"用户: {current_user}")
+
+    form = await request.form()
+    print(f"FormData keys: {list(form.keys())}")
+    file = form.get('file')
+    if not file:
+        print("错误: 未上传文件")
+        return {"success": False, "message": "未上传文件"}
+
+    print(f"文件名: {file.filename if hasattr(file, 'filename') else 'unknown'}")
+
+    try:
+        contents = await file.read()
+        print(f"文件大小: {len(contents)} bytes")
+        wb = load_workbook(io.BytesIO(contents))
+        ws = wb.active
+        print(f"Sheet名称: {ws.title}, 行数: {ws.max_row}, 列数: {ws.max_column}")
+
+        # 打印表头
+        header_row = [cell.value for cell in ws[1]]
+        print(f"表头: {header_row}")
+
+        contacts = []
+        row_num = 2
+        for row in ws.iter_rows(min_row=2, values_only=True):  # 跳过标题行
+            print(f"第{row_num}行数据: {row}")
+            if not row or not row[1]:  # 邮箱为空跳过
+                print(f"  -> 跳过: 数据为空或邮箱为空")
+                row_num += 1
+                continue
+            contact = {
+                'domain': str(row[0]).strip() if row[0] else '',
+                'email': str(row[1]).strip() if row[1] else '',
+                'contact_name': str(row[2]).strip() if row[2] else '',
+                'position': str(row[3]).strip() if row[3] else '',
+                'remark': str(row[4]).strip() if row[4] else ''
+            }
+            print(f"  -> 解析结果: {contact}")
+            contacts.append(contact)
+            row_num += 1
+
+        print(f"解析出的联系人数量: {len(contacts)}")
+        if not contacts:
+            print("错误: 文件中没有有效数据")
+            return {"success": False, "message": "文件中没有有效数据"}
+
+        print("调用 batch_import_contacts...")
+        success_count, errors, new_clients = batch_import_contacts(contacts, False)
+        print(f"导入结果: 成功={success_count}, 错误={errors}, 新客户={new_clients}")
+        print("===== 联系人文件导入结束 =====")
+        return {
+            "success": True,
+            "imported": success_count,
+            "skipped": len(contacts) - success_count,
+            "errors": errors[:10] if errors else [],
+            "new_clients": new_clients
+        }
+    except Exception as e:
+        import traceback
+        print("===== 联系人导入异常 =====")
+        traceback.print_exc()
+        print(f"错误类型: {type(e).__name__}")
+        print(f"错误信息: {str(e)}")
+        print("===== 异常结束 =====")
+        return {"success": False, "message": f"解析文件失败: {str(e)}"}
 
 
 @app.get("/api/contact/countries")
@@ -4449,139 +4633,469 @@ async def api_contact_stats(current_user: dict = Depends(login_required)):
     return get_marketing_stats()
 
 
-# ==================== 开发信发送模块 ====================
+# ==================== 待开发客户(Prospect)模块 ====================
 
-@app.get("/api/marketing/contacts")
-async def api_marketing_contacts(
-    countries: str = None,
-    is_bounced: int = None,
-    is_contacted: int = None,
-    has_inquiry: int = None,
-    has_order: int = None,
-    current_user: dict = Depends(login_required)
-):
-    """获取用于营销的联系人列表"""
-    from Sills.db_contact import get_contacts_for_marketing
-    filters = {}
-    if countries:
-        filters['countries'] = [c.strip() for c in countries.split(',') if c.strip()]
-    if is_bounced is not None:
-        filters['is_bounced'] = is_bounced
-    if is_contacted is not None:
-        filters['is_contacted'] = is_contacted
-    if has_inquiry is not None:
-        filters['has_inquiry'] = has_inquiry
-    if has_order is not None:
-        filters['has_order'] = has_order
-
-    contacts = get_contacts_for_marketing(filters if filters else None)
-    return {"contacts": contacts, "total": len(contacts)}
-
-
-@app.post("/api/marketing/send")
-async def api_marketing_send(request: Request, current_user: dict = Depends(login_required)):
-    """批量发送开发信"""
-    from Sills.db_contact import (
-        update_contact_marketing_status, add_marketing_email, get_contact_by_id
-    )
-    from Sills.db_mail import send_email, get_mail_config
-
-    data = await request.json()
-    contact_ids = data.get('contact_ids', [])
-    subject = data.get('subject', '')
-    content = data.get('content', '')
-
-    if not contact_ids:
-        return {"success": False, "message": "未选择联系人"}
-    if not subject or not content:
-        return {"success": False, "message": "邮件主题和内容不能为空"}
-
-    # 获取邮件配置
-    mail_config = get_mail_config()
-    if not mail_config:
-        return {"success": False, "message": "未配置邮件账户"}
-
-    results = {
-        "sent": 0,
-        "failed": 0,
-        "errors": []
-    }
-
-    for contact_id in contact_ids:
-        contact = get_contact_by_id(contact_id)
-        if not contact:
-            results['failed'] += 1
-            results['errors'].append(f"{contact_id}: 联系人不存在")
-            continue
-
-        email = contact.get('email', '')
-        if not email:
-            results['failed'] += 1
-            results['errors'].append(f"{contact_id}: 邮箱为空")
-            continue
-
-        # 发送邮件
-        try:
-            success = send_email(
-                to_addr=email,
-                subject=subject,
-                content=content,
-                config=mail_config
-            )
-            if success:
-                # 更新联系人状态
-                update_contact_marketing_status(contact_id, 'sent')
-                # 记录发送历史
-                add_marketing_email(contact_id, None, subject, content, 'sent')
-                results['sent'] += 1
-            else:
-                results['failed'] += 1
-                results['errors'].append(f"{email}: 发送失败")
-        except Exception as e:
-            results['failed'] += 1
-            results['errors'].append(f"{email}: {str(e)}")
-
-    return {
-        "success": True,
-        "sent": results['sent'],
-        "failed": results['failed'],
-        "errors": results['errors'][:10]  # 只返回前10个错误
-    }
-
-
-@app.get("/api/marketing/history")
-async def api_marketing_history(
-    contact_id: str = None,
+@app.get("/api/prospect/list")
+async def api_prospect_list(
     page: int = 1,
     page_size: int = 20,
+    search: str = None,
+    country: str = None,
+    status: str = None,
+    is_public: int = None,
     current_user: dict = Depends(login_required)
 ):
-    """获取营销邮件发送历史"""
-    from Sills.db_contact import get_marketing_email_history
-    items, total = get_marketing_email_history(contact_id, page, page_size)
-    return {"items": items, "total": total, "page": page, "page_size": page_size}
+    """获取Prospect列表"""
+    from Sills.db_prospect import get_prospect_list
+    filters = {}
+    if country:
+        filters['country'] = country
+    if status:
+        filters['status'] = status
+    if is_public is not None:
+        filters['is_public'] = is_public
 
-# ==================== 联系人管理模块结束 ====================
+    prospects, total = get_prospect_list(page, page_size, search or "", filters)
+    return {"success": True, "prospects": prospects, "total": total}
 
-# ==================== 营销状态同步 ====================
 
-@app.post("/api/marketing/sync_status")
-async def api_sync_marketing_status(request: Request, current_user: dict = Depends(login_required)):
-    """手动同步客户营销状态"""
-    from Sills.db_cli import sync_cli_marketing_status, update_cli_domain_from_email
-    data = await request.json() if await request.body() else {}
-    cli_id = data.get('cli_id')
+@app.get("/api/prospect/template")
+async def api_prospect_template(current_user: dict = Depends(login_required)):
+    """下载Prospect导入模板"""
+    from openpyxl import Workbook
+    from fastapi.responses import StreamingResponse
+    import io
 
-    # 同步状态
-    success, message = sync_cli_marketing_status(cli_id)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Prospect导入模板"
+    ws.append(['客户名称*', '公司网站', '域名*', '国家', '备注'])
+    ws.append(['示例公司', 'https://example.com', 'example.com', '中国', '备注信息'])
 
-    # 同时更新客户域名
-    if success:
-        update_cli_domain_from_email()
+    # 设置列宽
+    ws.column_dimensions['A'].width = 20
+    ws.column_dimensions['B'].width = 25
+    ws.column_dimensions['C'].width = 20
+    ws.column_dimensions['D'].width = 15
+    ws.column_dimensions['E'].width = 30
 
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=prospect_template.xlsx"}
+    )
+
+
+@app.get("/api/prospect/{prospect_id}")
+async def api_prospect_detail(prospect_id: str, current_user: dict = Depends(login_required)):
+    """获取Prospect详情"""
+    from Sills.db_prospect import get_prospect_by_id
+    prospect = get_prospect_by_id(prospect_id)
+    if prospect:
+        return {"success": True, "prospect": prospect}
+    return {"success": False, "message": "Prospect不存在"}
+
+
+@app.post("/api/prospect/add")
+async def api_prospect_add(request: Request, current_user: dict = Depends(login_required)):
+    """添加Prospect"""
+    from Sills.db_prospect import add_prospect
+    data = await request.json()
+    ok, msg = add_prospect(data)
+    return {"success": ok, "message": msg}
+
+
+@app.post("/api/prospect/import")
+async def api_prospect_import(request: Request, current_user: dict = Depends(login_required)):
+    """批量导入Prospect"""
+    from Sills.db_prospect import import_prospects
+    from openpyxl import load_workbook
+    import io
+
+    print("===== Prospect文件导入开始 =====")
+    print(f"用户: {current_user}")
+
+    form = await request.form()
+    print(f"FormData keys: {list(form.keys())}")
+    file = form.get('file')
+    if not file:
+        print("错误: 未上传文件")
+        return {"success": False, "message": "未上传文件"}
+
+    print(f"文件名: {file.filename if hasattr(file, 'filename') else 'unknown'}")
+
+    try:
+        content = await file.read()
+        print(f"文件大小: {len(content)} bytes")
+        wb = load_workbook(io.BytesIO(content))
+        ws = wb.active
+        print(f"Sheet名称: {ws.title}, 行数: {ws.max_row}, 列数: {ws.max_column}")
+
+        # 打印表头
+        header_row = [cell.value for cell in ws[1]]
+        print(f"表头: {header_row}")
+
+        # 解析Excel数据
+        data_list = []
+        row_num = 2
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            print(f"第{row_num}行数据: {row}")
+            if not row or not row[0]:
+                print(f"  -> 跳过: 数据为空或客户名称为空")
+                row_num += 1
+                continue
+            item = {
+                'prospect_name': str(row[0] or '').strip(),
+                'company_website': str(row[1] or '').strip(),
+                'domain': str(row[2] or '').strip(),
+                'country': str(row[3] or '').strip(),
+                'remark': str(row[4] or '').strip()
+            }
+            print(f"  -> 解析结果: {item}")
+            data_list.append(item)
+            row_num += 1
+
+        print(f"解析出的数据数量: {len(data_list)}")
+        if not data_list:
+            print("错误: 文件中没有有效数据")
+            return {"success": False, "message": "文件中没有有效数据"}
+
+        print("调用 import_prospects...")
+        imported, skipped, errors = import_prospects(data_list)
+        print(f"导入结果: 成功={imported}, 跳过={skipped}, 错误={errors}")
+        print("===== Prospect文件导入结束 =====")
+        return {
+            "success": True,
+            "imported": imported,
+            "skipped": skipped,
+            "errors": errors[:10] if errors else []
+        }
+    except Exception as e:
+        import traceback
+        print("===== Prospect导入异常 =====")
+        traceback.print_exc()
+        print(f"错误类型: {type(e).__name__}")
+        print(f"错误信息: {str(e)}")
+        print("===== 异常结束 =====")
+        return {"success": False, "message": f"解析文件失败: {str(e)}"}
+
+
+@app.post("/api/prospect/import/text")
+async def api_prospect_import_text(request: Request, current_user: dict = Depends(login_required)):
+    """批量导入Prospect (文本格式)"""
+    from Sills.db_prospect import import_prospects
+
+    data = await request.json()
+    data_list = data.get('data_list', [])
+
+    if not data_list:
+        return {"success": False, "message": "未提供数据"}
+
+    imported, skipped, errors = import_prospects(data_list)
+    return {
+        "success": True,
+        "imported": imported,
+        "skipped": skipped,
+        "errors": errors[:10] if errors else []
+    }
+
+
+@app.post("/api/prospect/convert")
+async def api_prospect_convert(request: Request, current_user: dict = Depends(login_required)):
+    """将Prospect转化为CLI客户"""
+    from Sills.db_prospect import convert_prospect_to_cli
+    data = await request.json()
+    prospect_id = data.get('prospect_id')
+    if not prospect_id:
+        return {"success": False, "message": "缺少prospect_id"}
+
+    ok, msg = convert_prospect_to_cli(prospect_id)
+    return {"success": ok, "message": msg}
+
+
+@app.get("/api/prospect/stats")
+async def api_prospect_stats(current_user: dict = Depends(login_required)):
+    """获取Prospect统计数据"""
+    from Sills.db_prospect import get_prospect_stats
+    return {"success": True, **get_prospect_stats()}
+
+
+@app.get("/api/prospect/countries")
+async def api_prospect_countries(current_user: dict = Depends(login_required)):
+    """获取Prospect国家列表"""
+    from Sills.db_prospect import get_prospect_countries
+    return {"success": True, "countries": get_prospect_countries()}
+
+
+@app.post("/api/prospect/delete")
+async def api_prospect_delete(request: Request, current_user: dict = Depends(login_required)):
+    """删除Prospect"""
+    from Sills.db_prospect import delete_prospect
+    data = await request.json()
+    prospect_id = data.get('prospect_id')
+    if not prospect_id:
+        return {"success": False, "message": "缺少prospect_id"}
+    ok, msg = delete_prospect(prospect_id)
+    return {"success": ok, "message": msg}
+
+
+@app.post("/api/prospect/batch_delete")
+async def api_prospect_batch_delete(request: Request, current_user: dict = Depends(login_required)):
+    """批量删除Prospect"""
+    from Sills.db_prospect import batch_delete_prospects
+    print("===== Prospect批量删除开始 =====")
+    data = await request.json()
+    print(f"请求数据: {data}")
+    prospect_ids = data.get('prospect_ids', [])
+    print(f"要删除的ID列表: {prospect_ids}")
+    if not prospect_ids:
+        print("错误: 未选择任何记录")
+        return {"success": False, "message": "未选择任何记录"}
+
+    print("调用 batch_delete_prospects...")
+    ok, msg = batch_delete_prospects(prospect_ids)
+    print(f"删除结果: ok={ok}, msg={msg}")
+
+    if msg is None or msg == '':
+        msg = "删除操作返回空消息"
+        print(f"消息为空，设置为: {msg}")
+
+    print(f"返回: success={ok}, message={msg}")
+    print("===== Prospect批量删除结束 =====")
+    return {"success": ok, "message": msg}
+
+
+# ==================== 开发信管理模块 (Email Task Manager) ====================
+# 替换原有Marketing模块,支持任务管理、联系人组、发件人账号等功能
+
+from Sills.db_contact_group import (
+    get_group_list, get_group_by_id, add_group, update_group, delete_group,
+    get_group_contacts, get_all_groups_contacts
+)
+from Sills.db_email_account import (
+    get_account_list, get_account_by_id, get_account_by_email,
+    add_account, update_account, delete_account, reset_daily_count,
+    can_send_today, get_smtp_server_for_email
+)
+from Sills.db_email_task import (
+    get_task_list, get_task_by_id, get_active_task, has_running_task,
+    create_task, start_task, update_task_progress, cancel_task,
+    complete_task, get_task_progress, get_task_contacts
+)
+from Sills.db_email_log import (
+    get_task_logs, get_failed_logs, get_task_stats
+)
+from Sills.email_sender import (
+    start_email_worker, send_test_email
+)
+
+
+# ==================== 联系人组管理 ====================
+
+@app.get("/api/group/list")
+async def api_group_list(
+    page: int = 1,
+    page_size: int = 20,
+    search: str = None,
+    current_user: dict = Depends(login_required)
+):
+    """获取联系人组列表"""
+    groups, total = get_group_list(page, page_size, search or "")
+    return {"success": True, "groups": groups, "total": total, "page": page, "page_size": page_size}
+
+
+@app.post("/api/group/add")
+async def api_group_add(request: Request, current_user: dict = Depends(login_required)):
+    """添加联系人组"""
+    data = await request.json()
+    group_name = data.get('group_name', '')
+    filter_criteria = data.get('filter_criteria', {})
+
+    success, message = add_group(group_name, filter_criteria)
     return {"success": success, "message": message}
 
-# ==================== 营销状态同步结束 ====================
+
+@app.post("/api/group/delete")
+async def api_group_delete(request: Request, current_user: dict = Depends(login_required)):
+    """删除联系人组"""
+    data = await request.json()
+    group_id = data.get('group_id', '')
+
+    success, message = delete_group(group_id)
+    return {"success": success, "message": message}
+
+
+@app.get("/api/group/{group_id}/contacts")
+async def api_group_contacts(
+    group_id: str,
+    page: int = 1,
+    page_size: int = 100,
+    current_user: dict = Depends(login_required)
+):
+    """预览组内联系人"""
+    contacts, total = get_group_contacts(group_id, page, page_size)
+    return {"success": True, "contacts": contacts, "total": total}
+
+
+# ==================== 发件人账号管理 ====================
+
+@app.get("/api/account/list")
+async def api_account_list(
+    page: int = 1,
+    page_size: int = 20,
+    search: str = None,
+    current_user: dict = Depends(login_required)
+):
+    """获取发件人账号列表"""
+    accounts, total = get_account_list(page, page_size, search or "")
+    return {"success": True, "accounts": accounts, "total": total}
+
+
+@app.post("/api/account/add")
+async def api_account_add(request: Request, current_user: dict = Depends(login_required)):
+    """添加发件人账号"""
+    data = await request.json()
+    email = data.get('email', '')
+    password = data.get('password', '')
+    smtp_server = data.get('smtp_server', None)
+    daily_limit = data.get('daily_limit', 1800)
+
+    success, message = add_account(email, password, smtp_server, daily_limit)
+    return {"success": success, "message": message}
+
+
+@app.post("/api/account/update")
+async def api_account_update(request: Request, current_user: dict = Depends(login_required)):
+    """更新发件人账号"""
+    data = await request.json()
+    account_id = data.get('account_id', '')
+    password = data.get('password', None)
+    smtp_server = data.get('smtp_server', None)
+    daily_limit = data.get('daily_limit', None)
+
+    success, message = update_account(account_id, password, smtp_server, daily_limit)
+    return {"success": success, "message": message}
+
+
+@app.post("/api/account/delete")
+async def api_account_delete(request: Request, current_user: dict = Depends(login_required)):
+    """删除发件人账号"""
+    data = await request.json()
+    account_id = data.get('account_id', '')
+
+    success, message = delete_account(account_id)
+    return {"success": success, "message": message}
+
+
+@app.post("/api/account/test")
+async def api_account_test(request: Request, current_user: dict = Depends(login_required)):
+    """发送测试邮件"""
+    data = await request.json()
+    account_id = data.get('account_id', '')
+    to_email = data.get('to_email', '')
+
+    success, message = send_test_email(account_id, to_email)
+    return {"success": success, "message": message}
+
+
+# ==================== 邮件任务管理 ====================
+
+@app.get("/api/task/list")
+async def api_task_list(
+    page: int = 1,
+    page_size: int = 20,
+    status: str = None,
+    search: str = None,
+    current_user: dict = Depends(login_required)
+):
+    """获取邮件任务列表"""
+    tasks, total = get_task_list(page, page_size, status or "", search or "")
+    return {"success": True, "tasks": tasks, "total": total, "page": page, "page_size": page_size}
+
+
+@app.get("/api/task/active")
+async def api_task_active(current_user: dict = Depends(login_required)):
+    """获取当前活跃任务"""
+    task = get_active_task()
+    if task:
+        # 解密密码供前端显示(可选)
+        progress = get_task_progress(task['task_id'])
+        return {"success": True, "task": task, "progress": progress}
+    return {"success": True, "task": None}
+
+
+@app.post("/api/task/create")
+async def api_task_create(request: Request, current_user: dict = Depends(login_required)):
+    """创建邮件任务"""
+    data = await request.json()
+
+    task_name = data.get('task_name', '')
+    account_id = data.get('account_id', '')
+    group_ids = data.get('group_ids', [])
+    subject = data.get('subject', '')
+    body = data.get('body', '')
+    placeholders = data.get('placeholders', None)
+    schedule_start = data.get('schedule_start', None)
+    schedule_end = data.get('schedule_end', None)
+
+    success, result = create_task(
+        task_name, account_id, group_ids, subject, body,
+        placeholders, schedule_start, schedule_end
+    )
+
+    if success:
+        # 自动启动任务
+        start_task(result)
+        # 启动后台Worker
+        start_email_worker(result)
+        return {"success": True, "task_id": result}
+    else:
+        return {"success": False, "message": result}
+
+
+@app.post("/api/task/cancel")
+async def api_task_cancel(request: Request, current_user: dict = Depends(login_required)):
+    """取消任务"""
+    data = await request.json()
+    task_id = data.get('task_id', '')
+
+    success, message = cancel_task(task_id)
+    return {"success": success, "message": message}
+
+
+@app.get("/api/task/{task_id}/progress")
+async def api_task_progress(task_id: str, current_user: dict = Depends(login_required)):
+    """获取任务实时进度"""
+    progress = get_task_progress(task_id)
+    if progress:
+        stats = get_task_stats(task_id)
+        return {"success": True, "progress": progress, "stats": stats}
+    return {"success": False, "message": "任务不存在"}
+
+
+@app.get("/api/task/{task_id}/logs")
+async def api_task_logs(
+    task_id: str,
+    page: int = 1,
+    page_size: int = 50,
+    current_user: dict = Depends(login_required)
+):
+    """获取任务发送日志"""
+    logs, total = get_task_logs(task_id, page, page_size)
+    return {"success": True, "logs": logs, "total": total, "page": page, "page_size": page_size}
+
+
+@app.get("/api/task/{task_id}/failed")
+async def api_task_failed(task_id: str, current_user: dict = Depends(login_required)):
+    """获取任务失败日志"""
+    failed = get_failed_logs(task_id)
+    return {"success": True, "failed": failed}
+
+# ==================== 开发信管理模块结束 ====================
 
 if __name__ == "__main__":
     # 根据环境选择端口: Windows=8001, WSL=8000

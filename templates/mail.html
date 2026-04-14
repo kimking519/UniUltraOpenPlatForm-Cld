@@ -701,6 +701,13 @@
         pointer-events: none;
     }
 
+    /* taskBody placeholder */
+    #taskBody:empty:before {
+        content: attr(placeholder);
+        color: var(--text-muted);
+        pointer-events: none;
+    }
+
     /* Toast动画 */
     @keyframes slideIn {
         from {
@@ -1313,11 +1320,19 @@
         <!-- 营销功能区（绝对定位到底部） -->
         <div class="settings-link">
             <div style="padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem;">
-                <a href="#" onclick="openMarketingModal(event)">
+                <a href="#" onclick="EmailTaskManager.open(event)">
                     <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
                     </svg>
-                    开发信管理
+                    开发信任务
+                </a>
+            </div>
+            <div style="padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem;">
+                <a href="#" onclick="ContactManager.open(event)">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                    </svg>
+                    联系人管理
                 </a>
             </div>
             <a href="#" onclick="switchToSettings(event)">
@@ -1546,6 +1561,337 @@
                         <button class="btn btn-primary" onclick="addFilterRule()">添加</button>
                     </div>
                     <div id="filterRulesList" style="max-height: 200px; overflow-y: auto;"></div>
+                </div>
+            </div>
+
+            <!-- 开发信任务管理视图 -->
+            <div class="settings-view" id="emailTaskView" style="display: none; padding: 20px; overflow-y: auto; height: 100%;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0; color: var(--text-main);">开发信任务管理</h2>
+                    <button class="btn" style="background: var(--border); color: var(--text-main);" onclick="EmailTaskManager.close()">返回邮件列表</button>
+                </div>
+
+                <!-- Tab切换 -->
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 15px;">
+                    <button class="btn btn-primary btn-sm" id="tabTask" onclick="EmailTaskManager.switchTab('task')">任务管理</button>
+                    <button class="btn btn-ghost btn-sm" id="tabGroup" onclick="EmailTaskManager.switchTab('group')">联系人组</button>
+                </div>
+
+                <!-- 任务管理Tab -->
+                <div id="taskTabContent">
+                    <!-- 创建任务 -->
+                    <div class="settings-section" style="margin-bottom: 15px; padding: 15px; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border);">
+                        <h3 style="margin: 0 0 10px 0; font-size: 15px; color: var(--text-main);">创建邮件任务</h3>
+                        <div style="display: grid; gap: 10px;">
+                            <input type="text" id="taskName" placeholder="任务名称" style="padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                            <div style="display: flex; gap: 10px;">
+                                <select id="taskAccount" style="flex: 1; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                                    <option value="">选择发件人账号</option>
+                                </select>
+                                <div style="flex: 2; display: flex; gap: 5px; align-items: center;">
+                                    <select id="taskGroups" multiple style="flex: 1; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); min-height: 60px;">
+                                    </select>
+                                    <span style="font-size: 12px; color: var(--text-muted);">可多选联系人组</span>
+                                </div>
+                            </div>
+                            <input type="text" id="taskSubject" placeholder="邮件主题（支持{公司名}占位符）" style="padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <span style="font-size: 12px; color: var(--text-muted);">发送时间段:</span>
+                                <input type="time" id="taskScheduleStart" value="09:00" style="padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                                <span style="font-size: 12px; color: var(--text-muted);">至</span>
+                                <input type="time" id="taskScheduleEnd" value="18:00" style="padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                            </div>
+                            <div id="taskEditorContainer" style="border: 1px solid var(--border); border-radius: var(--radius); background: var(--card-bg); overflow: hidden;">
+                                <!-- 富文本工具栏 -->
+                                <div id="taskEditorToolbar" style="display: flex; gap: 5px; padding: 5px; background: var(--bg-main); border-bottom: 1px solid var(--border); flex-wrap: wrap;">
+                                    <button type="button" onclick="EmailTaskEditor.execCmd('bold')" title="加粗" style="padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-main); color: var(--text-main); cursor: pointer; font-weight: bold;">B</button>
+                                    <button type="button" onclick="EmailTaskEditor.execCmd('italic')" title="斜体" style="padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-main); color: var(--text-main); cursor: pointer; font-style: italic;">I</button>
+                                    <button type="button" onclick="EmailTaskEditor.execCmd('underline')" title="下划线" style="padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-main); color: var(--text-main); cursor: pointer; text-decoration: underline;">U</button>
+                                    <select onchange="EmailTaskEditor.execCmd('fontSize', this.value); this.value='';" style="padding: 2px 4px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-main); color: var(--text-main); cursor: pointer;">
+                                        <option value="">字号</option>
+                                        <option value="1">小</option>
+                                        <option value="3">正常</option>
+                                        <option value="5">大</option>
+                                        <option value="7">超大</option>
+                                    </select>
+                                    <input type="color" id="taskTextColor" onchange="EmailTaskEditor.execCmd('foreColor', this.value)" title="文字颜色" style="width: 24px; height: 24px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; padding: 0;">
+                                    <button type="button" onclick="EmailTaskEditor.insertLink()" title="插入链接" style="padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-main); color: var(--text-main); cursor: pointer;">🔗</button>
+                                    <button type="button" onclick="EmailTaskEditor.insertImage()" title="插入图片" style="padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-main); color: var(--text-main); cursor: pointer;">🖼️</button>
+                                    <button type="button" onclick="EmailTaskEditor.execCmd('insertUnorderedList')" title="无序列表" style="padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-main); color: var(--text-main); cursor: pointer;">•</button>
+                                    <button type="button" onclick="EmailTaskEditor.execCmd('insertOrderedList')" title="有序列表" style="padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-main); color: var(--text-main); cursor: pointer;">1.</button>
+                                    <button type="button" onclick="EmailTaskEditor.execCmd('removeFormat')" title="清除格式" style="padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-main); color: var(--text-main); cursor: pointer;">✕</button>
+                                    <span style="margin-left: 10px; border-left: 1px solid var(--border); padding-left: 10px;">
+                                        <button type="button" onclick="EmailTaskEditor.insertPlaceholder('{公司名}')">+公司名</button>
+                                        <button type="button" onclick="EmailTaskEditor.insertSignature()">+签名</button>
+                                        <button type="button" onclick="EmailTaskEditor.preview()">预览</button>
+                                    </span>
+                                </div>
+                                <!-- HTML编辑区域 -->
+                                <div id="taskBody" contenteditable="true" placeholder="邮件内容（支持HTML格式和{公司名}占位符）..." style="width: 100%; min-height: 200px; padding: 10px; border: none; background: var(--bg-main); color: var(--text-main); resize: vertical; font-family: inherit; overflow-y: auto; outline: none; line-height: 1.6;"></div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 12px; color: var(--text-muted);">日发送上限: 1800封 | 固定CC: jinzheng519@163.com</span>
+                                <button class="btn btn-primary" onclick="EmailTaskManager.createTask()">创建任务</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 当前活跃任务 -->
+                    <div class="settings-section" id="activeTaskSection" style="display: none; margin-bottom: 15px; padding: 15px; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border);">
+                        <h3 style="margin: 0 0 10px 0; font-size: 15px; color: var(--text-main);">当前任务进度</h3>
+                        <div id="activeTaskInfo" style="display: grid; gap: 10px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span id="activeTaskName" style="font-weight: 600; color: var(--primary);"></span>
+                                <span id="activeTaskStatus" style="padding: 2px 8px; border-radius: 4px; font-size: 12px;"></span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div style="flex: 1; background: var(--border); border-radius: 4px; height: 24px; overflow: hidden;">
+                                    <div id="activeTaskProgress" style="height: 100%; background: linear-gradient(135deg, #10B981 0%, #059669 100%); transition: width 0.3s;"></div>
+                                </div>
+                                <span id="activeTaskProgressText" style="font-size: 14px; font-weight: 600; color: var(--text-main);"></span>
+                            </div>
+                            <div style="display: flex; gap: 20px; font-size: 12px; color: var(--text-muted);">
+                                <span>开始: <b id="activeTaskStart">-</b></span>
+                                <span>预计结束: <b id="activeTaskEnd">-</b></span>
+                                <span>成功: <b id="activeTaskSent" style="color: #10B981;">0</b></span>
+                                <span>失败: <b id="activeTaskFailed" style="color: #EF4444;">0</b></span>
+                            </div>
+                            <div style="display: flex; gap: 10px;">
+                                <button class="btn btn-sm" onclick="EmailTaskManager.refreshActiveTask()">刷新进度</button>
+                                <button class="btn btn-sm" style="background: #EF4444; color: white;" onclick="EmailTaskManager.cancelTask()">取消任务</button>
+                                <button class="btn btn-sm" onclick="EmailTaskManager.showTaskLogs()">查看日志</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 任务历史 -->
+                    <div class="settings-section" style="padding: 15px; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h3 style="margin: 0; font-size: 15px; color: var(--text-main);">任务历史</h3>
+                            <button class="btn btn-sm" onclick="EmailTaskManager.loadTaskHistory()">刷新</button>
+                        </div>
+                        <div style="max-height: 300px; overflow-y: auto;">
+                            <table class="data-table" style="width: 100%; font-size: 13px;">
+                                <thead>
+                                    <tr>
+                                        <th>任务名称</th>
+                                        <th>发件人</th>
+                                        <th>状态</th>
+                                        <th>进度</th>
+                                        <th>创建时间</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="taskHistoryList"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 联系人组Tab -->
+                <div id="groupTabContent" style="display: none;">
+                    <div class="settings-section" style="margin-bottom: 15px; padding: 15px; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border);">
+                        <h3 style="margin: 0 0 10px 0; font-size: 15px; color: var(--text-main);">添加联系人组</h3>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="newGroupName" placeholder="组名称" style="flex: 1; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                            <button class="btn btn-primary" onclick="EmailTaskManager.addGroup()">添加</button>
+                        </div>
+                    </div>
+                    <div class="settings-section" style="padding: 15px; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border);">
+                        <h3 style="margin: 0 0 10px 0; font-size: 15px; color: var(--text-main);">联系人组列表</h3>
+                        <div style="max-height: 400px; overflow-y: auto;">
+                            <table class="data-table" style="width: 100%; font-size: 13px;">
+                                <thead>
+                                    <tr>
+                                        <th>组名称</th>
+                                        <th>联系人数量</th>
+                                        <th>创建时间</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="groupList"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 联系人管理视图 -->
+            <div class="settings-view" id="contactView" style="display: none; padding: 20px; overflow-y: auto; height: 100%;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0; color: var(--text-main);">联系人管理</h2>
+                    <button class="btn" onclick="ContactManager.close()">返回邮件列表</button>
+                </div>
+
+                <!-- Tab切换 + 操作按钮 -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-primary btn-sm" id="tabContacts" onclick="ContactManager.toggleTab('contacts')">联系人</button>
+                        <button class="btn btn-ghost btn-sm" id="tabProspects" onclick="ContactManager.toggleTab('prospects')">待开发客户</button>
+                    </div>
+                    <div id="contactsTabActions" style="display: flex; gap: 0.5rem; align-items: center;">
+                        <select id="contactPageSize" onchange="ContactManager.load()" style="padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); width: 100px;">
+                            <option value="20">20条/页</option>
+                            <option value="50">50条/页</option>
+                            <option value="100">100条/页</option>
+                        </select>
+                        <button class="btn btn-ghost btn-sm" onclick="ContactManager.toggleAddModal()">新增联系人</button>
+                        <button class="btn btn-ghost btn-sm" onclick="ContactManager.toggleImportModal()">批量导入</button>
+                    </div>
+                    <div id="prospectsTabActions" style="display: none; gap: 0.5rem; align-items: center;">
+                        <select id="prospectPageSize" onchange="ProspectManager.load()" style="padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); width: 100px;">
+                            <option value="20">20条/页</option>
+                            <option value="50">50条/页</option>
+                            <option value="100">100条/页</option>
+                        </select>
+                        <button class="btn btn-ghost btn-sm" onclick="ProspectManager.batchDelete()" id="prospectBatchDeleteBtn" style="display: none; color: #EF4444;">批量删除</button>
+                        <button class="btn btn-ghost btn-sm" onclick="ProspectManager.toggleAddModal()">新增客户</button>
+                        <button class="btn btn-ghost btn-sm" onclick="ProspectManager.toggleImportModal()">批量导入</button>
+                    </div>
+                </div>
+
+                <!-- 联系人Tab内容 -->
+                <div id="contactsTabContent">
+                <!-- 筛选区 -->
+                <div class="settings-section" style="margin-bottom: 15px; padding: 15px; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border);">
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: nowrap; align-items: center;">
+                        <input type="text" id="contactSearch" placeholder="搜索邮箱、姓名、公司..." style="padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); width: 140px;" onkeypress="ContactManager.onSearchKey(event)">
+                        <select id="contactCountry" onchange="ContactManager.load()" style="padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); width: 100px;">
+                            <option value="">全部国家</option>
+                        </select>
+                        <select id="contactBounced" onchange="ContactManager.load()" style="padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); width: 100px;">
+                            <option value="">退信状态</option>
+                            <option value="0">未退信</option>
+                            <option value="1">已退信</option>
+                        </select>
+                        <select id="contactContacted" onchange="ContactManager.load()" style="padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); width: 100px;">
+                            <option value="">联系状态</option>
+                            <option value="0">未联系</option>
+                            <option value="1">已联系</option>
+                        </select>
+                        <select id="contactInquiry" onchange="ContactManager.load()" style="padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); width: 100px;">
+                            <option value="">询价状态</option>
+                            <option value="0">未询价</option>
+                            <option value="1">已询价</option>
+                        </select>
+                        <select id="contactOrder" onchange="ContactManager.load()" style="padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); width: 100px;">
+                            <option value="">下单状态</option>
+                            <option value="0">未下单</option>
+                            <option value="1">已下单</option>
+                        </select>
+                        <button class="btn btn-ghost btn-sm" onclick="ContactManager.resetFilters()">重置</button>
+                    </div>
+                </div>
+
+                <!-- 统计栏 -->
+                <div style="display: flex; gap: 1rem; margin-bottom: 15px; padding: 10px; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border);">
+                    <div style="text-align: center;">
+                        <span style="font-size: 18px; font-weight: bold; color: var(--primary);" id="contactTotalCount">0</span>
+                        <span style="font-size: 12px; color: var(--text-muted);">联系人总数</span>
+                    </div>
+                    <div style="text-align: center;">
+                        <span style="font-size: 18px; font-weight: bold; color: var(--text-main);" id="contactTotalSent">0</span>
+                        <span style="font-size: 12px; color: var(--text-muted);">已发送邮件</span>
+                    </div>
+                    <div style="text-align: center;">
+                        <span style="font-size: 18px; font-weight: bold; color: #EF4444;" id="contactBounceRate">0%</span>
+                        <span style="font-size: 12px; color: var(--text-muted);">退信率</span>
+                    </div>
+                    <div style="text-align: center;">
+                        <span style="font-size: 18px; font-weight: bold; color: #22C55E;" id="contactReadRate">0%</span>
+                        <span style="font-size: 12px; color: var(--text-muted);">已读率</span>
+                    </div>
+                </div>
+
+                <!-- 联系人列表 -->
+                <div class="settings-section" style="margin-bottom: 15px; padding: 15px; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <span style="font-size: 13px; color: var(--text-muted);">选中 <b id="contactSelectedCount">0</b> 个联系人</span>
+                        <button class="btn btn-sm" onclick="ContactManager.toggleSelectAll(true)">全选</button>
+                    </div>
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <span style="font-size: 0.85rem; color: var(--text-secondary);">已选中: <span id="contactSelectedCount">0</span> 条</span>
+                            <button class="btn btn-danger btn-sm" onclick="ContactManager.batchDelete()">批量删除</button>
+                        </div>
+                        <table class="data-table" style="width: 100%; font-size: 13px;">
+                            <thead>
+                                <tr>
+                                    <th style="width: 30px;"><input type="checkbox" onclick="ContactManager.toggleSelectAll(this)"></th>
+                                    <th>邮箱</th>
+                                    <th>姓名</th>
+                                    <th>公司/域名</th>
+                                    <th>国家</th>
+                                    <th>关联客户</th>
+                                    <th>发送</th>
+                                    <th>退信</th>
+                                    <th>已读</th>
+                                    <th>状态</th>
+                                    <th style="width: 100px;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="contactListBody"></tbody>
+                        </table>
+                    </div>
+                    <div id="contactPagination" style="margin-top: 10px;"></div>
+                </div>
+                </div>
+
+                <!-- Prospect Tab内容 -->
+                <div id="prospectsTabContent" style="display: none;">
+                <!-- Prospect筛选区 -->
+                <div class="settings-section" style="margin-bottom: 15px; padding: 15px; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border);">
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: nowrap; align-items: center;">
+                        <input type="text" id="prospectSearch" placeholder="搜索客户名称、域名..." style="padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); width: 140px;" onkeypress="ProspectManager.onSearchKey(event)">
+                        <select id="prospectCountry" onchange="ProspectManager.load()" style="padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); width: 100px;">
+                            <option value="">全部国家</option>
+                        </select>
+                        <select id="prospectStatus" onchange="ProspectManager.load()" style="padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); width: 100px;">
+                            <option value="">全部状态</option>
+                            <option value="pending">待转化</option>
+                            <option value="converted">已转化</option>
+                        </select>
+                        <button class="btn btn-ghost btn-sm" onclick="ProspectManager.resetFilters()">重置</button>
+                    </div>
+                </div>
+
+                <!-- Prospect统计栏 -->
+                <div style="display: flex; gap: 1rem; margin-bottom: 15px; padding: 10px; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border);">
+                    <div style="text-align: center;">
+                        <span style="font-size: 18px; font-weight: bold; color: var(--primary);" id="prospectTotalCount">0</span>
+                        <span style="font-size: 12px; color: var(--text-muted);">总数</span>
+                    </div>
+                    <div style="text-align: center;">
+                        <span style="font-size: 18px; font-weight: bold; color: #F59E0B;" id="prospectPendingCount">0</span>
+                        <span style="font-size: 12px; color: var(--text-muted);">待转化</span>
+                    </div>
+                    <div style="text-align: center;">
+                        <span style="font-size: 18px; font-weight: bold; color: #22C55E;" id="prospectConvertedCount">0</span>
+                        <span style="font-size: 12px; color: var(--text-muted);">已转化</span>
+                    </div>
+                </div>
+
+                <!-- Prospect列表 -->
+                <div class="settings-section" style="margin-bottom: 15px; padding: 15px; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border);">
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        <table class="data-table" style="width: 100%; font-size: 13px;">
+                            <thead>
+                                <tr>
+                                    <th style="width: 30px;"><input type="checkbox" id="prospectSelectAll" onchange="ProspectManager.toggleSelectAll()"></th>
+                                    <th>客户名称</th>
+                                    <th>公司网站</th>
+                                    <th>域名</th>
+                                    <th>国家</th>
+                                    <th>关联联系人</th>
+                                    <th>状态</th>
+                                    <th style="width: 120px;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="prospectListBody"></tbody>
+                        </table>
+                    </div>
+                    <div id="prospectPagination" style="margin-top: 10px;"></div>
+                </div>
                 </div>
             </div>
 
@@ -4801,6 +5147,9 @@
         document.getElementById('mailList').style.display = 'none';
         document.getElementById('pagination').style.display = 'none';
         document.querySelector('.mail-list-header').style.display = 'none';
+        document.querySelector('.mail-toolbar').style.display = 'none';
+        document.getElementById('contactView').style.display = 'none';
+        document.getElementById('emailTaskView').style.display = 'none';
         document.getElementById('settingsView').style.display = 'block';
         loadSettings();
     }
@@ -4811,6 +5160,7 @@
         document.getElementById('mailList').style.display = 'block';
         document.getElementById('pagination').style.display = 'flex';
         document.querySelector('.mail-list-header').style.display = 'flex';
+        document.querySelector('.mail-toolbar').style.display = 'flex';
     }
 
     // Utility functions
@@ -5335,6 +5685,18 @@
                 closeSettingsView();
             }
 
+            // 关闭联系人管理视图
+            const contactView = document.getElementById('contactView');
+            if (contactView && contactView.style.display !== 'none') {
+                ContactManager.close();
+            }
+
+            // 关闭开发信任务管理视图
+            const emailTaskView = document.getElementById('emailTaskView');
+            if (emailTaskView && emailTaskView.style.display !== 'none') {
+                EmailTaskManager.close();
+            }
+
             // 关闭所有模态框（设置、账户、开发信管理等）
             const modals = document.querySelectorAll('.modal');
             let modalClosed = false;
@@ -5370,6 +5732,1429 @@
             return;
         }
     });
+
+    // EmailTaskManager - 开发信任务管理对象
+    const EmailTaskManager = {
+        currentTab: 'task',
+        activeTask: null,
+        progressTimer: null,
+        signature: `<br><br>---<br>Unicorn Semiconductor<br>Email: joy@unicornsemi.com<br>Website: www.unicornsemi.com`,
+
+        // 打开任务管理视图
+        open(e) {
+            if (e) e.preventDefault();
+            document.getElementById('mailList').style.display = 'none';
+            document.getElementById('pagination').style.display = 'none';
+            document.querySelector('.mail-list-header').style.display = 'none';
+            document.querySelector('.mail-toolbar').style.display = 'none';
+            document.getElementById('settingsView').style.display = 'none';
+            document.getElementById('contactView').style.display = 'none';
+            document.getElementById('emailTaskView').style.display = 'block';
+            this.loadAccounts();
+            this.loadGroups();
+            this.loadActiveTask();
+            this.loadTaskHistory();
+        },
+
+        // 关闭任务管理视图
+        close() {
+            document.getElementById('emailTaskView').style.display = 'none';
+            document.getElementById('mailList').style.display = 'block';
+            document.getElementById('pagination').style.display = 'flex';
+            document.querySelector('.mail-list-header').style.display = 'flex';
+            document.querySelector('.mail-toolbar').style.display = 'flex';
+            if (this.progressTimer) {
+                clearInterval(this.progressTimer);
+                this.progressTimer = null;
+            }
+        },
+
+        // Tab切换
+        switchTab(tab) {
+            this.currentTab = tab;
+            ['tabTask', 'tabGroup'].forEach(id => {
+                document.getElementById(id).className = id === 'tab' + tab.charAt(0).toUpperCase() + tab.slice(1) ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
+            });
+            ['taskTabContent', 'groupTabContent'].forEach(id => {
+                document.getElementById(id).style.display = id === tab + 'TabContent' ? 'block' : 'none';
+            });
+            if (tab === 'group') this.loadGroups();
+        },
+
+        // ==================== 任务管理 ====================
+        async loadAccounts() {
+            try {
+                const res = await fetch('/api/account/list');
+                const data = await res.json();
+                const select = document.getElementById('taskAccount');
+                const accountSelect = document.getElementById('newTestAccount');
+                select.innerHTML = '<option value="">选择发件人账号</option>' +
+                    (data.accounts || []).map(a => `<option value="${a.account_id}">${a.email} (${a.sent_today || 0}/${a.daily_limit || 1800})</option>`).join('');
+                if (accountSelect) {
+                    accountSelect.innerHTML = '<option value="">选择账号</option>' +
+                        (data.accounts || []).map(a => `<option value="${a.account_id}">${a.email}</option>`).join('');
+                }
+            } catch (e) {
+                console.error('加载发件人账号失败:', e);
+            }
+        },
+
+        async loadGroups() {
+            try {
+                const res = await fetch('/api/group/list');
+                const data = await res.json();
+                const select = document.getElementById('taskGroups');
+                const tbody = document.getElementById('groupList');
+
+                // 更新任务创建的组选择
+                if (select) {
+                    select.innerHTML = (data.groups || []).map(g =>
+                        `<option value="${g.group_id}">${g.group_name} (${g.contact_count || 0}人)</option>`
+                    ).join('');
+                }
+
+                // 更新组列表
+                if (tbody) {
+                    if (!data.groups || data.groups.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">暂无联系人组</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = data.groups.map(g => `
+                        <tr>
+                            <td>${escapeHtml(g.group_name)}</td>
+                            <td>${g.contact_count || 0}</td>
+                            <td>${g.created_at || '-'}</td>
+                            <td>
+                                <button class="btn btn-sm" onclick="EmailTaskManager.previewGroup('${g.group_id}')">预览</button>
+                                <button class="btn btn-sm" style="background: #EF4444; color: white;" onclick="EmailTaskManager.deleteGroup('${g.group_id}')">删除</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (e) {
+                console.error('加载联系人组失败:', e);
+            }
+        },
+
+        async loadActiveTask() {
+            try {
+                const res = await fetch('/api/task/active');
+                const data = await res.json();
+                const section = document.getElementById('activeTaskSection');
+
+                if (!data.task) {
+                    section.style.display = 'none';
+                    this.activeTask = null;
+                    if (this.progressTimer) {
+                        clearInterval(this.progressTimer);
+                        this.progressTimer = null;
+                    }
+                    return;
+                }
+
+                this.activeTask = data.task;
+                section.style.display = 'block';
+
+                document.getElementById('activeTaskName').textContent = data.task.task_name || '-';
+                const statusEl = document.getElementById('activeTaskStatus');
+                statusEl.textContent = data.progress?.status || 'running';
+                statusEl.style.background = data.progress?.status === 'running' ? '#10B981' :
+                    data.progress?.status === 'completed' ? '#059669' : '#EF4444';
+                statusEl.style.color = 'white';
+
+                this.updateProgressUI(data.progress, data.stats);
+
+                // 启动定时刷新
+                if (!this.progressTimer && data.progress?.status === 'running') {
+                    this.progressTimer = setInterval(() => this.refreshActiveTask(), 5000);
+                }
+            } catch (e) {
+                console.error('加载活跃任务失败:', e);
+            }
+        },
+
+        updateProgressUI(progress, stats) {
+            if (!progress) return;
+            const total = progress.total_count || 0;
+            const sent = stats?.sent || progress.sent_count || 0;
+            const failed = stats?.failed || progress.failed_count || 0;
+            const percent = total > 0 ? Math.round((sent + failed) / total * 100) : 0;
+
+            document.getElementById('activeTaskProgress').style.width = percent + '%';
+            document.getElementById('activeTaskProgressText').textContent = `${sent + failed}/${total} (${percent}%)`;
+            document.getElementById('activeTaskStart').textContent = progress.started_at || '-';
+            document.getElementById('activeTaskSent').textContent = sent;
+            document.getElementById('activeTaskFailed').textContent = failed;
+
+            // 预计结束时间
+            if (sent > 0 && progress.started_at) {
+                const startTime = new Date(progress.started_at);
+                const elapsed = Date.now() - startTime.getTime();
+                const avgTime = elapsed / sent;
+                const remaining = (total - sent - failed) * avgTime;
+                const endTime = new Date(Date.now() + remaining);
+                document.getElementById('activeTaskEnd').textContent = endTime.toLocaleTimeString();
+            }
+        },
+
+        async refreshActiveTask() {
+            if (!this.activeTask) return;
+            try {
+                const res = await fetch(`/api/task/${this.activeTask.task_id}/progress`);
+                const data = await res.json();
+                this.updateProgressUI(data.progress, data.stats);
+
+                if (data.progress?.status !== 'running') {
+                    if (this.progressTimer) {
+                        clearInterval(this.progressTimer);
+                        this.progressTimer = null;
+                    }
+                    this.loadTaskHistory();
+                }
+            } catch (e) {
+                console.error('刷新进度失败:', e);
+            }
+        },
+
+        async createTask() {
+            const taskName = document.getElementById('taskName').value.trim();
+            const accountId = document.getElementById('taskAccount').value;
+            const groupSelect = document.getElementById('taskGroups');
+            const groupIds = Array.from(groupSelect.selectedOptions).map(o => o.value);
+            const subject = document.getElementById('taskSubject').value.trim();
+            // 获取HTML内容（现在是contenteditable div）
+            const bodyEl = document.getElementById('taskBody');
+            const body = bodyEl.innerHTML.trim();
+            const scheduleStart = document.getElementById('taskScheduleStart').value;
+            const scheduleEnd = document.getElementById('taskScheduleEnd').value;
+
+            if (!taskName) { alert('请输入任务名称'); return; }
+            if (!accountId) { alert('请选择发件人账号'); return; }
+            if (groupIds.length === 0) { alert('请选择至少一个联系人组'); return; }
+            if (!subject) { alert('请输入邮件主题'); return; }
+            if (!body) { alert('请输入邮件内容'); return; }
+
+            // 检查是否有正在进行的任务
+            try {
+                const checkRes = await fetch('/api/task/active');
+                const checkData = await checkRes.json();
+                if (checkData.task) {
+                    alert('已有任务正在进行，请等待完成或取消后再创建新任务');
+                    return;
+                }
+            } catch (e) {}
+
+            try {
+                const res = await fetch('/api/task/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        task_name: taskName,
+                        account_id: accountId,
+                        group_ids: groupIds,
+                        subject,
+                        body: body,
+                        schedule_start: scheduleStart,
+                        schedule_end: scheduleEnd
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('任务创建成功，开始发送！');
+                    // 清空表单
+                    document.getElementById('taskName').value = '';
+                    document.getElementById('taskSubject').value = '';
+                    document.getElementById('taskBody').value = '';
+                    this.loadActiveTask();
+                    this.loadTaskHistory();
+                } else {
+                    alert('创建失败: ' + data.message);
+                }
+            } catch (e) {
+                alert('创建出错');
+            }
+        },
+
+        async cancelTask() {
+            if (!this.activeTask) return;
+            if (!confirm('确定要取消当前任务？')) return;
+
+            try {
+                const res = await fetch('/api/task/cancel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task_id: this.activeTask.task_id })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('取消请求已发送');
+                    this.refreshActiveTask();
+                } else {
+                    alert('取消失败: ' + data.message);
+                }
+            } catch (e) {
+                alert('取消出错');
+            }
+        },
+
+        async showTaskLogs() {
+            if (!this.activeTask) return;
+            try {
+                const res = await fetch(`/api/task/${this.activeTask.task_id}/logs?page_size=50`);
+                const data = await res.json();
+                const logs = data.logs || [];
+                if (logs.length === 0) {
+                    alert('暂无发送日志');
+                    return;
+                }
+                // 显示日志窗口
+                let msg = '发送日志:\n\n';
+                logs.forEach(l => {
+                    msg += `${l.sent_at} | ${l.email} | ${l.status}${l.error_message ? ' | ' + l.error_message : ''}\n`;
+                });
+                alert(msg);
+            } catch (e) {
+                alert('加载日志出错');
+            }
+        },
+
+        async loadTaskHistory() {
+            try {
+                const res = await fetch('/api/task/list?page_size=20');
+                const data = await res.json();
+                const tbody = document.getElementById('taskHistoryList');
+
+                if (!data.tasks || data.tasks.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">暂无任务历史</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = data.tasks.map(t => `
+                    <tr>
+                        <td>${escapeHtml(t.task_name)}</td>
+                        <td>${t.account_email || '-'}</td>
+                        <td><span style="padding: 2px 6px; border-radius: 4px; font-size: 12px; background: ${t.status === 'completed' ? '#10B981' : t.status === 'running' ? '#3B82F6' : t.status === 'error' ? '#EF4444' : '#6B7280'}; color: white;">${t.status}</span></td>
+                        <td>${t.sent_count || 0}/${t.total_count || 0}</td>
+                        <td>${t.created_at || '-'}</td>
+                        <td>
+                            <button class="btn btn-sm" onclick="EmailTaskManager.viewTaskDetail('${t.task_id}')">详情</button>
+                            ${t.status === 'failed' || t.status === 'error' ? `<button class="btn btn-sm" onclick="EmailTaskManager.viewFailedLogs('${t.task_id}')">失败日志</button>` : ''}
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (e) {
+                console.error('加载任务历史失败:', e);
+            }
+        },
+
+        async viewTaskDetail(taskId) {
+            try {
+                const res = await fetch(`/api/task/${taskId}/progress`);
+                const data = await res.json();
+                alert(`任务详情:\n名称: ${data.progress?.task_name || '-'}\n状态: ${data.progress?.status || '-'}\n总数: ${data.progress?.total_count || 0}\n已发: ${data.stats?.sent || 0}\n失败: ${data.stats?.failed || 0}\n开始时间: ${data.progress?.started_at || '-'}`);
+            } catch (e) {
+                alert('获取详情出错');
+            }
+        },
+
+        async viewFailedLogs(taskId) {
+            try {
+                const res = await fetch(`/api/task/${taskId}/failed`);
+                const data = await res.json();
+                const failed = data.failed || [];
+                if (failed.length === 0) {
+                    alert('无失败记录');
+                    return;
+                }
+                let msg = '失败日志:\n\n';
+                failed.forEach(l => {
+                    msg += `${l.email} | ${l.error_message || '未知错误'}\n`;
+                });
+                alert(msg);
+            } catch (e) {
+                alert('获取失败日志出错');
+            }
+        },
+
+        // ==================== 联系人组管理 ====================
+        async addGroup() {
+            const name = document.getElementById('newGroupName').value.trim();
+            if (!name) { alert('请输入组名称'); return; }
+
+            try {
+                const res = await fetch('/api/group/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group_name: name })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('newGroupName').value = '';
+                    this.loadGroups();
+                } else {
+                    alert('添加失败: ' + data.message);
+                }
+            } catch (e) {
+                alert('添加出错');
+            }
+        },
+
+        async deleteGroup(groupId) {
+            if (!confirm('确定删除此联系人组？')) return;
+
+            try {
+                const res = await fetch('/api/group/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group_id: groupId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.loadGroups();
+                } else {
+                    alert('删除失败: ' + data.message);
+                }
+            } catch (e) {
+                alert('删除出错');
+            }
+        },
+
+        async previewGroup(groupId) {
+            try {
+                const res = await fetch(`/api/group/${groupId}/contacts?page_size=20`);
+                const data = await res.json();
+                const contacts = data.contacts || [];
+                if (contacts.length === 0) {
+                    alert('组内无联系人');
+                    return;
+                }
+                let msg = `联系人预览 (${data.total || contacts.length}人):\n\n`;
+                contacts.slice(0, 10).forEach(c => {
+                    msg += `${c.email} | ${c.company || '-'}\n`;
+                });
+                if (contacts.length > 10) msg += '...(更多请查看数据库)';
+                alert(msg);
+            } catch (e) {
+                alert('预览出错');
+            }
+        },
+
+        // ==================== 发件人账号管理 ====================
+        async addAccount() {
+            const email = document.getElementById('newAccountEmail').value.trim();
+            const password = document.getElementById('newAccountPassword').value.trim();
+            const smtpServer = document.getElementById('newAccountSmtp').value.trim() || 'smtp.163.com';
+            const dailyLimit = parseInt(document.getElementById('newAccountLimit').value) || 1800;
+
+            if (!email) { alert('请输入邮箱地址'); return; }
+            if (!password) { alert('请输入密码/授权码'); return; }
+
+            try {
+                const res = await fetch('/api/account/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password, smtp_server: smtpServer, daily_limit: dailyLimit })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('newAccountEmail').value = '';
+                    document.getElementById('newAccountPassword').value = '';
+                    document.getElementById('newAccountSmtp').value = '';
+                    this.loadAccounts();
+                    alert('添加成功');
+                } else {
+                    alert('添加失败: ' + data.message);
+                }
+            } catch (e) {
+                alert('添加出错');
+            }
+        },
+
+        async deleteAccount(accountId) {
+            if (!confirm('确定删除此发件人账号？')) return;
+
+            try {
+                const res = await fetch('/api/account/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ account_id: accountId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.loadAccounts();
+                } else {
+                    alert('删除失败: ' + data.message);
+                }
+            } catch (e) {
+                alert('删除出错');
+            }
+        },
+
+        async testAccount(accountId) {
+            const testEmail = prompt('请输入测试收件人邮箱:');
+            if (!testEmail) return;
+
+            try {
+                const res = await fetch('/api/account/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ account_id: accountId, to_email: testEmail })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('测试邮件已发送');
+                } else {
+                    alert('发送失败: ' + data.message);
+                }
+            } catch (e) {
+                alert('测试出错');
+            }
+        }
+    };
+
+    // EmailTaskEditor - 邮件编辑器辅助
+    const EmailTaskEditor = {
+        // 富文本编辑命令
+        execCmd(command, value = null) {
+            document.getElementById('taskBody').focus();
+            document.execCommand(command, false, value);
+        },
+
+        // 插入链接
+        insertLink() {
+            const url = prompt('请输入链接地址:', 'https://');
+            if (url && url !== 'https://') {
+                this.execCmd('createLink', url);
+            }
+        },
+
+        // 插入图片
+        insertImage() {
+            const url = prompt('请输入图片地址:', 'https://');
+            if (url && url !== 'https://') {
+                this.execCmd('insertImage', url);
+            }
+        },
+
+        insertPlaceholder(text) {
+            const editor = document.getElementById('taskBody');
+            editor.focus();
+            // 使用execCommand插入文本
+            document.execCommand('insertText', false, text);
+        },
+
+        async insertSignature() {
+            // 从邮件设置获取签名
+            try {
+                const response = await fetch('/api/mail/signature');
+                if (response.ok) {
+                    const data = await response.json();
+                    const signature = data.signature || '';
+                    if (signature) {
+                        const editor = document.getElementById('taskBody');
+                        editor.focus();
+                        // 在末尾插入签名
+                        const currentContent = editor.innerHTML;
+                        if (currentContent) {
+                            editor.innerHTML = currentContent + '<br><br>' + signature;
+                        } else {
+                            editor.innerHTML = signature;
+                        }
+                    } else {
+                        alert('未设置签名，请在邮件设置中先保存签名');
+                    }
+                }
+            } catch (e) {
+                alert('获取签名失败');
+            }
+        },
+
+        preview() {
+            const subject = document.getElementById('taskSubject').value;
+            const bodyHtml = document.getElementById('taskBody').innerHTML;
+            // 创建预览弹窗
+            const previewId = 'emailPreviewOverlay_' + Date.now();
+            const previewHtml = `
+                <div id="${previewId}" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; justify-content: center; align-items: center;">
+                    <div style="background: var(--card-bg); border-radius: 8px; padding: 20px; max-width: 600px; max-height: 80vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+                        <h3 style="margin: 0 0 15px 0; color: var(--text-main);">邮件预览</h3>
+                        <div style="border: 1px solid var(--border); padding: 15px; background: var(--bg-main); border-radius: 4px; margin-bottom: 15px;">
+                            <div style="font-weight: bold; margin-bottom: 10px; color: var(--text-main);">${subject.replace('{公司名}', '[公司名示例]')}</div>
+                            <div style="color: var(--text-main); line-height: 1.6;">${bodyHtml.replace('{公司名}', '[公司名示例]')}</div>
+                        </div>
+                        <button onclick="document.getElementById('${previewId}').remove()" style="padding: 8px 16px; border: none; border-radius: 4px; background: var(--primary); color: white; cursor: pointer;">关闭</button>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', previewHtml);
+        }
+    };
+
+    // ContactManager - 联系人管理对象
+    const ContactManager = {
+        currentPage: 1,
+        pageSize: 20,
+        selectedIds: new Set(),
+        countries: [],
+        stats: {},
+
+        // 打开联系人视图
+        open(e) {
+            if (e) e.preventDefault();
+            document.getElementById('mailList').style.display = 'none';
+            document.getElementById('pagination').style.display = 'none';
+            document.querySelector('.mail-list-header').style.display = 'none';
+            document.querySelector('.mail-toolbar').style.display = 'none';
+            document.getElementById('settingsView').style.display = 'none';
+            document.getElementById('emailTaskView').style.display = 'none';
+            document.getElementById('contactView').style.display = 'block';
+            this.loadCountries();
+            this.loadStats();
+            this.load();
+        },
+
+        // 关闭联系人视图
+        close() {
+            document.getElementById('contactView').style.display = 'none';
+            document.getElementById('mailList').style.display = 'block';
+            document.getElementById('pagination').style.display = 'flex';
+            document.querySelector('.mail-list-header').style.display = 'flex';
+            document.querySelector('.mail-toolbar').style.display = 'flex';
+        },
+
+        // Tab切换
+        toggleTab(tab) {
+            if (tab === 'contacts') {
+                document.getElementById('tabContacts').className = 'btn btn-primary btn-sm';
+                document.getElementById('tabProspects').className = 'btn btn-ghost btn-sm';
+                document.getElementById('contactsTabContent').style.display = 'block';
+                document.getElementById('prospectsTabContent').style.display = 'none';
+                document.getElementById('contactsTabActions').style.display = 'flex';
+                document.getElementById('prospectsTabActions').style.display = 'none';
+            } else {
+                ProspectManager.toggleTab(tab);
+            }
+        },
+
+        // 加载国家列表
+        async loadCountries() {
+            try {
+                const res = await fetch('/api/contact/countries');
+                const data = await res.json();
+                this.countries = data.countries || [];
+                const select = document.getElementById('contactCountry');
+                select.innerHTML = '<option value="">全部国家</option>' +
+                    this.countries.map(c => `<option value="${c}">${c}</option>`).join('');
+            } catch (e) {
+                console.error('加载国家失败:', e);
+            }
+        },
+
+        // 加载统计数据
+        async loadStats() {
+            try {
+                const res = await fetch('/api/contact/stats');
+                const data = await res.json();
+                this.stats = data;
+                document.getElementById('contactTotalCount').textContent = data.total_contacts || 0;
+                document.getElementById('contactTotalSent').textContent = data.total_sent || 0;
+                document.getElementById('contactBounceRate').textContent = (data.bounce_rate || 0) + '%';
+                document.getElementById('contactReadRate').textContent = (data.read_rate || 0) + '%';
+            } catch (e) {
+                console.error('加载统计失败:', e);
+            }
+        },
+
+        // 加载联系人列表
+        async load(page = 1) {
+            this.currentPage = page;
+            this.pageSize = parseInt(document.getElementById('contactPageSize').value) || 20;
+            const params = new URLSearchParams({
+                page,
+                page_size: this.pageSize,
+                ...(document.getElementById('contactSearch').value && { search: document.getElementById('contactSearch').value }),
+                ...(document.getElementById('contactCountry').value && { country: document.getElementById('contactCountry').value }),
+                ...(document.getElementById('contactBounced').value && { is_bounced: document.getElementById('contactBounced').value }),
+                ...(document.getElementById('contactContacted').value && { is_contacted: document.getElementById('contactContacted').value }),
+                ...(document.getElementById('contactInquiry').value && { has_inquiry: document.getElementById('contactInquiry').value }),
+                ...(document.getElementById('contactOrder').value && { has_order: document.getElementById('contactOrder').value })
+            });
+
+            try {
+                const res = await fetch(`/api/contact/list?${params}`);
+                const data = await res.json();
+                this.renderList(data.items);
+                this.renderPagination(data.total);
+            } catch (e) {
+                console.error('加载联系人失败:', e);
+            }
+        },
+
+        // 渲染列表
+        renderList(items) {
+            const tbody = document.getElementById('contactListBody');
+            if (!items || items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: var(--text-muted);">暂无数据</td></tr>';
+                return;
+            }
+            tbody.innerHTML = items.map(item => `
+                <tr>
+                    <td><input type="checkbox" class="contact-cb" data-id="${item.contact_id}" ${this.selectedIds.has(item.contact_id) ? 'checked' : ''} onchange="ContactManager.toggleSelect(this)"></td>
+                    <td><a href="mailto:${item.email}" style="color: var(--primary);">${item.email}</a></td>
+                    <td>${item.contact_name || '-'}</td>
+                    <td>${item.company || item.domain || '-'}</td>
+                    <td>${item.country || '-'}</td>
+                    <td>${item.cli_name ? `<a href="/cli?search=${item.cli_name}" style="color: var(--primary);">${item.cli_name}</a>` : '-'}</td>
+                    <td>${item.send_count || 0}</td>
+                    <td>${item.is_bounced == 1 ? `<span style="background: #FEE2E2; color: #B91C1C; padding: 2px 6px; border-radius: 4px; font-size: 12px;">${item.bounce_count || 0}</span>` : (item.bounce_count || 0)}</td>
+                    <td>${item.is_read == 1 ? `<span style="background: #D1FAE5; color: #047857; padding: 2px 6px; border-radius: 4px; font-size: 12px;">已读</span>` : '-'}</td>
+                    <td>${item.is_contacted == 1 ? '已联系' : '未联系'}</td>
+                    <td>
+                        <button class="btn btn-ghost btn-sm" onclick="ContactManager.edit('${item.contact_id}')">编辑</button>
+                        <button class="btn btn-danger btn-sm" onclick="ContactManager.delete('${item.contact_id}')">删除</button>
+                    </td>
+                </tr>
+            `).join('');
+            this.updateSelectedCount();
+        },
+
+        // 分页渲染
+        renderPagination(total) {
+            const totalPages = Math.ceil(total / this.pageSize);
+            const div = document.getElementById('contactPagination');
+            if (totalPages <= 1) {
+                div.innerHTML = `<span style="font-size: 12px; color: var(--text-muted);">共 ${total} 条</span>`;
+                return;
+            }
+            let html = `<span style="font-size: 12px; color: var(--text-muted);">共 ${total} 条</span>`;
+            if (this.currentPage > 1) html += `<button class="btn btn-sm" onclick="ContactManager.load(${this.currentPage - 1})">上一页</button>`;
+            for (let i = Math.max(1, this.currentPage - 2); i <= Math.min(totalPages, this.currentPage + 2); i++) {
+                html += `<button class="btn btn-sm ${i === this.currentPage ? 'btn-primary' : ''}" onclick="ContactManager.load(${i})">${i}</button>`;
+            }
+            if (this.currentPage < totalPages) html += `<button class="btn btn-sm" onclick="ContactManager.load(${this.currentPage + 1})">下一页</button>`;
+            div.innerHTML = html;
+        },
+
+        // 选择相关
+        toggleSelect(cb) {
+            if (cb.checked) this.selectedIds.add(cb.dataset.id);
+            else this.selectedIds.delete(cb.dataset.id);
+            this.updateSelectedCount();
+        },
+
+        toggleSelectAll(masterCb) {
+            const cbs = document.querySelectorAll('.contact-cb');
+            cbs.forEach(cb => {
+                cb.checked = masterCb.checked;
+                if (masterCb.checked) this.selectedIds.add(cb.dataset.id);
+                else this.selectedIds.delete(cb.dataset.id);
+            });
+            this.updateSelectedCount();
+        },
+
+        updateSelectedCount() {
+            document.getElementById('contactSelectedCount').textContent = this.selectedIds.size;
+        },
+
+        onSearchKey(e) {
+            if (e.key === 'Enter') this.load(1);
+        },
+
+        resetFilters() {
+            document.getElementById('contactSearch').value = '';
+            document.getElementById('contactCountry').value = '';
+            document.getElementById('contactBounced').value = '';
+            document.getElementById('contactContacted').value = '';
+            document.getElementById('contactInquiry').value = '';
+            document.getElementById('contactOrder').value = '';
+            this.load(1);
+        },
+
+        // 弹窗控制
+        toggleAddModal() {
+            const modal = document.getElementById('contactAddModal');
+            modal.style.display = modal.style.display === 'none' ? 'flex' : 'none';
+            if (modal.style.display === 'none') {
+                document.getElementById('contactAddForm').reset();
+            }
+        },
+
+        toggleEditModal() {
+            const modal = document.getElementById('contactEditModal');
+            modal.style.display = modal.style.display === 'none' ? 'flex' : 'none';
+        },
+
+        toggleImportModal() {
+            const modal = document.getElementById('contactImportModal');
+            modal.style.display = modal.style.display === 'none' ? 'flex' : 'none';
+            if (modal.style.display === 'none') {
+                document.getElementById('contactImportText').value = '';
+            }
+        },
+
+        // 新增联系人
+        async add() {
+            const form = document.getElementById('contactAddForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+
+            if (!data.email) {
+                alert('请填写邮箱');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/contact/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert('添加成功');
+                    this.toggleAddModal();
+                    this.load();
+                    this.loadStats();
+                } else {
+                    alert('添加失败：' + result.message);
+                }
+            } catch (e) {
+                alert('添加出错');
+            }
+        },
+
+        // 编辑联系人
+        async edit(contactId) {
+            try {
+                const res = await fetch(`/api/contact/list?page=1&page_size=1&contact_id=${contactId}`);
+                const data = await res.json();
+                if (data.items && data.items.length > 0) {
+                    const item = data.items[0];
+                    document.getElementById('editContactId').value = item.contact_id;
+                    document.getElementById('editContactEmail').value = item.email;
+                    document.getElementById('editContactName').value = item.contact_name || '';
+                    document.getElementById('editContactCompany').value = item.company || '';
+                    document.getElementById('editContactPosition').value = item.position || '';
+                    document.getElementById('editContactCountry').value = item.country || '';
+                    document.getElementById('editContactPhone').value = item.phone || '';
+                    document.getElementById('editContactRemark').value = item.remark || '';
+                    this.toggleEditModal();
+                }
+            } catch (e) {
+                alert('获取联系人信息失败');
+            }
+        },
+
+        // 更新联系人
+        async update() {
+            const form = document.getElementById('contactEditForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+
+            if (!data.email) {
+                alert('请填写邮箱');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/contact/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert('更新成功');
+                    this.toggleEditModal();
+                    this.load();
+                    this.loadStats();
+                } else {
+                    alert('更新失败：' + result.message);
+                }
+            } catch (e) {
+                alert('更新出错');
+            }
+        },
+
+        // 删除联系人
+        async delete(contactId) {
+            if (!confirm('确认删除该联系人？')) return;
+
+            try {
+                const res = await fetch('/api/contact/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contact_id: contactId })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert('删除成功');
+                    this.load();
+                    this.loadStats();
+                } else {
+                    alert('删除失败：' + result.message);
+                }
+            } catch (e) {
+                alert('删除出错');
+            }
+        },
+
+        // 批量删除
+        async batchDelete() {
+            if (this.selectedIds.size === 0) {
+                alert('请先选择联系人');
+                return;
+            }
+            if (!confirm(`确认删除选中的 ${this.selectedIds.size} 个联系人？`)) return;
+
+            try {
+                const res = await fetch('/api/contact/batch_delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contact_ids: Array.from(this.selectedIds) })
+                });
+                // 处理401未授权响应
+                if (res.status === 401) {
+                    alert('登录已过期，请重新登录');
+                    window.location.href = '/login';
+                    return;
+                }
+                const result = await res.json();
+                if (result.success) {
+                    alert('删除成功');
+                    this.selectedIds.clear();
+                    this.load();
+                    this.loadStats();
+                } else {
+                    alert('删除失败：' + (result.message || '未知错误'));
+                }
+            } catch (e) {
+                alert('删除出错');
+            }
+        },
+
+        // 导入联系人
+        async import() {
+            const text = document.getElementById('contactImportText').value;
+            if (!text.trim()) {
+                alert('请粘贴数据');
+                return;
+            }
+            const autoCreateCli = document.getElementById('contactAutoCreateCli').checked;
+
+            try {
+                const res = await fetch('/api/contact/import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data: text, auto_create_cli: autoCreateCli })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert(`导入成功：新增 ${result.imported}，跳过 ${result.skipped}`);
+                    this.toggleImportModal();
+                    this.load();
+                    this.loadStats();
+                    this.loadCountries();
+                } else {
+                    alert('导入失败：' + result.message);
+                }
+            } catch (e) {
+                alert('导入出错');
+            }
+        },
+
+        // 下载导入模板
+        async downloadTemplate() {
+            try {
+                const res = await fetch('/api/contact/template');
+                if (!res.ok) {
+                    const text = await res.text();
+                    alert('下载模板失败: ' + text);
+                    return;
+                }
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'contact_template.xlsx';
+                a.click();
+                window.URL.revokeObjectURL(url);
+            } catch (e) {
+                alert('下载模板失败');
+            }
+        },
+
+        // Excel文件上传导入
+        async importFile() {
+            const fileInput = document.getElementById('contactImportFile');
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('请选择文件');
+                return;
+            }
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const res = await fetch('/api/contact/import/file', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`导入完成：成功 ${data.imported}，跳过 ${data.skipped}`);
+                    this.toggleImportModal();
+                    this.loadStats();
+                    this.load(1);
+                    this.loadCountries();
+                } else {
+                    alert('导入失败: ' + data.message);
+                }
+            } catch (e) {
+                alert('导入出错');
+            }
+        }
+    };
+
+    // ProspectManager - 待开发客户管理对象
+    const ProspectManager = {
+        currentPage: 1,
+        pageSize: 20,
+        countries: [],
+        stats: {},
+        selectedIds: new Set(),
+
+        // Tab切换
+        toggleTab(tab) {
+            if (tab === 'contacts') {
+                document.getElementById('tabContacts').className = 'btn btn-primary btn-sm';
+                document.getElementById('tabProspects').className = 'btn btn-ghost btn-sm';
+                document.getElementById('contactsTabContent').style.display = 'block';
+                document.getElementById('prospectsTabContent').style.display = 'none';
+                document.getElementById('contactsTabActions').style.display = 'flex';
+                document.getElementById('prospectsTabActions').style.display = 'none';
+            } else {
+                document.getElementById('tabContacts').className = 'btn btn-ghost btn-sm';
+                document.getElementById('tabProspects').className = 'btn btn-primary btn-sm';
+                document.getElementById('contactsTabContent').style.display = 'none';
+                document.getElementById('prospectsTabContent').style.display = 'block';
+                document.getElementById('contactsTabActions').style.display = 'none';
+                document.getElementById('prospectsTabActions').style.display = 'flex';
+                this.loadCountries();
+                this.loadStats();
+                this.load();
+            }
+        },
+
+        // 加载国家列表
+        async loadCountries() {
+            try {
+                const res = await fetch('/api/prospect/countries');
+                const data = await res.json();
+                this.countries = data.countries || [];
+                const select = document.getElementById('prospectCountry');
+                select.innerHTML = '<option value="">全部国家</option>' +
+                    this.countries.map(c => `<option value="${c}">${c}</option>`).join('');
+            } catch (e) {
+                console.error('加载国家失败:', e);
+            }
+        },
+
+        // 加载统计数据
+        async loadStats() {
+            try {
+                const res = await fetch('/api/prospect/stats');
+                const data = await res.json();
+                this.stats = data;
+                document.getElementById('prospectTotalCount').textContent = data.total || 0;
+                document.getElementById('prospectPendingCount').textContent = data.pending || 0;
+                document.getElementById('prospectConvertedCount').textContent = data.converted || 0;
+            } catch (e) {
+                console.error('加载统计失败:', e);
+            }
+        },
+
+        // 加载列表
+        async load(page = 1) {
+            this.currentPage = page;
+            this.pageSize = parseInt(document.getElementById('prospectPageSize').value) || 20;
+            this.selectedIds.clear();
+            this.updateBatchDeleteBtn();
+            const params = new URLSearchParams({
+                page: this.currentPage,
+                page_size: this.pageSize,
+                country: document.getElementById('prospectCountry').value,
+                status: document.getElementById('prospectStatus').value,
+                search: document.getElementById('prospectSearch').value
+            });
+
+            try {
+                const res = await fetch(`/api/prospect/list?${params}`);
+                const data = await res.json();
+                this.renderList(data.prospects || []);
+                this.renderPagination(data.total || 0);
+            } catch (e) {
+                console.error('加载列表失败:', e);
+            }
+        },
+
+        // 渲染列表
+        renderList(prospects) {
+            const tbody = document.getElementById('prospectListBody');
+            if (!prospects || prospects.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-muted);">无数据</td></tr>';
+                return;
+            }
+            tbody.innerHTML = prospects.map(p => `
+                <tr>
+                    <td><input type="checkbox" class="prospect-checkbox" data-id="${p.prospect_id}" onchange="ProspectManager.toggleSelect('${p.prospect_id}')"></td>
+                    <td style="color: var(--primary);">${p.prospect_name || '-'}</td>
+                    <td><a href="${p.company_website || '#'}" target="_blank" style="color: var(--text-muted);">${p.company_website || '-'}</a></td>
+                    <td style="font-size: 12px; color: var(--text-muted);">${p.domain || '-'}</td>
+                    <td>${p.country || '-'}</td>
+                    <td><span style="font-size: 12px; color: ${p.contact_count > 0 ? 'var(--primary)' : 'var(--text-muted)'};">${p.contact_count || 0}</span></td>
+                    <td>
+                        <span style="padding: 2px 8px; border-radius: 4px; font-size: 12px; background: ${p.status === 'converted' ? '#22C55E20' : '#F59E0B20'}; color: ${p.status === 'converted' ? '#22C55E' : '#F59E0B'};">
+                            ${p.status === 'converted' ? '已转化' : '待转化'}
+                        </span>
+                        ${p.cli_name ? `<br><span style="font-size: 11px; color: var(--text-muted);">${p.cli_name}</span>` : ''}
+                    </td>
+                    <td>
+                        ${p.status === 'pending' ? `<button class="btn btn-sm btn-primary" onclick="ProspectManager.convert('${p.prospect_id}')">转化</button>` : ''}
+                        <button class="btn btn-sm btn-ghost" onclick="ProspectManager.viewDetails('${p.prospect_id}')">详情</button>
+                        <button class="btn btn-sm btn-ghost" onclick="ProspectManager.delete('${p.prospect_id}')">删除</button>
+                    </td>
+                </tr>
+            `).join('');
+        },
+
+        // 分页渲染
+        renderPagination(total) {
+            const totalPages = Math.ceil(total / this.pageSize);
+            const div = document.getElementById('prospectPagination');
+            if (totalPages <= 1) {
+                div.innerHTML = `<span style="font-size: 12px; color: var(--text-muted);">共 ${total} 条</span>`;
+                return;
+            }
+            let html = `<span style="font-size: 12px; color: var(--text-muted);">共 ${total} 条</span>`;
+            if (this.currentPage > 1) html += `<button class="btn btn-sm" onclick="ProspectManager.load(${this.currentPage - 1})">上一页</button>`;
+            for (let i = Math.max(1, this.currentPage - 2); i <= Math.min(totalPages, this.currentPage + 2); i++) {
+                html += `<button class="btn btn-sm ${i === this.currentPage ? 'btn-primary' : ''}" onclick="ProspectManager.load(${i})">${i}</button>`;
+            }
+            if (this.currentPage < totalPages) html += `<button class="btn btn-sm" onclick="ProspectManager.load(${this.currentPage + 1})">下一页</button>`;
+            div.innerHTML = html;
+        },
+
+        // 搜索
+        onSearchKey(e) {
+            if (e.key === 'Enter') this.load(1);
+        },
+
+        // 重置筛选
+        resetFilters() {
+            document.getElementById('prospectSearch').value = '';
+            document.getElementById('prospectCountry').value = '';
+            document.getElementById('prospectStatus').value = '';
+            this.load(1);
+        },
+
+        // 转化为CLI
+        async convert(prospectId) {
+            if (!confirm('确认将此Prospect转化为客户？')) return;
+            try {
+                const res = await fetch('/api/prospect/convert', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prospect_id: prospectId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('转化成功: ' + data.message);
+                    this.loadStats();
+                    this.load(this.currentPage);
+                } else {
+                    alert('转化失败: ' + data.message);
+                }
+            } catch (e) {
+                alert('转化出错');
+            }
+        },
+
+        // 查看详情
+        async viewDetails(prospectId) {
+            try {
+                const res = await fetch(`/api/prospect/${prospectId}`);
+                const data = await res.json();
+                if (data.success) {
+                    alert(`客户名称: ${data.prospect.prospect_name}\n域名: ${data.prospect.domain}\n网站: ${data.prospect.company_website}\n国家: ${data.prospect.country}\n状态: ${data.prospect.status}\n关联联系人: ${data.prospect.contact_count}`);
+                }
+            } catch (e) {
+                console.error('获取详情失败:', e);
+            }
+        },
+
+        // 新增弹窗
+        toggleAddModal() {
+            const modal = document.getElementById('prospectAddModal');
+            modal.style.display = modal.style.display === 'none' ? 'flex' : 'none';
+            if (modal.style.display === 'none') {
+                document.getElementById('prospectAddForm').reset();
+            }
+        },
+
+        // 新增客户
+        async add() {
+            const form = document.getElementById('prospectAddForm');
+            const formData = new FormData(form);
+            const data = {
+                prospect_name: formData.get('prospect_name'),
+                company_website: formData.get('company_website'),
+                domain: formData.get('domain'),
+                country: formData.get('country'),
+                remark: formData.get('remark')
+            };
+
+            if (!data.prospect_name || !data.domain) {
+                alert('客户名称和域名必填');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/prospect/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert('添加成功');
+                    this.toggleAddModal();
+                    this.load();
+                    this.loadStats();
+                } else {
+                    alert('添加失败：' + result.message);
+                }
+            } catch (e) {
+                alert('添加出错');
+            }
+        },
+
+        // 导入弹窗
+        toggleImportModal() {
+            const modal = document.getElementById('prospectImportModal');
+            modal.style.display = modal.style.display === 'none' ? 'flex' : 'none';
+            if (modal.style.display === 'none') {
+                document.getElementById('prospectImportFile').value = '';
+                document.getElementById('prospectImportText').value = '';
+            }
+        },
+
+        // 文件上传导入
+        async importFile() {
+            const fileInput = document.getElementById('prospectImportFile');
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('请选择文件');
+                return;
+            }
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const res = await fetch('/api/prospect/import', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`导入完成：成功 ${data.imported}，跳过 ${data.skipped}`);
+                    this.toggleImportModal();
+                    this.loadStats();
+                    this.load(1);
+                } else {
+                    alert('导入失败: ' + data.message);
+                }
+            } catch (e) {
+                alert('导入出错');
+            }
+        },
+
+        // 文本导入
+        async importText() {
+            const text = document.getElementById('prospectImportText').value.trim();
+            if (!text) {
+                alert('请输入数据');
+                return;
+            }
+            // 解析文本：每行一条，格式：客户名称,公司网站,域名,国家,备注
+            // 支持逗号分隔或制表符分隔
+            const lines = text.split('\n').filter(l => l.trim());
+            const data_list = lines.map(line => {
+                // 先尝试制表符分隔，如果没有制表符则用逗号分隔
+                let parts;
+                if (line.includes('\t')) {
+                    parts = line.split('\t').map(p => p.trim());
+                } else {
+                    parts = line.split(',').map(p => p.trim());
+                }
+                return {
+                    prospect_name: parts[0] || '',
+                    company_website: parts[1] || '',
+                    domain: parts[2] || '',
+                    country: parts[3] || '',
+                    remark: parts[4] || ''
+                };
+            });
+
+            try {
+                const res = await fetch('/api/prospect/import/text', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data_list })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`导入完成：成功 ${data.imported}，跳过 ${data.skipped}`);
+                    this.toggleImportModal();
+                    this.loadStats();
+                    this.load(1);
+                } else {
+                    alert('导入失败: ' + data.message);
+                }
+            } catch (e) {
+                alert('导入出错');
+            }
+        },
+
+        // 下载模板
+        async downloadTemplate() {
+            try {
+                const res = await fetch('/api/prospect/template');
+                if (!res.ok) {
+                    const text = await res.text();
+                    alert('下载模板失败: ' + text);
+                    return;
+                }
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'prospect_template.xlsx';
+                a.click();
+                window.URL.revokeObjectURL(url);
+            } catch (e) {
+                alert('下载模板失败');
+            }
+        },
+
+        // 选择/取消选择
+        toggleSelect(prospectId) {
+            if (this.selectedIds.has(prospectId)) {
+                this.selectedIds.delete(prospectId);
+            } else {
+                this.selectedIds.add(prospectId);
+            }
+            this.updateBatchDeleteBtn();
+            this.updateSelectAllCheckbox();
+        },
+
+        // 全选/取消全选
+        toggleSelectAll() {
+            const checkbox = document.getElementById('prospectSelectAll');
+            const checkboxes = document.querySelectorAll('.prospect-checkbox');
+            if (checkbox.checked) {
+                checkboxes.forEach(cb => {
+                    const id = cb.dataset.id;
+                    if (!this.selectedIds.has(id)) {
+                        this.selectedIds.add(id);
+                    }
+                    cb.checked = true;
+                });
+            } else {
+                checkboxes.forEach(cb => {
+                    const id = cb.dataset.id;
+                    this.selectedIds.delete(id);
+                    cb.checked = false;
+                });
+            }
+            this.updateBatchDeleteBtn();
+        },
+
+        // 更新全选复选框状态
+        updateSelectAllCheckbox() {
+            const checkbox = document.getElementById('prospectSelectAll');
+            const checkboxes = document.querySelectorAll('.prospect-checkbox');
+            if (checkboxes.length === 0) {
+                checkbox.checked = false;
+                return;
+            }
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            checkbox.checked = allChecked;
+        },
+
+        // 更新批量删除按钮状态
+        updateBatchDeleteBtn() {
+            const btn = document.getElementById('prospectBatchDeleteBtn');
+            if (btn) {
+                btn.style.display = this.selectedIds.size > 0 ? 'inline-block' : 'none';
+            }
+        },
+
+        // 删除单个
+        async delete(prospectId) {
+            if (!confirm('确认删除此Prospect？')) return;
+            try {
+                const res = await fetch('/api/prospect/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prospect_id: prospectId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.selectedIds.delete(prospectId);
+                    this.updateBatchDeleteBtn();
+                    this.loadStats();
+                    this.load(this.currentPage);
+                } else {
+                    alert('删除失败: ' + data.message);
+                }
+            } catch (e) {
+                alert('删除出错');
+            }
+        },
+
+        // 批量删除
+        async batchDelete() {
+            if (this.selectedIds.size === 0) {
+                alert('请先选择要删除的记录');
+                return;
+            }
+            if (!confirm(`确认删除选中的 ${this.selectedIds.size} 条记录？`)) return;
+            try {
+                const res = await fetch('/api/prospect/batch_delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prospect_ids: Array.from(this.selectedIds) })
+                });
+                // 处理401未授权响应
+                if (res.status === 401) {
+                    alert('登录已过期，请重新登录');
+                    window.location.href = '/login';
+                    return;
+                }
+                const data = await res.json();
+                if (data.success) {
+                    alert(data.message);
+                    this.selectedIds.clear();
+                    this.updateBatchDeleteBtn();
+                    this.loadStats();
+                    this.load(this.currentPage);
+                } else {
+                    alert('批量删除失败: ' + (data.message || '未知错误'));
+                }
+            } catch (e) {
+                alert('批量删除出错');
+            }
+        }
+    };
 </script>
 
 <!-- 开发信发送弹窗 -->
@@ -5444,6 +7229,231 @@
         <div class="modal-footer">
             <button class="btn btn-ghost" onclick="closeMarketingModal()">取消</button>
             <button class="btn btn-primary" onclick="sendMarketingEmails()">发送</button>
+        </div>
+    </div>
+</div>
+
+<!-- 新增联系人弹窗 -->
+<div class="modal" id="contactAddModal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>新增联系人</h3>
+            <button class="modal-close" onclick="ContactManager.toggleAddModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="contactAddForm">
+                <div style="display: flex; gap: 1rem; margin-bottom: 0.5rem;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">邮箱 *</label>
+                        <input type="email" name="email" required placeholder="example@company.com" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">姓名</label>
+                        <input type="text" name="contact_name" placeholder="联系人姓名" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 1rem; margin-bottom: 0.5rem;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">公司</label>
+                        <input type="text" name="company" placeholder="公司名称" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">职位</label>
+                        <input type="text" name="position" placeholder="职位" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 1rem; margin-bottom: 0.5rem;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">国家</label>
+                        <input type="text" name="country" placeholder="国家" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">电话</label>
+                        <input type="text" name="phone" placeholder="电话" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                    </div>
+                </div>
+                <div style="margin-bottom: 0.5rem;">
+                    <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">备注</label>
+                    <textarea name="remark" rows="2" placeholder="备注信息" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); resize: vertical;"></textarea>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="ContactManager.toggleAddModal()">取消</button>
+            <button class="btn btn-primary" onclick="ContactManager.add()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑联系人弹窗 -->
+<div class="modal" id="contactEditModal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>编辑联系人</h3>
+            <button class="modal-close" onclick="ContactManager.toggleEditModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="contactEditForm">
+                <input type="hidden" name="contact_id" id="editContactId">
+                <div style="display: flex; gap: 1rem; margin-bottom: 0.5rem;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">邮箱 *</label>
+                        <input type="email" name="email" id="editContactEmail" required style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">姓名</label>
+                        <input type="text" name="contact_name" id="editContactName" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 1rem; margin-bottom: 0.5rem;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">公司</label>
+                        <input type="text" name="company" id="editContactCompany" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">职位</label>
+                        <input type="text" name="position" id="editContactPosition" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 1rem; margin-bottom: 0.5rem;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">国家</label>
+                        <input type="text" name="country" id="editContactCountry" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">电话</label>
+                        <input type="text" name="phone" id="editContactPhone" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                    </div>
+                </div>
+                <div style="margin-bottom: 0.5rem;">
+                    <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">备注</label>
+                    <textarea name="remark" id="editContactRemark" rows="2" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); resize: vertical;"></textarea>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="ContactManager.toggleEditModal()">取消</button>
+            <button class="btn btn-primary" onclick="ContactManager.update()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- 联系人批量导入弹窗 -->
+<div id="contactImportModal" class="modal-overlay" style="display: none;">
+    <div class="card" style="width: 90%; max-width: 600px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0;">批量导入联系人</h3>
+            <button class="btn btn-ghost btn-sm" onclick="ContactManager.toggleImportModal()">关闭</button>
+        </div>
+        <!-- 方式一：上传Excel文件 -->
+        <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-main); border-radius: var(--radius);">
+            <p style="margin-top: 0; margin-bottom: 0.5rem; font-weight: 500;">方式一：上传 Excel 文件 (推荐)</p>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+                1. 点击这里 <a href="javascript:void(0)" onclick="ContactManager.downloadTemplate()"
+                    style="color: var(--primary); font-weight: 600;">下载 Excel 标准模板</a><br>
+                2. 在 Excel 中用该模板录入数据并保存<br>
+                3. 上传保存的模板文件
+            </p>
+            <div style="display: flex; gap: 1rem; align-items: center;">
+                <input type="file" id="contactImportFile" accept=".xlsx,.xls" required
+                    style="flex: 1; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card-bg); color: var(--text-main);">
+                <button class="btn btn-primary" onclick="ContactManager.importFile()">上传并导入</button>
+            </div>
+        </div>
+        <!-- 方式二：粘贴文本导入 -->
+        <div style="padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius);">
+            <p style="margin-top: 0; margin-bottom: 0.5rem; font-weight: 500;">方式二：粘贴文本导入</p>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+                格式：域名,邮箱,姓名,职位,备注<br>
+                (注: 域名和邮箱必填，邮箱相同的记录会被跳过)
+            </p>
+            <textarea id="contactImportText" rows="8" placeholder="粘贴数据到此处..."
+                style="width: 100%; border: 1px solid var(--border); border-radius: var(--radius); padding: 0.5rem; margin-bottom: 1rem; font-family: monospace; background: var(--bg-main); color: var(--text-main);"></textarea>
+            <div style="margin-bottom: 1rem;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem;">
+                    <input type="checkbox" id="contactAutoCreateCli">
+                    自动创建不存在的客户（根据邮箱域名）
+                </label>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+                <button class="btn btn-ghost" onclick="ContactManager.toggleImportModal()">取消</button>
+                <button class="btn btn-primary" onclick="ContactManager.import()">文本导入</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Prospect新增弹窗 -->
+<div id="prospectAddModal" class="modal-overlay" style="display: none;">
+    <div class="card" style="width: 90%; max-width: 500px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0;">新增待开发客户</h3>
+            <button class="btn btn-ghost btn-sm" onclick="ProspectManager.toggleAddModal()">关闭</button>
+        </div>
+        <form id="prospectAddForm">
+            <div style="margin-bottom: 1rem;">
+                <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">客户名称 *</label>
+                <input type="text" name="prospect_name" required placeholder="客户名称" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">域名 *</label>
+                <input type="text" name="domain" required placeholder="example.com" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">公司网站</label>
+                <input type="text" name="company_website" placeholder="https://example.com" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">国家</label>
+                <input type="text" name="country" placeholder="中国" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">备注</label>
+                <textarea name="remark" rows="2" placeholder="备注信息" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); resize: vertical;"></textarea>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+                <button class="btn btn-ghost" onclick="ProspectManager.toggleAddModal()">取消</button>
+                <button class="btn btn-primary" onclick="ProspectManager.add()">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Prospect批量导入弹窗 -->
+<div id="prospectImportModal" class="modal-overlay" style="display: none;">
+    <div class="card" style="width: 90%; max-width: 600px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0;">批量导入待开发客户</h3>
+            <button class="btn btn-ghost btn-sm" onclick="ProspectManager.toggleImportModal()">关闭</button>
+        </div>
+        <!-- 方式一：上传Excel文件 -->
+        <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-main); border-radius: var(--radius);">
+            <p style="margin-top: 0; margin-bottom: 0.5rem; font-weight: 500;">方式一：上传 Excel 文件 (推荐)</p>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+                1. 点击这里 <a href="javascript:void(0)" onclick="ProspectManager.downloadTemplate()"
+                    style="color: var(--primary); font-weight: 600;">下载 Excel 标准模板</a><br>
+                2. 在 Excel 中用该模板录入数据并保存<br>
+                3. 上传保存的模板文件
+            </p>
+            <div style="display: flex; gap: 1rem; align-items: center;">
+                <input type="file" id="prospectImportFile" accept=".xlsx,.xls" required
+                    style="flex: 1; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card-bg); color: var(--text-main);">
+                <button class="btn btn-primary" onclick="ProspectManager.importFile()">上传并导入</button>
+            </div>
+        </div>
+        <!-- 方式二：粘贴文本导入 -->
+        <div style="padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius);">
+            <p style="margin-top: 0; margin-bottom: 0.5rem; font-weight: 500;">方式二：粘贴文本导入</p>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+                格式要求与模板一致：<br>客户名称,公司网站,域名,国家,备注<br>
+                (注: 域名必填，域名相同的记录会被跳过)
+            </p>
+            <textarea id="prospectImportText" rows="8" placeholder="粘贴数据到此处..."
+                style="width: 100%; border: 1px solid var(--border); border-radius: var(--radius); padding: 0.5rem; margin-bottom: 1rem; font-family: monospace; background: var(--bg-main); color: var(--text-main);"></textarea>
+            <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+                <button class="btn btn-ghost" onclick="ProspectManager.toggleImportModal()">取消</button>
+                <button class="btn btn-primary" onclick="ProspectManager.importText()">文本导入</button>
+            </div>
         </div>
     </div>
 </div>
