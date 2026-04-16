@@ -139,7 +139,7 @@ def count_contacts_by_criteria(criteria):
     """根据筛选条件统计联系人数量
 
     Args:
-        criteria: dict {country, domain, cli_id, send_status, read_status, send_count, last_sent_days, has_cli}
+        criteria: dict {country, countries, domain, cli_id, send_status, read_status, bounce_status, send_count, last_sent_days, has_cli}
 
     Returns:
         int 符合条件的联系人数
@@ -160,9 +160,34 @@ def count_contacts_by_criteria(criteria):
     if criteria.get('has_cli'):
         where_clauses.append("cli_id IS NOT NULL AND cli_id != ''")
 
-    if criteria.get('country'):
-        where_clauses.append("country = ?")
-        params.append(criteria['country'])
+    # 国家筛选（支持单选和多选）
+    # 国家筛选需要通过 uni_prospect 表关联，因为 uni_contact.country 都是空的
+    country_filter = None
+    if criteria.get('countries'):
+        countries_list = criteria['countries']
+        if isinstance(countries_list, list) and len(countries_list) > 0:
+            country_filter = countries_list
+    elif criteria.get('country'):
+        country_filter = [criteria['country']]
+
+    if country_filter:
+        # 先从 uni_prospect 查找该国家对应的 domain
+        with get_db_connection() as conn:
+            placeholders = ','.join(['?' for _ in country_filter])
+            domains = conn.execute(
+                f"SELECT DISTINCT domain FROM uni_prospect WHERE country IN ({placeholders}) AND domain IS NOT NULL AND domain != ''",
+                country_filter
+            ).fetchall()
+            domain_list = [d[0] for d in domains if d[0]]
+
+        if domain_list:
+            # 再从 uni_contact 查找匹配这些 domain 的联系人
+            placeholders = ','.join(['?' for _ in domain_list])
+            where_clauses.append(f"domain IN ({placeholders})")
+            params.extend(domain_list)
+        else:
+            # 该国家没有对应的 domain，返回 0
+            return 0
 
     if criteria.get('domain'):
         where_clauses.append("domain LIKE ?")
@@ -179,6 +204,11 @@ def count_contacts_by_criteria(criteria):
     if criteria.get('read_status') is not None:
         where_clauses.append("is_read = ?")
         params.append(criteria['read_status'])
+
+    # 退信状态
+    if criteria.get('bounce_status') is not None:
+        where_clauses.append("is_bounced = ?")
+        params.append(criteria['bounce_status'])
 
     # 发送次数范围
     send_count_range = criteria.get('send_count')
@@ -221,66 +251,101 @@ def get_group_contacts(group_id, page=1, page_size=100):
     criteria = json.loads(group.get('filter_criteria', '{}') or '{}')
 
     offset = (page - 1) * page_size
-    where_clauses = ["email IS NOT NULL AND email != ''"]
+    where_clauses = ["c.email IS NOT NULL AND c.email != ''"]
     params = []
 
     # 特定客户筛选（优先级最高）
     if criteria.get('cli_id'):
-        where_clauses.append("cli_id = ?")
+        where_clauses.append("c.cli_id = ?")
         params.append(criteria['cli_id'])
 
     # 是否关联客户（勾选）
     if criteria.get('has_cli'):
-        where_clauses.append("cli_id IS NOT NULL AND cli_id != ''")
+        where_clauses.append("c.cli_id IS NOT NULL AND c.cli_id != ''")
 
-    if criteria.get('country'):
-        where_clauses.append("country = ?")
-        params.append(criteria['country'])
+    # 国家筛选（支持单选和多选）
+    # 国家筛选需要通过 uni_prospect 表关联，因为 uni_contact.country 都是空的
+    country_filter = None
+    if criteria.get('countries'):
+        countries_list = criteria['countries']
+        if isinstance(countries_list, list) and len(countries_list) > 0:
+            country_filter = countries_list
+    elif criteria.get('country'):
+        country_filter = [criteria['country']]
+
+    if country_filter:
+        # 先从 uni_prospect 查找该国家对应的 domain
+        with get_db_connection() as conn:
+            placeholders = ','.join(['?' for _ in country_filter])
+            domains = conn.execute(
+                f"SELECT DISTINCT domain FROM uni_prospect WHERE country IN ({placeholders}) AND domain IS NOT NULL AND domain != ''",
+                country_filter
+            ).fetchall()
+            domain_list = [d[0] for d in domains if d[0]]
+
+        if domain_list:
+            # 再从 uni_contact 查找匹配这些 domain 的联系人
+            placeholders = ','.join(['?' for _ in domain_list])
+            where_clauses.append(f"c.domain IN ({placeholders})")
+            params.extend(domain_list)
+        else:
+            # 该国家没有对应的 domain，返回空结果
+            return [], 0
 
     if criteria.get('domain'):
-        where_clauses.append("domain LIKE ?")
+        where_clauses.append("c.domain LIKE ?")
         params.append(f"%{criteria['domain']}%")
 
     # 发送状态
     if criteria.get('send_status') is not None:
         if criteria['send_status'] == 0:
-            where_clauses.append("send_count = 0")
+            where_clauses.append("c.send_count = 0")
         else:
-            where_clauses.append("send_count > 0")
+            where_clauses.append("c.send_count > 0")
 
     # 已读状态
     if criteria.get('read_status') is not None:
-        where_clauses.append("is_read = ?")
+        where_clauses.append("c.is_read = ?")
         params.append(criteria['read_status'])
+
+    # 退信状态
+    if criteria.get('bounce_status') is not None:
+        where_clauses.append("c.is_bounced = ?")
+        params.append(criteria['bounce_status'])
 
     # 发送次数范围
     send_count_range = criteria.get('send_count')
     if send_count_range:
         if send_count_range == '0':
-            where_clauses.append("send_count = 0")
+            where_clauses.append("c.send_count = 0")
         elif send_count_range == '1-3':
-            where_clauses.append("send_count BETWEEN 1 AND 3")
+            where_clauses.append("c.send_count BETWEEN 1 AND 3")
         elif send_count_range == '4+':
-            where_clauses.append("send_count >= 4")
+            where_clauses.append("c.send_count >= 4")
 
     # 最后联系时间
     last_sent_days = criteria.get('last_sent_days')
     if last_sent_days:
         where_clauses.append(
-            "(last_sent_at IS NULL OR datetime(last_sent_at) < datetime('now', 'localtime', '-{} days'))".format(last_sent_days)
+            "(c.last_sent_at IS NULL OR datetime(c.last_sent_at) < datetime('now', 'localtime', '-{} days'))".format(last_sent_days)
         )
 
     where_sql = "WHERE " + " AND ".join(where_clauses)
 
     query = f"""
-    SELECT contact_id, email, contact_name, company, domain, country, cli_id
-    FROM uni_contact
+    SELECT c.contact_id, c.cli_id, c.email, c.domain, c.contact_name,
+           CASE WHEN c.country IS NOT NULL AND c.country != '' THEN c.country ELSE p.country END as country,
+           c.position, c.phone, c.company, c.is_bounced, c.is_read,
+           c.send_count, c.bounce_count, c.read_count, c.last_sent_at, c.remark,
+           p.prospect_name
+    FROM uni_contact c
+    LEFT JOIN uni_prospect p ON c.domain = p.domain
     {where_sql}
-    ORDER BY email
+    ORDER BY c.email
     LIMIT ? OFFSET ?
     """
 
-    count_query = f"SELECT COUNT(*) FROM uni_contact {where_sql}"
+    count_query = f"SELECT COUNT(*) FROM uni_contact c {where_sql}"
 
     with get_db_connection() as conn:
         total = conn.execute(count_query, params).fetchone()[0]

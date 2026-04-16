@@ -222,6 +222,15 @@
         <button class="btn btn-ghost btn-sm" id="tabProspects" onclick="toggleTab('prospects')">待开发客户</button>
     </div>
     <a href="/mail" class="btn" style="background: var(--border); color: var(--text-main); margin-left: 1rem;">返回邮件列表</a>
+    <!-- 数据同步按钮 - 不受Tab切换影响 -->
+    {% if current_user.rule == '3' or current_user.rule == '0' %}
+    <button class="btn btn-success btn-sm" onclick="startSync()" style="margin-left: 0.5rem;">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        数据同步
+    </button>
+    {% endif %}
 </div>
 
 <!-- 联系人Tab内容 -->
@@ -241,20 +250,15 @@
                 <option value="0">未退信</option>
                 <option value="1">已退信</option>
             </select>
-            <select id="filterContacted" onchange="loadContacts()">
-                <option value="">联系状态</option>
-                <option value="0">未联系</option>
-                <option value="1">已联系</option>
+            <select id="filterRead" onchange="loadContacts()">
+                <option value="">已读状态</option>
+                <option value="0">未读</option>
+                <option value="1">已读</option>
             </select>
-            <select id="filterInquiry" onchange="loadContacts()">
-                <option value="">询价状态</option>
-                <option value="0">未询价</option>
-                <option value="1">已询价</option>
-            </select>
-            <select id="filterOrder" onchange="loadContacts()">
-                <option value="">下单状态</option>
-                <option value="0">未下单</option>
-                <option value="1">已下单</option>
+            <select id="filterSent" onchange="loadContacts()">
+                <option value="">发送状态</option>
+                <option value="0">未发送</option>
+                <option value="1">已发送</option>
             </select>
             <button class="btn btn-ghost btn-sm" onclick="resetFilters()">重置</button>
         </div>
@@ -276,11 +280,23 @@
                     </svg>
                     批量导入
                 </button>
+                <button class="btn btn-ghost btn-sm" onclick="exportContacts()">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    导出Excel
+                </button>
                 <button class="btn btn-danger btn-sm" onclick="batchDelete()">
                     <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                     </svg>
                     批量删除
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="clearAllContacts()">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                    清空全部
                 </button>
                 <button class="btn btn-primary btn-sm" onclick="toggleModal('addModal')">
                     <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -304,12 +320,24 @@
         <span class="stat-label">已发送邮件</span>
     </div>
     <div class="stat-item">
-        <span class="stat-value" id="bounceRate">{{ stats.bounce_rate or 0 }}%</span>
-        <span class="stat-label">退信率</span>
+        <span class="stat-value" id="totalRead" style="color: #22C55E;">{{ stats.total_read or 0 }}</span>
+        <span class="stat-label">已读数量</span>
+    </div>
+    <div class="stat-item">
+        <span class="stat-value" id="totalUnread" style="color: #F59E0B;">{{ stats.total_unread or 0 }}</span>
+        <span class="stat-label">未读数量</span>
+    </div>
+    <div class="stat-item">
+        <span class="stat-value" id="totalBounced" style="color: #EF4444;">{{ stats.total_bounced or 0 }}</span>
+        <span class="stat-label">退信数量</span>
     </div>
     <div class="stat-item">
         <span class="stat-value" id="readRate">{{ stats.read_rate or 0 }}%</span>
         <span class="stat-label">已读率</span>
+    </div>
+    <div class="stat-item">
+        <span class="stat-value" id="bounceRate">{{ stats.bounce_rate or 0 }}%</span>
+        <span class="stat-label">退信率</span>
     </div>
 </div>
 
@@ -376,6 +404,18 @@
                 <button class="btn btn-danger btn-sm" onclick="ProspectManager.batchDelete()" id="prospectBatchDeleteBtn" style="display: none;">批量删除</button>
                 <button class="btn btn-ghost btn-sm" onclick="ProspectManager.toggleAddModal()">新增客户</button>
                 <button class="btn btn-ghost btn-sm" onclick="ProspectManager.toggleImportModal()">批量导入</button>
+                <button class="btn btn-ghost btn-sm" onclick="ProspectManager.exportAll()">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    导出Excel
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="ProspectManager.clearAll()">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                    清空全部
+                </button>
             </div>
             {% endif %}
         </div>
@@ -481,28 +521,63 @@
             <button class="modal-close" onclick="toggleModal('importModal')">&times;</button>
         </div>
         <div class="modal-body">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary);">
-                    每行一个联系人，格式：邮箱,姓名,公司,国家,职位,电话,备注
+            <!-- 方式一：上传Excel文件 -->
+            <div style="padding: 15px; background: var(--bg-secondary); border-radius: var(--radius); margin-bottom: 15px;">
+                <p style="margin: 0 0 10px 0; font-weight: 500;">方式一：上传 Excel 文件</p>
+                <p style="margin: 0 0 10px 0; font-size: 0.85rem; color: var(--text-secondary);">
+                    1. 点击下载模板，按要求填写数据<br>
+                    2. 上传填好的Excel文件
                 </p>
-                <button class="btn btn-ghost btn-sm" onclick="downloadTemplate()">
-                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                    </svg>
-                    下载模板
-                </button>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button class="btn btn-ghost btn-sm" onclick="downloadTemplate()">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                        下载模板
+                    </button>
+                    <input type="file" id="importFile" accept=".xlsx,.xls" style="flex: 1;">
+                    <button class="btn btn-primary btn-sm" onclick="importFromFile()">上传导入</button>
+                </div>
             </div>
-            <textarea id="importText" class="import-textarea" placeholder="粘贴数据到此处..."></textarea>
-            <div style="margin-top: 0.5rem;">
-                <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem;">
-                    <input type="checkbox" id="autoCreateCli">
-                    自动创建不存在的客户（根据邮箱域名）
-                </label>
+
+            <!-- 方式二：粘贴文本 -->
+            <div style="padding: 15px; border: 1px solid var(--border); border-radius: var(--radius);">
+                <p style="margin: 0 0 10px 0; font-weight: 500;">方式二：粘贴文本</p>
+                <p style="margin: 0 0 10px 0; font-size: 0.85rem; color: var(--text-secondary);">
+                    每行一个联系人，格式：域名,邮箱,姓名,职位,电话,备注
+                </p>
+                <textarea id="importText" class="import-textarea" placeholder="粘贴数据到此处..." style="margin-bottom: 10px;"></textarea>
+                <div style="margin-top: 0.5rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem;">
+                        <input type="checkbox" id="autoCreateCli">
+                        自动创建不存在的客户（根据邮箱域名）
+                    </label>
+                </div>
             </div>
         </div>
         <div class="modal-footer">
             <button class="btn btn-ghost" onclick="toggleModal('importModal')">取消</button>
-            <button class="btn btn-primary" onclick="importContacts()">导入</button>
+            <button class="btn btn-primary" onclick="importContacts()">文本导入</button>
+        </div>
+    </div>
+</div>
+
+<!-- 同步进度弹窗 -->
+<div class="modal-overlay" id="syncProgressModal" style="display: none;">
+    <div class="modal" style="width: 400px;">
+        <div class="modal-header">
+            <h3>数据同步进度</h3>
+            <button class="modal-close" onclick="stopSync()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 20px;">
+            <div id="syncProgressStep" style="font-weight: bold; margin-bottom: 10px; color: var(--primary);"></div>
+            <div style="background: var(--bg-secondary); border-radius: var(--radius); height: 20px; overflow: hidden; margin-bottom: 10px;">
+                <div id="syncProgressBar" style="background: var(--primary); height: 100%; width: 0%; transition: width 0.3s;"></div>
+            </div>
+            <div id="syncProgressText" style="font-size: 14px; color: var(--text-secondary); text-align: center;"></div>
+            <div style="margin-top: 20px; text-align: center;">
+                <button class="btn btn-danger" onclick="stopSync()">停止同步</button>
+            </div>
         </div>
     </div>
 </div>
@@ -598,6 +673,57 @@
     </div>
 </div>
 
+<!-- 待开发客户编辑弹窗 -->
+<div class="modal-overlay" id="prospectEditModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>编辑待开发客户</h3>
+            <button class="modal-close" onclick="toggleModal('prospectEditModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="prospectEditForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>客户名称 *</label>
+                        <input type="text" id="edit_prospect_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>域名 *</label>
+                        <input type="text" id="edit_prospect_domain" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>公司网站</label>
+                        <input type="text" id="edit_prospect_website">
+                    </div>
+                    <div class="form-group">
+                        <label>国家</label>
+                        <input type="text" id="edit_prospect_country">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>状态</label>
+                        <select id="edit_prospect_status">
+                            <option value="pending">待转化</option>
+                            <option value="converted">已转化</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>备注</label>
+                        <input type="text" id="edit_prospect_remark">
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="toggleModal('prospectEditModal')">取消</button>
+            <button class="btn btn-primary" onclick="ProspectManager.saveEdit()">保存</button>
+        </div>
+    </div>
+</div>
+
 <script>
     let currentPage = 1;
     let totalItems = 0;
@@ -606,6 +732,7 @@
     // 初始化
     document.addEventListener('DOMContentLoaded', () => {
         loadContacts();
+        ProspectManager.init();  // 初始化待开发客户（包括加载国家列表）
     });
 
     // 加载联系人列表
@@ -615,9 +742,8 @@
         const search = document.getElementById('searchInput').value;
         const country = document.getElementById('filterCountry').value;
         const isBounced = document.getElementById('filterBounced').value;
-        const isContacted = document.getElementById('filterContacted').value;
-        const hasInquiry = document.getElementById('filterInquiry').value;
-        const hasOrder = document.getElementById('filterOrder').value;
+        const isRead = document.getElementById('filterRead').value;
+        const hasSent = document.getElementById('filterSent').value;
 
         const params = new URLSearchParams({
             page,
@@ -625,9 +751,8 @@
             ...(search && { search }),
             ...(country && { country }),
             ...(isBounced !== '' && { is_bounced: isBounced }),
-            ...(isContacted !== '' && { is_contacted: isContacted }),
-            ...(hasInquiry !== '' && { has_inquiry: hasInquiry }),
-            ...(hasOrder !== '' && { has_order: hasOrder })
+            ...(isRead !== '' && { is_read: isRead }),
+            ...(hasSent !== '' && { has_sent: hasSent })
         });
 
         try {
@@ -644,32 +769,132 @@
     // 渲染联系人列表
     function renderContactList(items) {
         const tbody = document.getElementById('contactList');
+        tbody.innerHTML = '';
         if (!items || items.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 2rem; color: var(--text-secondary);">暂无数据</td></tr>';
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 11;
+            td.style.cssText = 'text-align: center; padding: 2rem; color: var(--text-secondary);';
+            td.textContent = '暂无数据';
+            tr.appendChild(td);
+            tbody.appendChild(tr);
             return;
         }
 
-        tbody.innerHTML = items.map(item => `
-            <tr>
-                <td><input type="checkbox" class="contact-checkbox" data-id="${item.contact_id}" ${selectedIds.has(item.contact_id) ? 'checked' : ''}></td>
-                <td><a href="mailto:${item.email}" style="color: var(--primary);">${item.email}</a></td>
-                <td>${item.contact_name || '-'}</td>
-                <td>${item.company || item.domain || '-'}</td>
-                <td>${item.country || '-'}</td>
-                <td>${item.cli_name ? `<a href="/cli?search=${item.cli_name}">${item.cli_name}</a>` : '-'}</td>
-                <td>${item.send_count || 0}</td>
-                <td>${item.is_bounced == 1 ? `<span class="status-badge bounced">${item.bounce_count || 0}</span>` : (item.bounce_count || 0)}</td>
-                <td>${item.is_read == 1 ? `<span class="status-badge read">${item.read_count || 0}</span>` : (item.read_count || 0)}</td>
-                <td>
-                    ${item.is_bounced == 1 ? '<span class="status-badge bounced">退信</span>' : ''}
-                    ${item.send_count > 0 ? '<span class="status-badge sent">已发送</span>' : ''}
-                </td>
-                <td>
-                    <button class="btn btn-ghost btn-sm" onclick="editContact('${item.contact_id}')">编辑</button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteContact('${item.contact_id}')">删除</button>
-                </td>
-            </tr>
-        `).join('');
+        items.forEach(item => {
+            const tr = document.createElement('tr');
+
+            // checkbox
+            const tdCheck = document.createElement('td');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'contact-checkbox';
+            checkbox.dataset.id = item.contact_id;
+            checkbox.checked = selectedIds.has(item.contact_id);
+            tdCheck.appendChild(checkbox);
+            tr.appendChild(tdCheck);
+
+            // 邮箱
+            const tdEmail = document.createElement('td');
+            const emailLink = document.createElement('a');
+            emailLink.href = 'mailto:' + item.email;
+            emailLink.style.color = 'var(--primary)';
+            emailLink.textContent = item.email;
+            tdEmail.appendChild(emailLink);
+            tr.appendChild(tdEmail);
+
+            // 姓名
+            const tdName = document.createElement('td');
+            tdName.textContent = item.contact_name || '-';
+            tr.appendChild(tdName);
+
+            // 公司
+            const tdCompany = document.createElement('td');
+            tdCompany.textContent = item.company || item.domain || '-';
+            tr.appendChild(tdCompany);
+
+            // 国家：优先Contact.country，否则显示Prospect.country
+            const tdCountry = document.createElement('td');
+            tdCountry.textContent = item.country || item.prospect_country || '-';
+            tr.appendChild(tdCountry);
+
+            // 关联客户：优先CLI客户，否则显示Prospect
+            const tdClient = document.createElement('td');
+            if (item.cli_name) {
+                const cliLink = document.createElement('a');
+                cliLink.href = '/cli?search=' + item.cli_name;
+                cliLink.style.color = 'var(--primary)';
+                cliLink.textContent = item.cli_name;
+                tdClient.appendChild(cliLink);
+            } else if (item.prospect_name) {
+                tdClient.textContent = item.prospect_name;
+            } else {
+                tdClient.textContent = '-';
+            }
+            tr.appendChild(tdClient);
+
+            // 发送次数
+            const tdSendCount = document.createElement('td');
+            tdSendCount.textContent = item.send_count || 0;
+            tr.appendChild(tdSendCount);
+
+            // 退信
+            const tdBounce = document.createElement('td');
+            if (item.is_bounced == 1) {
+                const badge = document.createElement('span');
+                badge.className = 'status-badge bounced';
+                badge.textContent = item.bounce_count || 0;
+                tdBounce.appendChild(badge);
+            } else {
+                tdBounce.textContent = item.bounce_count || 0;
+            }
+            tr.appendChild(tdBounce);
+
+            // 已读
+            const tdRead = document.createElement('td');
+            if (item.is_read == 1) {
+                const badge = document.createElement('span');
+                badge.className = 'status-badge read';
+                badge.textContent = item.read_count || 0;
+                tdRead.appendChild(badge);
+            } else {
+                tdRead.textContent = item.read_count || 0;
+            }
+            tr.appendChild(tdRead);
+
+            // 状态标签
+            const tdStatus = document.createElement('td');
+            if (item.is_bounced == 1) {
+                const badge = document.createElement('span');
+                badge.className = 'status-badge bounced';
+                badge.textContent = '退信';
+                tdStatus.appendChild(badge);
+            }
+            if (item.send_count > 0) {
+                const badge = document.createElement('span');
+                badge.className = 'status-badge sent';
+                badge.textContent = '已发送';
+                tdStatus.appendChild(badge);
+            }
+            tr.appendChild(tdStatus);
+
+            // 操作按钮
+            const tdActions = document.createElement('td');
+            const editBtn = document.createElement('button');
+            editBtn.className = 'btn btn-ghost btn-sm';
+            editBtn.textContent = '编辑';
+            editBtn.onclick = () => editContact(item.contact_id);
+            tdActions.appendChild(editBtn);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn btn-danger btn-sm';
+            deleteBtn.textContent = '删除';
+            deleteBtn.onclick = () => deleteContact(item.contact_id);
+            tdActions.appendChild(deleteBtn);
+            tr.appendChild(tdActions);
+
+            tbody.appendChild(tr);
+        });
     }
 
     // 渲染分页
@@ -683,10 +908,12 @@
         }
 
         let html = `<span style="font-size: 0.85rem; color: var(--text-secondary);">共 ${total} 条</span>`;
+        html += ` <span style="font-size: 0.85rem; color: var(--text-muted);">第 ${currentPage}/${totalPages} 页</span>`;
 
-        if (currentPage > 1) {
-            html += `<button class="btn btn-ghost btn-sm" onclick="loadContacts(${currentPage - 1})">上一页</button>`;
-        }
+        // 首页
+        html += `<button class="btn btn-ghost btn-sm" onclick="loadContacts(1)" ${currentPage <= 1 ? 'disabled' : ''}>首页</button>`;
+        // 上一页
+        html += `<button class="btn btn-ghost btn-sm" onclick="loadContacts(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>上一页</button>`;
 
         const startPage = Math.max(1, currentPage - 2);
         const endPage = Math.min(totalPages, currentPage + 2);
@@ -699,9 +926,10 @@
             }
         }
 
-        if (currentPage < totalPages) {
-            html += `<button class="btn btn-ghost btn-sm" onclick="loadContacts(${currentPage + 1})">下一页</button>`;
-        }
+        // 下一页
+        html += `<button class="btn btn-ghost btn-sm" onclick="loadContacts(${currentPage + 1})" ${currentPage >= totalPages ? 'disabled' : ''}>下一页</button>`;
+        // 尾页
+        html += `<button class="btn btn-ghost btn-sm" onclick="loadContacts(${totalPages})" ${currentPage >= totalPages ? 'disabled' : ''}>尾页</button>`;
 
         pagination.innerHTML = html;
     }
@@ -722,9 +950,8 @@
     function resetFilters() {
         document.getElementById('filterCountry').value = '';
         document.getElementById('filterBounced').value = '';
-        document.getElementById('filterContacted').value = '';
-        document.getElementById('filterInquiry').value = '';
-        document.getElementById('filterOrder').value = '';
+        document.getElementById('filterRead').value = '';
+        document.getElementById('filterSent').value = '';
         document.getElementById('searchInput').value = '';
         loadContacts();
     }
@@ -862,20 +1089,107 @@
         }
     }
 
-    // 下载导入模板
-    function downloadTemplate() {
-        const template = `邮箱,姓名,公司,国家,职位,电话,备注
-john@samsung.com,John Doe,Samsung,Korea,Manager,+82-10-1234-5678,重要客户
-jane@lg.com,Jane Smith,LG Electronics,USA,Director,+1-555-123-4567,潜在客户
-lee@sk.com,Lee Min Ho,SK Hynix,Korea,Engineer,+82-2-9876-5432,`;
+    // 导出联系人Excel
+    async function exportContacts() {
+        showToast('正在导出...', 'info');
+        try {
+            const res = await fetch('/api/contact/export');
+            if (!res.ok) {
+                showToast('导出失败', 'error');
+                return;
+            }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'contacts_export.xlsx';
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('导出成功', 'success');
+        } catch (e) {
+            showToast('导出失败', 'error');
+        }
+    }
 
-        const blob = new Blob(['\ufeff' + template], { type: 'text/csv;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = '联系人导入模板.csv';
-        a.click();
-        URL.revokeObjectURL(url);
+    // 清空全部联系人
+    async function clearAllContacts() {
+        const total = document.getElementById('totalContacts').textContent;
+        if (!confirm(`⚠️ 警告：此操作将删除所有 ${total} 个联系人！\n\n此操作不可恢复，确定要继续吗？`)) return;
+        if (!confirm(`再次确认：真的要清空全部联系人数据吗？`)) return;
+
+        try {
+            const res = await fetch('/api/contact/clear_all', { method: 'POST' });
+            const result = await res.json();
+            if (result.success) {
+                showToast(`已清空 ${result.deleted} 个联系人`, 'success');
+                loadContacts(1);
+            } else {
+                showToast('清空失败: ' + result.message, 'error');
+            }
+        } catch (e) {
+            showToast('清空失败', 'error');
+        }
+    }
+
+    // 下载导入模板（Excel格式）
+    async function downloadTemplate() {
+        try {
+            const res = await fetch('/api/contact/template');
+            if (!res.ok) {
+                showToast('下载模板失败', 'error');
+                return;
+            }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'contact_template.xlsx';
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            showToast('下载模板失败', 'error');
+        }
+    }
+
+    // 文件导入
+    async function importFromFile() {
+        const fileInput = document.getElementById('importFile');
+        const file = fileInput.files[0];
+        if (!file) {
+            showToast('请选择要上传的文件', 'warning');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            showToast('正在导入...', 'info');
+            const res = await fetch('/api/contact/import/file', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await res.json();
+
+            if (result.success) {
+                toggleModal('importModal');
+                fileInput.value = '';
+                loadContacts();
+
+                let msg = `成功导入 ${result.imported} 个联系人`;
+                if (result.new_clients && result.new_clients.length > 0) {
+                    msg += `，新建客户：${result.new_clients.join(', ')}`;
+                }
+                if (result.errors && result.errors.length > 0) {
+                    msg += `，${result.errors.length} 条失败`;
+                }
+                showToast(msg, 'success');
+            } else {
+                showToast('导入失败: ' + (result.message || '未知错误'), 'error');
+            }
+        } catch (e) {
+            showToast('导入失败', 'error');
+        }
     }
 
     // 批量导入
@@ -890,13 +1204,12 @@ lee@sk.com,Lee Min Ho,SK Hynix,Korea,Engineer,+82-2-9876-5432,`;
         const contacts = lines.map(line => {
             const parts = line.split(',').map(p => p.trim());
             return {
-                email: parts[0] || '',
-                contact_name: parts[1] || '',
-                company: parts[2] || '',
-                country: parts[3] || '',
-                position: parts[4] || '',
-                phone: parts[5] || '',
-                remark: parts[6] || ''
+                domain: parts[0] || '',
+                email: parts[1] || '',
+                contact_name: parts[2] || '',
+                position: parts[3] || '',
+                phone: parts[4] || '',
+                remark: parts[5] || ''
             };
         }).filter(c => c.email);
 
@@ -970,7 +1283,7 @@ lee@sk.com,Lee Min Ho,SK Hynix,Korea,Engineer,+82-2-9876-5432,`;
             document.getElementById('tabProspects').className = 'btn btn-primary btn-sm';
             document.getElementById('contactsTabContent').style.display = 'none';
             document.getElementById('prospectsTabContent').style.display = 'block';
-            ProspectManager.load();
+            ProspectManager.init();
         }
     }
 
@@ -982,33 +1295,49 @@ lee@sk.com,Lee Min Ho,SK Hynix,Korea,Engineer,+82-2-9876-5432,`;
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.className = 'prospect-checkbox';
-        checkbox.dataset.id = item.id;
-        if (ProspectManager.selectedIds.has(item.id)) checkbox.checked = true;
+        checkbox.dataset.id = item.prospect_id;
+        if (ProspectManager.selectedIds.has(item.prospect_id)) checkbox.checked = true;
         tdCheck.appendChild(checkbox);
         tr.appendChild(tdCheck);
 
+        // 客户名称 - 支持双击编辑
         const tdName = document.createElement('td');
-        tdName.textContent = item.customer_name || '-';
+        tdName.textContent = item.prospect_name || '-';
+        tdName.style.cursor = 'pointer';
+        tdName.title = '双击编辑';
+        tdName.ondblclick = () => ProspectManager.inlineEdit(item.prospect_id, 'prospect_name', item.prospect_name);
         tr.appendChild(tdName);
 
+        // 公司网站 - 支持双击编辑
         const tdWebsite = document.createElement('td');
-        if (item.website) {
+        tdWebsite.style.cursor = 'pointer';
+        tdWebsite.title = '双击编辑';
+        if (item.company_website) {
             const a = document.createElement('a');
-            a.href = item.website;
+            a.href = item.company_website;
             a.target = '_blank';
-            a.textContent = item.website;
+            a.textContent = item.company_website;
             tdWebsite.appendChild(a);
         } else {
             tdWebsite.textContent = '-';
         }
+        tdWebsite.ondblclick = () => ProspectManager.inlineEdit(item.prospect_id, 'company_website', item.company_website);
         tr.appendChild(tdWebsite);
 
+        // 域名 - 支持双击编辑
         const tdDomain = document.createElement('td');
         tdDomain.textContent = item.domain || '-';
+        tdDomain.style.cursor = 'pointer';
+        tdDomain.title = '双击编辑';
+        tdDomain.ondblclick = () => ProspectManager.inlineEdit(item.prospect_id, 'domain', item.domain);
         tr.appendChild(tdDomain);
 
+        // 国家 - 支持双击编辑
         const tdCountry = document.createElement('td');
         tdCountry.textContent = item.country || '-';
+        tdCountry.style.cursor = 'pointer';
+        tdCountry.title = '双击编辑';
+        tdCountry.ondblclick = () => ProspectManager.inlineEdit(item.prospect_id, 'country', item.country);
         tr.appendChild(tdCountry);
 
         const tdContactCount = document.createElement('td');
@@ -1028,26 +1357,23 @@ lee@sk.com,Lee Min Ho,SK Hynix,Korea,Engineer,+82-2-9876-5432,`;
         tdStatus.appendChild(statusBadge);
         tr.appendChild(tdStatus);
 
+        // 操作栏 - 只保留转化按钮
         const tdActions = document.createElement('td');
-        const editBtn = document.createElement('button');
-        editBtn.className = 'btn btn-ghost btn-sm';
-        editBtn.textContent = '编辑';
-        editBtn.onclick = () => ProspectManager.edit(item.id);
-        tdActions.appendChild(editBtn);
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'btn btn-danger btn-sm';
-        deleteBtn.textContent = '删除';
-        deleteBtn.onclick = () => ProspectManager.delete(item.id);
-        tdActions.appendChild(deleteBtn);
+        if (item.status === 'pending') {
+            const convertBtn = document.createElement('button');
+            convertBtn.className = 'btn btn-primary btn-sm';
+            convertBtn.textContent = '转化';
+            convertBtn.onclick = () => ProspectManager.convert(item.prospect_id);
+            tdActions.appendChild(convertBtn);
+        }
         tr.appendChild(tdActions);
 
         // 绑定checkbox事件
         checkbox.addEventListener('change', () => {
             if (checkbox.checked) {
-                ProspectManager.selectedIds.add(item.id);
+                ProspectManager.selectedIds.add(item.prospect_id);
             } else {
-                ProspectManager.selectedIds.delete(item.id);
+                ProspectManager.selectedIds.delete(item.prospect_id);
             }
             const batchBtn = document.getElementById('prospectBatchDeleteBtn');
             batchBtn.style.display = ProspectManager.selectedIds.size > 0 ? 'inline-block' : 'none';
@@ -1063,10 +1389,32 @@ lee@sk.com,Lee Min Ho,SK Hynix,Korea,Engineer,+82-2-9876-5432,`;
         totalItems: 0,
         stats: {},
         selectedIds: new Set(),
+        editingId: null,
 
         // 初始化加载
-        init() {
+        async init() {
+            await this.loadCountries();
             this.load();
+        },
+
+        // 加载国家列表
+        async loadCountries() {
+            try {
+                const res = await fetch('/api/prospect/countries');
+                const data = await res.json();
+                const select = document.getElementById('prospectCountry');
+                select.innerHTML = '<option value="">全部国家</option>';
+                // 容错处理：兼容两种返回格式
+                const countries = data.countries || [];
+                countries.forEach(country => {
+                    const option = document.createElement('option');
+                    option.value = country;
+                    option.textContent = country;
+                    select.appendChild(option);
+                });
+            } catch (e) {
+                console.error('加载国家列表失败:', e);
+            }
         },
 
         // 加载待开发客户列表
@@ -1090,7 +1438,7 @@ lee@sk.com,Lee Min Ho,SK Hynix,Korea,Engineer,+82-2-9876-5432,`;
                 const data = await res.json();
                 this.totalItems = data.total;
                 this.stats = data.stats || {};
-                this.renderList(data.items);
+                this.renderList(data.prospects);
                 this.renderStats();
                 this.renderPagination(data.total, this.pageSize, page);
             } catch (e) {
@@ -1103,6 +1451,45 @@ lee@sk.com,Lee Min Ho,SK Hynix,Korea,Engineer,+82-2-9876-5432,`;
             document.getElementById('prospectTotalCount').textContent = this.stats.total || 0;
             document.getElementById('prospectPendingCount').textContent = this.stats.pending || 0;
             document.getElementById('prospectConvertedCount').textContent = this.stats.converted || 0;
+        },
+
+        // 双击单元格编辑
+        async inlineEdit(prospect_id, field, currentValue) {
+            const fieldNames = {
+                'prospect_name': '客户名称',
+                'company_website': '公司网站',
+                'domain': '域名',
+                'country': '国家'
+            };
+
+            const newValue = prompt(`编辑 ${fieldNames[field]}:\n\n当前值: ${currentValue || '空'}`, currentValue || '');
+            if (newValue === null) return; // 取消
+
+            if (newValue === currentValue) {
+                showToast('值未改变', 'info');
+                return;
+            }
+
+            // 构建更新数据：{prospect_id, field_name: value}
+            const updateData = { prospect_id };
+            updateData[field] = newValue;
+
+            try {
+                const res = await fetch('/api/prospect/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updateData)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`${fieldNames[field]} 已更新`, 'success');
+                    this.load(this.currentPage);
+                } else {
+                    showToast('更新失败: ' + data.message, 'error');
+                }
+            } catch (e) {
+                showToast('更新失败: ' + e.message, 'error');
+            }
         },
 
         // 渲染列表（使用安全的DOM方法）
@@ -1141,15 +1528,28 @@ lee@sk.com,Lee Min Ho,SK Hynix,Korea,Engineer,+82-2-9876-5432,`;
             countSpan.textContent = `共 ${total} 条`;
             pagination.appendChild(countSpan);
 
+            const pageInfo = document.createElement('span');
+            pageInfo.style.cssText = 'font-size: 0.85rem; color: var(--text-muted); margin-left: 0.5rem;';
+            pageInfo.textContent = `第 ${currentPage}/${totalPages} 页`;
+            pagination.appendChild(pageInfo);
+
             if (totalPages <= 1) return;
 
-            if (currentPage > 1) {
-                const prevBtn = document.createElement('button');
-                prevBtn.className = 'btn btn-ghost btn-sm';
-                prevBtn.textContent = '上一页';
-                prevBtn.onclick = () => this.load(currentPage - 1);
-                pagination.appendChild(prevBtn);
-            }
+            // 首页
+            const firstBtn = document.createElement('button');
+            firstBtn.className = 'btn btn-ghost btn-sm';
+            firstBtn.textContent = '首页';
+            firstBtn.disabled = currentPage <= 1;
+            firstBtn.onclick = () => this.load(1);
+            pagination.appendChild(firstBtn);
+
+            // 上一页
+            const prevBtn = document.createElement('button');
+            prevBtn.className = 'btn btn-ghost btn-sm';
+            prevBtn.textContent = '上一页';
+            prevBtn.disabled = currentPage <= 1;
+            prevBtn.onclick = () => this.load(currentPage - 1);
+            pagination.appendChild(prevBtn);
 
             const startPage = Math.max(1, currentPage - 2);
             const endPage = Math.min(totalPages, currentPage + 2);
@@ -1161,13 +1561,21 @@ lee@sk.com,Lee Min Ho,SK Hynix,Korea,Engineer,+82-2-9876-5432,`;
                 pagination.appendChild(btn);
             }
 
-            if (currentPage < totalPages) {
-                const nextBtn = document.createElement('button');
-                nextBtn.className = 'btn btn-ghost btn-sm';
-                nextBtn.textContent = '下一页';
-                nextBtn.onclick = () => this.load(currentPage + 1);
-                pagination.appendChild(nextBtn);
-            }
+            // 下一页
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'btn btn-ghost btn-sm';
+            nextBtn.textContent = '下一页';
+            nextBtn.disabled = currentPage >= totalPages;
+            nextBtn.onclick = () => this.load(currentPage + 1);
+            pagination.appendChild(nextBtn);
+
+            // 尾页
+            const lastBtn = document.createElement('button');
+            lastBtn.className = 'btn btn-ghost btn-sm';
+            lastBtn.textContent = '尾页';
+            lastBtn.disabled = currentPage >= totalPages;
+            lastBtn.onclick = () => this.load(totalPages);
+            pagination.appendChild(lastBtn);
         },
 
         // 全选/取消全选
@@ -1201,40 +1609,94 @@ lee@sk.com,Lee Min Ho,SK Hynix,Korea,Engineer,+82-2-9876-5432,`;
         },
 
         // 编辑
-        async edit(id) {
+        async edit(prospect_id) {
+            this.editingId = prospect_id;
             try {
-                const res = await fetch(`/api/prospect/${id}`);
-                const data = await res.json();
-                const newCustomerName = prompt('客户名称:', data.customer_name || '');
-                if (newCustomerName !== null) {
-                    const newWebsite = prompt('公司网站:', data.website || '');
-                    const newCountry = prompt('国家:', data.country || '');
-                    await fetch('/api/prospect/update', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            id: id,
-                            customer_name: newCustomerName,
-                            website: newWebsite,
-                            country: newCountry
-                        })
-                    });
+                const res = await fetch(`/api/prospect/${prospect_id}`);
+                const result = await res.json();
+                if (!result.success) {
+                    showToast('获取数据失败', 'error');
+                    return;
+                }
+                const data = result.prospect;
+                document.getElementById('edit_prospect_name').value = data.prospect_name || '';
+                document.getElementById('edit_prospect_domain').value = data.domain || '';
+                document.getElementById('edit_prospect_website').value = data.company_website || '';
+                document.getElementById('edit_prospect_country').value = data.country || '';
+                document.getElementById('edit_prospect_status').value = data.status || 'pending';
+                document.getElementById('edit_prospect_remark').value = data.remark || '';
+                toggleModal('prospectEditModal');
+            } catch (e) {
+                showToast('操作失败', 'error');
+            }
+        },
+
+        // 保存编辑
+        async saveEdit() {
+            if (!this.editingId) return;
+            const prospect_name = document.getElementById('edit_prospect_name').value.trim();
+            const domain = document.getElementById('edit_prospect_domain').value.trim();
+            if (!prospect_name || !domain) {
+                showToast('客户名称和域名不能为空', 'warning');
+                return;
+            }
+            try {
+                const res = await fetch('/api/prospect/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prospect_id: this.editingId,
+                        prospect_name: prospect_name,
+                        domain: domain,
+                        company_website: document.getElementById('edit_prospect_website').value.trim(),
+                        country: document.getElementById('edit_prospect_country').value.trim(),
+                        status: document.getElementById('edit_prospect_status').value,
+                        remark: document.getElementById('edit_prospect_remark').value.trim()
+                    })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    toggleModal('prospectEditModal');
                     this.load(this.currentPage);
                     showToast('更新成功', 'success');
+                } else {
+                    showToast(result.message || '更新失败', 'error');
                 }
             } catch (e) {
                 showToast('操作失败', 'error');
             }
         },
 
+        // 导出全部Excel
+        async exportAll() {
+            showToast('正在导出...', 'info');
+            try {
+                const res = await fetch('/api/prospect/export');
+                if (!res.ok) {
+                    showToast('导出失败', 'error');
+                    return;
+                }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'prospects_export.xlsx';
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast('导出成功', 'success');
+            } catch (e) {
+                showToast('导出失败', 'error');
+            }
+        },
+
         // 删除
-        async delete(id) {
+        async delete(prospect_id) {
             if (!confirm('确定要删除此待开发客户吗？')) return;
             try {
                 await fetch('/api/prospect/delete', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id })
+                    body: JSON.stringify({ prospect_id })
                 });
                 this.load(this.currentPage);
                 showToast('删除成功', 'success');
@@ -1255,7 +1717,7 @@ lee@sk.com,Lee Min Ho,SK Hynix,Korea,Engineer,+82-2-9876-5432,`;
                 await fetch('/api/prospect/batch_delete', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ids: Array.from(this.selectedIds) })
+                    body: JSON.stringify({ prospect_ids: Array.from(this.selectedIds) })
                 });
                 this.selectedIds.clear();
                 this.load(this.currentPage);
@@ -1265,10 +1727,30 @@ lee@sk.com,Lee Min Ho,SK Hynix,Korea,Engineer,+82-2-9876-5432,`;
             }
         },
 
+        // 清空全部
+        async clearAll() {
+            const total = this.stats.total || 0;
+            if (!confirm(`⚠️ 警告：此操作将删除所有 ${total} 个待开发客户！\n\n此操作不可恢复，确定要继续吗？`)) return;
+            if (!confirm(`再次确认：真的要清空全部待开发客户数据吗？`)) return;
+
+            try {
+                const res = await fetch('/api/prospect/clear_all', { method: 'POST' });
+                const result = await res.json();
+                if (result.success) {
+                    showToast(`已清空 ${result.deleted} 个待开发客户`, 'success');
+                    this.load(1);
+                } else {
+                    showToast('清空失败: ' + result.message, 'error');
+                }
+            } catch (e) {
+                showToast('清空失败', 'error');
+            }
+        },
+
         // 新增
         toggleAddModal() {
-            const customerName = prompt('客户名称:');
-            if (!customerName) return;
+            const prospectName = prompt('客户名称:');
+            if (!prospectName) return;
             const website = prompt('公司网站:');
             const domain = prompt('域名（如：company.com）:');
             const country = prompt('国家:');
@@ -1277,8 +1759,8 @@ lee@sk.com,Lee Min Ho,SK Hynix,Korea,Engineer,+82-2-9876-5432,`;
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    customer_name: customerName,
-                    website: website,
+                    prospect_name: prospectName,
+                    company_website: website,
                     domain: domain,
                     country: country,
                     status: 'pending'
@@ -1402,5 +1884,96 @@ lee@sk.com,Lee Min Ho,SK Hynix,Korea,Engineer,+82-2-9876-5432,`;
             window.location.href = '/mail';
         }
     });
+
+    // ========== 数据同步功能 ==========
+    let syncIntervalId = null;
+
+    async function startSync() {
+        if (!confirm('开始数据同步？\n\n将执行以下操作：\n1. Prospect → Contact：同步国家、名称\n2. Contact → Prospect：统计联系人数量\n3. uni_mail → Contact：统计邮件数据')) {
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/sync/start', {method: 'POST'});
+            const data = await res.json();
+            if (data.success) {
+                showSyncProgress();
+                pollSyncStatus();
+            } else {
+                alert('启动同步失败: ' + data.message);
+            }
+        } catch (e) {
+            alert('启动同步失败: ' + e.message);
+        }
+    }
+
+    function showSyncProgress() {
+        const modal = document.getElementById('syncProgressModal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    }
+
+    function hideSyncProgress() {
+        const modal = document.getElementById('syncProgressModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+        if (syncIntervalId) {
+            clearInterval(syncIntervalId);
+            syncIntervalId = null;
+        }
+    }
+
+    async function pollSyncStatus() {
+        syncIntervalId = setInterval(async () => {
+            try {
+                const res = await fetch('/api/sync/status');
+                const status = await res.json();
+                updateSyncProgress(status);
+
+                if (!status.running) {
+                    hideSyncProgress();
+                    loadContacts();
+                }
+            } catch (e) {
+                console.error('获取同步状态失败', e);
+            }
+        }, 1000);
+    }
+
+    function updateSyncProgress(status) {
+        const progressBar = document.getElementById('syncProgressBar');
+        const progressText = document.getElementById('syncProgressText');
+        const progressStep = document.getElementById('syncProgressStep');
+
+        if (progressBar && status.progress) {
+            const percent = status.progress.total > 0
+                ? Math.round((status.progress.current / status.progress.total) * 100)
+                : 0;
+            progressBar.style.width = percent + '%';
+        }
+
+        if (progressText) {
+            if (status.running) {
+                progressText.textContent = status.progress.message || '正在同步...';
+            } else {
+                progressText.textContent = '同步完成';
+            }
+        }
+
+        if (progressStep) {
+            progressStep.textContent = status.progress.step || '';
+        }
+    }
+
+    async function stopSync() {
+        try {
+            await fetch('/api/sync/stop', {method: 'POST'});
+            hideSyncProgress();
+        } catch (e) {
+            alert('停止失败');
+        }
+    }
 </script>
 {% endblock %}

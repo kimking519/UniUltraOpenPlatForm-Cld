@@ -16,6 +16,8 @@ UniUltraOpenPlatForm is a FastAPI-based ERP system for electronic component trad
 
 4.维护一个单元测试表，用于回归测试
 
+单个文件不要超过800行代码
+
 
 
 不要修改表，凡是要修改表一定要先告诉我，不能私自执行
@@ -27,16 +29,7 @@ commit的时候添加时间戳精确到分钟
 
 重要！！！ 为了做到需求理解的对称，按提的要求修改bug或者添加功能或者优化之前，先不要写代码，先将你的理解和计划和原因分析跟我沟通，只有我明确告诉你可以的时候才可以开始修改。
 
-出于安全考虑关键key要以单独的文件配置形式来做
-----------------------------------------------
-为openclaw开发的skills 统一放到openclaw_skills 这目录，skills.md文件的格式参照 Skills_guideline.md
-1.这个文件夹要保留sill的同时和工程要解耦，也就是做到可有可无
-2.不出现硬编码，操作数据库都通过数据操作层进行修改，不出现sql语句
-3.在SKILL.MD可以出现当前的下级相对路径，但是不能出现绝对路径，项目路径要求通过环境变量获取
-总之要做到，openclaw_skills要实现的功能通过调用项目里的封装方法，但是项目不依赖openclaw_skills 中的任何skill
 
-架构参考agent-skill-openlaw-arch.md
-----------------------------------------------
 
 
 ### Run the Application

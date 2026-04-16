@@ -53,6 +53,18 @@ def is_sqlite():
     return DATABASE_TYPE == 'sqlite'
 
 
+def get_datetime_now():
+    """获取当前时间的数据库表达式
+
+    Returns:
+        str: SQLite 返回 'datetime('now', 'localtime')'
+            PostgreSQL 返回 'NOW()'
+    """
+    if is_postgresql():
+        return 'NOW()'
+    return "datetime('now', 'localtime')"
+
+
 # 打印当前配置
 if __name__ == '__main__':
     print(f"数据库类型: {DATABASE_TYPE}")

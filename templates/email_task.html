@@ -1,0 +1,649 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .page-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1rem;
+        gap: 1rem;
+    }
+    .page-header h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-main);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0;
+    }
+    .settings-section {
+        margin-bottom: 15px;
+        padding: 15px;
+        background: var(--card-bg);
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+    }
+    .settings-section h3 {
+        margin: 0 0 10px 0;
+        font-size: 15px;
+        color: var(--text-main);
+    }
+    .data-table {
+        width: 100%;
+        font-size: 13px;
+        border-collapse: collapse;
+    }
+    .data-table th, .data-table td {
+        padding: 8px 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+    }
+    .data-table th {
+        background: var(--bg-secondary);
+        color: var(--text-main);
+        font-weight: 600;
+    }
+    .data-table tbody tr:hover {
+        background: var(--bg-hover);
+    }
+</style>
+
+<div class="page-header">
+    <h1>
+        <svg width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
+        </svg>
+        开发信任务管理
+    </h1>
+    <a href="/mail" class="btn" style="background: var(--border); color: var(--text-main);">返回邮件中心</a>
+</div>
+
+<!-- Tab切换 -->
+<div style="display: flex; gap: 0.5rem; margin-bottom: 15px;">
+    <button class="btn btn-primary btn-sm" id="tabTask" onclick="switchTab('task')">任务管理</button>
+    <button class="btn btn-ghost btn-sm" id="tabGroup" onclick="switchTab('group')">联系人组</button>
+</div>
+
+<!-- 任务管理Tab -->
+<div id="taskTabContent">
+    <!-- 创建任务 -->
+    <div class="settings-section">
+        <h3>创建邮件任务</h3>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <input type="text" id="taskName" placeholder="任务名称" style="width: 180px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+            <select id="taskAccount" style="width: 200px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                <option value="">选择发件人账号</option>
+            </select>
+            <select id="taskGroups" multiple style="width: 250px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main); min-height: 60px;">
+            </select>
+            <span style="font-size: 12px; color: var(--text-muted);">可多选联系人组</span>
+        </div>
+        <div style="margin-top: 10px;">
+            <input type="text" id="taskSubject" placeholder="邮件主题（支持{公司名}占位符）" style="width: 100%; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+        </div>
+        <div style="margin-top: 10px; display: flex; gap: 10px; align-items: center;">
+            <span style="font-size: 12px; color: var(--text-muted);">发送时间段:</span>
+            <input type="time" id="taskScheduleStart" value="09:00" style="padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+            <span style="font-size: 12px; color: var(--text-muted);">至</span>
+            <input type="time" id="taskScheduleEnd" value="18:00" style="padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+        </div>
+        <div id="taskEditorContainer" style="border: 1px solid var(--border); border-radius: var(--radius); background: var(--card-bg); overflow: hidden; margin-top: 10px;">
+            <div id="taskEditorToolbar" style="display: flex; gap: 5px; padding: 5px; background: var(--bg-main); border-bottom: 1px solid var(--border); flex-wrap: wrap;">
+                <button type="button" onclick="execTaskCmd('bold')" title="加粗" style="padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-main); color: var(--text-main); cursor: pointer; font-weight: bold;">B</button>
+                <button type="button" onclick="execTaskCmd('italic')" title="斜体" style="padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-main); color: var(--text-main); cursor: pointer; font-style: italic;">I</button>
+                <button type="button" onclick="execTaskCmd('underline')" title="下划线" style="padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-main); color: var(--text-main); cursor: pointer; text-decoration: underline;">U</button>
+            </div>
+            <div id="taskBody" contenteditable="true" placeholder="邮件内容..." style="width: 100%; min-height: 200px; padding: 10px; border: none; background: var(--bg-main); color: var(--text-main); resize: vertical; overflow-y: auto; outline: none; line-height: 1.6;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+            <span style="font-size: 12px; color: var(--text-muted);">日发送上限: 1800封</span>
+            <button class="btn btn-primary" onclick="createTask()">创建任务</button>
+        </div>
+    </div>
+
+    <!-- 任务历史 -->
+    <div class="settings-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="margin: 0;">任务历史</h3>
+            <button class="btn btn-sm" onclick="loadTaskHistory()">刷新</button>
+        </div>
+        <div style="max-height: 300px; overflow-y: auto;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>任务名称</th>
+                        <th>发件人</th>
+                        <th>状态</th>
+                        <th>进度</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="taskHistoryList"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 联系人组Tab -->
+<div id="groupTabContent" style="display: none;">
+    <div class="settings-section">
+        <h3>添加联系人组</h3>
+        <div style="display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 8px;">
+            <input type="text" id="newGroupName" placeholder="组名称" style="width: 160px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+            <input type="text" id="newGroupDomain" placeholder="域名筛选" style="width: 140px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+            <div style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center;">
+                <div id="newGroupCountryList" style="display: flex; flex-wrap: wrap; gap: 4px; max-width: 300px;">
+                    <!-- 国家复选框列表，动态加载 -->
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="loadCountries()" title="刷新国家列表">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px;">
+            <label style="display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-main);">
+                <input type="checkbox" id="newGroupHasCli" style="width: 16px; height: 16px;">
+                已关联客户
+            </label>
+            <select id="newGroupSendStatus" style="width: 100px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                <option value="">发送状态</option>
+                <option value="0">未发送</option>
+                <option value="1">已发送</option>
+            </select>
+            <select id="newGroupReadStatus" style="width: 100px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                <option value="">已读状态</option>
+                <option value="0">未读</option>
+                <option value="1">已读</option>
+            </select>
+            <select id="newGroupBounceStatus" style="width: 100px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                <option value="">退信状态</option>
+                <option value="0">未退信</option>
+                <option value="1">已退信</option>
+            </select>
+            <select id="newGroupSendCount" style="width: 100px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                <option value="">发送次数</option>
+                <option value="0">0次</option>
+                <option value="1-3">1-3次</option>
+                <option value="4+">4次以上</option>
+            </select>
+            <input type="number" id="newGroupLastSentDays" placeholder="未联系天数" min="1" style="width: 100px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <button class="btn btn-primary btn-sm" onclick="addGroup()">添加</button>
+            <span id="groupPreviewCount" style="font-size: 12px; color: var(--text-muted);"></span>
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">提示：选择筛选条件后，组将自动包含符合条件的联系人</div>
+    </div>
+    <div class="settings-section">
+        <h3>联系人组列表</h3>
+        <div style="max-height: 400px; overflow-y: auto;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>组名称</th>
+                        <th>筛选条件</th>
+                        <th>联系人数量</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="groupList"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑联系人组弹窗 -->
+<div id="editGroupModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: var(--card-bg); padding: 20px; border-radius: var(--radius); width: 500px; max-height: 80vh; overflow-y: auto;">
+        <h3 style="margin: 0 0 15px 0;">编辑联系人组</h3>
+        <input type="hidden" id="editGroupId">
+        <div style="display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 15px;">
+            <input type="text" id="editGroupName" placeholder="组名称" style="width: 160px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+            <input type="text" id="editGroupDomain" placeholder="域名筛选" style="width: 140px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+            <div id="editGroupCountryList" style="display: flex; flex-wrap: wrap; gap: 4px; max-width: 300px;">
+                <!-- 国家复选框列表，动态加载 -->
+            </div>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 15px;">
+            <label style="display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-main);">
+                <input type="checkbox" id="editGroupHasCli" style="width: 16px; height: 16px;">
+                已关联客户
+            </label>
+            <select id="editGroupSendStatus" style="width: 100px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                <option value="">发送状态</option>
+                <option value="0">未发送</option>
+                <option value="1">已发送</option>
+            </select>
+            <select id="editGroupReadStatus" style="width: 100px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                <option value="">已读状态</option>
+                <option value="0">未读</option>
+                <option value="1">已读</option>
+            </select>
+            <select id="editGroupBounceStatus" style="width: 100px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                <option value="">退信状态</option>
+                <option value="0">未退信</option>
+                <option value="1">已退信</option>
+            </select>
+            <select id="editGroupSendCount" style="width: 100px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+                <option value="">发送次数</option>
+                <option value="0">0次</option>
+                <option value="1-3">1-3次</option>
+                <option value="4+">4次以上</option>
+            </select>
+            <input type="number" id="editGroupLastSentDays" placeholder="未联系天数" min="1" style="width: 100px; padding: 0.4rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-main); color: var(--text-main);">
+        </div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button class="btn" onclick="closeEditGroupModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveEditGroup()">保存</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Tab切换
+    function switchTab(tab) {
+        if (tab === 'task') {
+            document.getElementById('tabTask').className = 'btn btn-primary btn-sm';
+            document.getElementById('tabGroup').className = 'btn btn-ghost btn-sm';
+            document.getElementById('taskTabContent').style.display = 'block';
+            document.getElementById('groupTabContent').style.display = 'none';
+        } else {
+            document.getElementById('tabTask').className = 'btn btn-ghost btn-sm';
+            document.getElementById('tabGroup').className = 'btn btn-primary btn-sm';
+            document.getElementById('taskTabContent').style.display = 'none';
+            document.getElementById('groupTabContent').style.display = 'block';
+            loadGroups();
+        }
+    }
+
+    // 富文本命令
+    function execTaskCmd(cmd, value = null) {
+        document.getElementById('taskBody').focus();
+        document.execCommand(cmd, false, value);
+    }
+
+    // 加载账户列表
+    async function loadAccounts() {
+        try {
+            const res = await fetch('/api/mail/accounts');
+            const result = await res.json();
+            const data = result.accounts || [];
+            const select = document.getElementById('taskAccount');
+            select.innerHTML = '<option value="">选择发件人账号</option>';
+            data.forEach(acc => {
+                const displayName = acc.account_name || acc.username;
+                select.innerHTML += `<option value="${acc.username}">${displayName}</option>`;
+            });
+        } catch (e) {
+            console.error('加载账户失败', e);
+        }
+    }
+
+    // 加载联系人组
+    async function loadGroups() {
+        try {
+            const res = await fetch('/api/group/list');
+            const result = await res.json();
+            const data = result.groups || [];
+            const select = document.getElementById('taskGroups');
+            select.innerHTML = '';
+            data.forEach(g => {
+                select.innerHTML += `<option value="${g.group_id}">${g.group_name} (${g.contact_count || 0}人)</option>`;
+            });
+            // 更新组列表表格
+            const tbody = document.getElementById('groupList');
+            tbody.innerHTML = '';
+            data.forEach(g => {
+                // 解析筛选条件显示
+                let criteriaText = '-';
+                if (g.filter_criteria) {
+                    try {
+                        const criteria = JSON.parse(g.filter_criteria);
+                        const parts = [];
+                        if (criteria.countries && criteria.countries.length > 0) parts.push(`国家:${criteria.countries.join(',')}`);
+                        if (criteria.country) parts.push(`国家:${criteria.country}`); // 兼容旧格式
+                        if (criteria.domain) parts.push(`域名:${criteria.domain}`);
+                        if (criteria.has_cli) parts.push('已关联客户');
+                        if (criteria.send_status !== undefined) parts.push(criteria.send_status == 0 ? '未发送' : '已发送');
+                        if (criteria.read_status !== undefined) parts.push(criteria.read_status == 0 ? '未读' : '已读');
+                        if (criteria.bounce_status !== undefined) parts.push(criteria.bounce_status == 0 ? '未退信' : '已退信');
+                        if (criteria.send_count) parts.push(`发送:${criteria.send_count}次`);
+                        if (criteria.last_sent_days) parts.push(`${criteria.last_sent_days}天未联系`);
+                        criteriaText = parts.length > 0 ? parts.join(', ') : '-';
+                    } catch (e) {
+                        criteriaText = '-';
+                    }
+                }
+                tbody.innerHTML += `<tr data-group-id="${g.group_id}" data-group-name="${g.group_name}" data-filter="${encodeURIComponent(g.filter_criteria || '')}">
+                    <td>${g.group_name}</td>
+                    <td style="font-size: 12px; color: var(--text-muted);">${criteriaText}</td>
+                    <td>${g.contact_count || 0}</td>
+                    <td>${g.created_at || '-'}</td>
+                    <td>
+                        <button class="btn btn-sm" onclick="editGroup('${g.group_id}')">编辑</button>
+                        <button class="btn btn-sm" onclick="exportGroup('${g.group_id}')">导出</button>
+                        <button class="btn btn-sm" onclick="deleteGroup('${g.group_id}')">删除</button>
+                    </td>
+                </tr>`;
+            });
+        } catch (e) {
+            console.error('加载组失败', e);
+        }
+    }
+
+    // 加载任务历史
+    async function loadTaskHistory() {
+        try {
+            const res = await fetch('/api/task/list');
+            const result = await res.json();
+            const data = result.tasks || [];
+            const tbody = document.getElementById('taskHistoryList');
+            tbody.innerHTML = '';
+            data.forEach(t => {
+                const statusText = t.status === 'completed' ? '已完成' : t.status === 'running' ? '进行中' : '待执行';
+                const statusColor = t.status === 'completed' ? '#22C55E' : t.status === 'running' ? '#3B82F6' : '#F59E0B';
+                tbody.innerHTML += `<tr>
+                    <td>${t.task_name}</td>
+                    <td>${t.account_id || '-'}</td>
+                    <td style="color: ${statusColor};">${statusText}</td>
+                    <td>${t.sent_count || 0}/${t.total_count || 0}</td>
+                    <td>${t.created_at || '-'}</td>
+                    <td><button class="btn btn-sm" onclick="viewTaskLogs('${t.task_id}')">查看</button></td>
+                </tr>`;
+            });
+        } catch (e) {
+            console.error('加载任务历史失败', e);
+        }
+    }
+
+    // 创建任务
+    async function createTask() {
+        const name = document.getElementById('taskName').value;
+        const account = document.getElementById('taskAccount').value;
+        const groups = Array.from(document.getElementById('taskGroups').selectedOptions).map(o => o.value);
+        const subject = document.getElementById('taskSubject').value;
+        const body = document.getElementById('taskBody').innerHTML;
+        const scheduleStart = document.getElementById('taskScheduleStart').value;
+        const scheduleEnd = document.getElementById('taskScheduleEnd').value;
+
+        if (!name || !account || groups.length === 0 || !subject || !body) {
+            alert('请填写完整任务信息');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/task/create', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    task_name: name,
+                    account_id: account,
+                    group_ids: groups,
+                    subject: subject,
+                    body: body,
+                    schedule_start: scheduleStart,
+                    schedule_end: scheduleEnd
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('任务创建成功');
+                loadTaskHistory();
+            } else {
+                alert('创建失败: ' + (data.message || '未知错误'));
+            }
+        } catch (e) {
+            alert('创建失败: ' + e.message);
+        }
+    }
+
+    // 添加联系人组
+    async function addGroup() {
+        const name = document.getElementById('newGroupName').value;
+        if (!name) {
+            alert('请输入组名称');
+            return;
+        }
+
+        // 收集所有筛选条件
+        const filterCriteria = {};
+        const domain = document.getElementById('newGroupDomain').value;
+        const countries = getSelectedCountries('newGroupCountryList');
+        const hasCli = document.getElementById('newGroupHasCli').checked;
+        const sendStatus = document.getElementById('newGroupSendStatus').value;
+        const readStatus = document.getElementById('newGroupReadStatus').value;
+        const bounceStatus = document.getElementById('newGroupBounceStatus').value;
+        const sendCount = document.getElementById('newGroupSendCount').value;
+        const lastSentDays = document.getElementById('newGroupLastSentDays').value;
+
+        if (countries.length > 0) filterCriteria.countries = countries;
+        if (domain) filterCriteria.domain = domain;
+        if (hasCli) filterCriteria.has_cli = true;
+        if (sendStatus) filterCriteria.send_status = parseInt(sendStatus);
+        if (readStatus) filterCriteria.read_status = parseInt(readStatus);
+        if (bounceStatus) filterCriteria.bounce_status = parseInt(bounceStatus);
+        if (sendCount) filterCriteria.send_count = sendCount;
+        if (lastSentDays) filterCriteria.last_sent_days = parseInt(lastSentDays);
+
+        try {
+            const res = await fetch('/api/group/add', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({group_name: name, filter_criteria: filterCriteria})
+            });
+            const data = await res.json();
+            if (data.success) {
+                loadGroups();
+                // 清空所有输入
+                document.getElementById('newGroupName').value = '';
+                document.getElementById('newGroupDomain').value = '';
+                document.querySelectorAll('#newGroupCountryList input[type="checkbox"]').forEach(cb => cb.checked = false);
+                document.getElementById('newGroupHasCli').checked = false;
+                document.getElementById('newGroupSendStatus').value = '';
+                document.getElementById('newGroupReadStatus').value = '';
+                document.getElementById('newGroupBounceStatus').value = '';
+                document.getElementById('newGroupSendCount').value = '';
+                document.getElementById('newGroupLastSentDays').value = '';
+                alert(data.message || '添加成功');
+            } else {
+                alert('添加失败: ' + (data.message || '未知错误'));
+            }
+        } catch (e) {
+            alert('添加失败: ' + e.message);
+        }
+    }
+
+    // 删除联系人组
+    async function deleteGroup(group_id) {
+        if (!confirm('确定删除该组？')) return;
+        try {
+            await fetch('/api/group/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({group_id})
+            });
+            loadGroups();
+        } catch (e) {
+            alert('删除失败');
+        }
+    }
+
+    // 导出联系人组
+    function exportGroup(group_id) {
+        window.open(`/api/group/${group_id}/export`, '_blank');
+    }
+
+    // 编辑联系人组
+    function editGroup(group_id) {
+        // 从 DOM 的 data 属性读取数据
+        const row = document.querySelector(`tr[data-group-id="${group_id}"]`);
+        if (!row) {
+            alert('找不到联系人组数据');
+            return;
+        }
+
+        const group_name = row.dataset.groupName;
+        const filter_criteria_encoded = row.dataset.filter;
+
+        document.getElementById('editGroupId').value = group_id;
+        document.getElementById('editGroupName').value = group_name;
+
+        // 清空所有输入
+        document.getElementById('editGroupDomain').value = '';
+        document.querySelectorAll('#editGroupCountryList input[type="checkbox"]').forEach(cb => cb.checked = false);
+        document.getElementById('editGroupHasCli').checked = false;
+        document.getElementById('editGroupSendStatus').value = '';
+        document.getElementById('editGroupReadStatus').value = '';
+        document.getElementById('editGroupBounceStatus').value = '';
+        document.getElementById('editGroupSendCount').value = '';
+        document.getElementById('editGroupLastSentDays').value = '';
+
+        // 解析并填充筛选条件（解码 URL 编码）
+        if (filter_criteria_encoded) {
+            try {
+                const filter_criteria = decodeURIComponent(filter_criteria_encoded);
+                const criteria = JSON.parse(filter_criteria);
+                if (criteria.domain) document.getElementById('editGroupDomain').value = criteria.domain;
+                if (criteria.countries) setSelectedCountries('editGroupCountryList', criteria.countries);
+                if (criteria.country) setSelectedCountries('editGroupCountryList', [criteria.country]); // 兼容旧格式
+                if (criteria.has_cli) document.getElementById('editGroupHasCli').checked = true;
+                if (criteria.send_status !== undefined) document.getElementById('editGroupSendStatus').value = criteria.send_status;
+                if (criteria.read_status !== undefined) document.getElementById('editGroupReadStatus').value = criteria.read_status;
+                if (criteria.bounce_status !== undefined) document.getElementById('editGroupBounceStatus').value = criteria.bounce_status;
+                if (criteria.send_count) document.getElementById('editGroupSendCount').value = criteria.send_count;
+                if (criteria.last_sent_days) document.getElementById('editGroupLastSentDays').value = criteria.last_sent_days;
+            } catch (e) {
+                console.error('解析筛选条件失败', e);
+            }
+        }
+
+        document.getElementById('editGroupModal').style.display = 'flex';
+    }
+
+    // 关闭编辑弹窗
+    function closeEditGroupModal() {
+        document.getElementById('editGroupModal').style.display = 'none';
+    }
+
+    // 保存编辑的联系人组
+    async function saveEditGroup() {
+        const group_id = document.getElementById('editGroupId').value;
+        const group_name = document.getElementById('editGroupName').value;
+
+        if (!group_name) {
+            alert('请输入组名称');
+            return;
+        }
+
+        // 收集筛选条件
+        const filterCriteria = {};
+        const domain = document.getElementById('editGroupDomain').value;
+        const countries = getSelectedCountries('editGroupCountryList');
+        const hasCli = document.getElementById('editGroupHasCli').checked;
+        const sendStatus = document.getElementById('editGroupSendStatus').value;
+        const readStatus = document.getElementById('editGroupReadStatus').value;
+        const bounceStatus = document.getElementById('editGroupBounceStatus').value;
+        const sendCount = document.getElementById('editGroupSendCount').value;
+        const lastSentDays = document.getElementById('editGroupLastSentDays').value;
+
+        if (countries.length > 0) filterCriteria.countries = countries;
+        if (domain) filterCriteria.domain = domain;
+        if (hasCli) filterCriteria.has_cli = true;
+        if (sendStatus) filterCriteria.send_status = parseInt(sendStatus);
+        if (readStatus) filterCriteria.read_status = parseInt(readStatus);
+        if (bounceStatus) filterCriteria.bounce_status = parseInt(bounceStatus);
+        if (sendCount) filterCriteria.send_count = sendCount;
+        if (lastSentDays) filterCriteria.last_sent_days = parseInt(lastSentDays);
+
+        try {
+            const res = await fetch('/api/group/update', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({group_id, group_name, filter_criteria: filterCriteria})
+            });
+            const data = await res.json();
+            if (data.success) {
+                closeEditGroupModal();
+                loadGroups();
+                alert('更新成功');
+            } else {
+                alert('更新失败: ' + (data.message || '未知错误'));
+            }
+        } catch (e) {
+            alert('更新失败: ' + e.message);
+        }
+    }
+
+    // 查看任务日志
+    function viewTaskLogs(id) {
+        alert('日志功能开发中...');
+    }
+
+    // 加载国家列表（复选框）
+    async function loadCountries() {
+        try {
+            const res = await fetch('/api/contact/countries');
+            const data = await res.json();
+            const countries = data.countries || [];
+
+            // 渲染新增组的国家复选框
+            renderCountryCheckboxes('newGroupCountryList', countries);
+            // 渲染编辑组的国家复选框
+            renderCountryCheckboxes('editGroupCountryList', countries);
+        } catch (e) {
+            console.error('加载国家列表失败', e);
+        }
+    }
+
+    // 渲染国家复选框列表
+    function renderCountryCheckboxes(containerId, countries) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+        countries.forEach(country => {
+            const checkboxId = `${containerId}_${country.replace(/\s+/g, '_')}`;
+            container.innerHTML += `
+                <label style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-main); cursor: pointer; padding: 2px 4px; border-radius: 4px;">
+                    <input type="checkbox" id="${checkboxId}" value="${country}" style="width: 14px; height: 14px;">
+                    ${country}
+                </label>`;
+        });
+    }
+
+    // 获取选中的国家列表
+    function getSelectedCountries(containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) return [];
+        const checkboxes = container.querySelectorAll('input[type="checkbox"]:checked');
+        return Array.from(checkboxes).map(cb => cb.value);
+    }
+
+    // 设置选中的国家列表
+    function setSelectedCountries(containerId, countries) {
+        const container = document.getElementById(containerId);
+        if (!container || !countries) return;
+        const countryList = Array.isArray(countries) ? countries : [countries];
+        container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.checked = countryList.includes(cb.value);
+        });
+    }
+
+    // 页面初始化
+    loadCountries();
+    loadAccounts();
+    loadGroups();
+    loadTaskHistory();
+
+    // Esc快捷键返回邮件列表
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            window.location.href = '/mail';
+        }
+    });
+</script>
+{% endblock %}

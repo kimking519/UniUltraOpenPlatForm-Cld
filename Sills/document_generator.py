@@ -156,11 +156,12 @@ def get_offers_for_document(offer_ids):
             SELECT o.offer_id, o.offer_date,
                    o.quoted_mpn, o.quoted_brand, o.offer_price_rmb, o.price_usd as offer_price_usd,
                    o.quoted_qty, o.date_code, o.delivery_date, o.inquiry_qty, o.inquiry_mpn,
-                   c.cli_id, c.cli_name, c.cli_name_en, c.contact_name, c.address, c.email, c.phone,
+                   COALESCE(o.cli_id, q.cli_id) as cli_id,
+                   c.cli_name, c.cli_name_en, c.contact_name, c.address, c.email, c.phone,
                    c.cli_full_name, c.region
             FROM uni_offer o
             LEFT JOIN uni_quote q ON o.quote_id = q.quote_id
-            LEFT JOIN uni_cli c ON q.cli_id = c.cli_id
+            LEFT JOIN uni_cli c ON COALESCE(o.cli_id, q.cli_id) = c.cli_id
             WHERE o.offer_id IN ({placeholders})
             ORDER BY o.offer_id
         """, offer_ids).fetchall()

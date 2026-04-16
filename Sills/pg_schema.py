@@ -421,6 +421,7 @@ CREATE TABLE IF NOT EXISTS uni_contact (
     position TEXT,                  -- 职位
     phone TEXT,                     -- 电话
     company TEXT,                   -- 公司名
+    prospect_name TEXT,             -- 关联的Prospect名称（同步填充）
     is_bounced INTEGER DEFAULT 0,   -- 是否退信
     is_read INTEGER DEFAULT 0,      -- 是否已读
     is_deleted INTEGER DEFAULT 0,   -- 是否删除
@@ -465,6 +466,112 @@ CREATE INDEX IF NOT EXISTS idx_marketing_status ON uni_marketing_email(status);
 -- 部分索引（PostgreSQL 语法）
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mail_message_id ON uni_mail(message_id) WHERE message_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mail_uid_folder_account ON uni_mail(imap_uid, imap_folder, account_id) WHERE imap_uid IS NOT NULL;
+
+-- 待开发客户表 (Prospect)
+CREATE TABLE IF NOT EXISTS uni_prospect (
+    prospect_id TEXT PRIMARY KEY,
+    prospect_name TEXT NOT NULL,
+    company_website TEXT,
+    domain TEXT NOT NULL UNIQUE,
+    country TEXT,
+    cli_id TEXT,
+    status TEXT DEFAULT 'pending',
+    contact_count INTEGER DEFAULT 0,
+    is_public_domain INTEGER DEFAULT 0,
+    remark TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    FOREIGN KEY (cli_id) REFERENCES uni_cli(cli_id) ON DELETE SET NULL,
+    CONSTRAINT chk_prospect_public CHECK (is_public_domain IN (0,1))
+);
+
+-- Prospect 索引
+CREATE INDEX IF NOT EXISTS idx_prospect_domain ON uni_prospect(domain);
+CREATE INDEX IF NOT EXISTS idx_prospect_cli ON uni_prospect(cli_id);
+CREATE INDEX IF NOT EXISTS idx_prospect_status ON uni_prospect(status);
+CREATE INDEX IF NOT EXISTS idx_prospect_public ON uni_prospect(is_public_domain);
+
+-- 联系人组表
+CREATE TABLE IF NOT EXISTS uni_contact_group (
+    group_id TEXT PRIMARY KEY,
+    group_name TEXT NOT NULL,
+    description TEXT,
+    filter_criteria TEXT,
+    contact_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP
+);
+
+-- 联系人-组关联表
+CREATE TABLE IF NOT EXISTS uni_contact_group_rel (
+    id SERIAL PRIMARY KEY,
+    group_id TEXT NOT NULL,
+    contact_id TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    FOREIGN KEY (group_id) REFERENCES uni_contact_group(group_id) ON DELETE CASCADE,
+    FOREIGN KEY (contact_id) REFERENCES uni_contact(contact_id) ON DELETE CASCADE,
+    UNIQUE(group_id, contact_id)
+);
+
+-- 发件人账号表 (Email Task Manager)
+CREATE TABLE IF NOT EXISTS uni_email_account (
+    account_id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,           -- AES加密存储
+    smtp_server TEXT DEFAULT 'smtp.163.com',
+    daily_limit INTEGER DEFAULT 1800,
+    sent_today INTEGER DEFAULT 0,
+    last_reset_date TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 邮件任务表 (Email Task Manager)
+CREATE TABLE IF NOT EXISTS uni_email_task (
+    task_id TEXT PRIMARY KEY,
+    task_name TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    group_ids TEXT NOT NULL,          -- JSON数组: 关联的组IDs
+    subject TEXT NOT NULL,
+    body TEXT NOT NULL,               -- HTML邮件内容(含签名)
+    placeholders TEXT,
+    schedule_start TEXT,
+    schedule_end TEXT,
+    status TEXT DEFAULT 'pending',    -- pending, running, paused, completed, cancelled, error
+    total_count INTEGER DEFAULT 0,
+    sent_count INTEGER DEFAULT 0,
+    failed_count INTEGER DEFAULT 0,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    cancel_requested INTEGER DEFAULT 0,
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    FOREIGN KEY (account_id) REFERENCES uni_email_account(account_id) ON DELETE CASCADE,
+    CONSTRAINT chk_cancel_requested CHECK (cancel_requested IN (0,1))
+);
+
+-- 邮件发送日志表
+CREATE TABLE IF NOT EXISTS uni_email_log (
+    log_id SERIAL PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    contact_id TEXT NOT NULL,
+    email TEXT NOT NULL,
+    company_name TEXT,
+    sent_at TIMESTAMP DEFAULT NOW(),
+    status TEXT DEFAULT 'sent',
+    error_message TEXT,
+    FOREIGN KEY (task_id) REFERENCES uni_email_task(task_id) ON DELETE CASCADE,
+    FOREIGN KEY (contact_id) REFERENCES uni_contact(contact_id) ON DELETE CASCADE
+);
+
+-- Email Task Manager 索引
+CREATE INDEX IF NOT EXISTS idx_task_status ON uni_email_task(status);
+CREATE INDEX IF NOT EXISTS idx_task_account ON uni_email_task(account_id);
+CREATE INDEX IF NOT EXISTS idx_log_task ON uni_email_log(task_id);
+CREATE INDEX IF NOT EXISTS idx_log_status ON uni_email_log(status);
+CREATE INDEX IF NOT EXISTS idx_log_contact ON uni_email_log(contact_id);
+CREATE INDEX IF NOT EXISTS idx_account_email ON uni_email_account(email);
+CREATE INDEX IF NOT EXISTS idx_group_name ON uni_contact_group(group_name);
+CREATE INDEX IF NOT EXISTS idx_group_rel_group ON uni_contact_group_rel(group_id);
+CREATE INDEX IF NOT EXISTS idx_group_rel_contact ON uni_contact_group_rel(contact_id);
 """
 
 # 默认管理员插入语句

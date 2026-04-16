@@ -920,18 +920,63 @@ def _init_db_sqlite():
         FOREIGN KEY (cli_id) REFERENCES uni_cli(cli_id) ON DELETE SET NULL
     );
 
-    -- 营销邮件记录表
-    CREATE TABLE IF NOT EXISTS uni_marketing_email (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        contact_id TEXT NOT NULL,
-        mail_id INTEGER,                -- 关联 uni_mail 表
-        subject TEXT,
-        content TEXT,
+    -- 联系人组表 (Email Task Manager)
+    CREATE TABLE IF NOT EXISTS uni_contact_group (
+        group_id TEXT PRIMARY KEY,           -- GP+时间戳格式
+        group_name TEXT NOT NULL,            -- 组名称
+        filter_criteria TEXT,                -- JSON筛选条件: {country, domain, is_bounced}
+        contact_count INTEGER DEFAULT 0,     -- 组内联系人数
+        created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+        updated_at DATETIME DEFAULT (datetime('now', 'localtime'))
+    );
+
+    -- 发件人账号表
+    CREATE TABLE IF NOT EXISTS uni_email_account (
+        account_id TEXT PRIMARY KEY,         -- EA+时间戳格式
+        email TEXT NOT NULL UNIQUE,          -- 发件人邮箱
+        password TEXT NOT NULL,              -- AES加密后的密码
+        smtp_server TEXT DEFAULT 'smtp.163.com',
+        daily_limit INTEGER DEFAULT 1800,    -- 每日发送限制
+        sent_today INTEGER DEFAULT 0,        -- 今日已发送数
+        last_reset_date TEXT,                -- 最后重置日期 YYYY-MM-DD
+        created_at DATETIME DEFAULT (datetime('now', 'localtime'))
+    );
+
+    -- 邮件任务表
+    CREATE TABLE IF NOT EXISTS uni_email_task (
+        task_id TEXT PRIMARY KEY,            -- ET+时间戳格式
+        task_name TEXT NOT NULL,             -- 任务名称
+        account_id TEXT NOT NULL,            -- 关联发件人账号
+        group_ids TEXT NOT NULL,             -- JSON数组: 关联的组IDs
+        subject TEXT NOT NULL,               -- 邮件主题
+        body TEXT NOT NULL,                  -- HTML邮件内容(含签名)
+        placeholders TEXT,                   -- JSON: 占位符配置
+        schedule_start TEXT,                 -- 发送开始时间 HH:MM
+        schedule_end TEXT,                   -- 发送结束时间 HH:MM
+        status TEXT DEFAULT 'pending',       -- pending, running, paused, completed, cancelled, error
+        total_count INTEGER DEFAULT 0,       -- 总收件人数
+        sent_count INTEGER DEFAULT 0,        -- 已发送数
+        failed_count INTEGER DEFAULT 0,      -- 失败数
+        started_at DATETIME,                 -- 开始时间
+        completed_at DATETIME,               -- 完成时间
+        cancel_requested INTEGER DEFAULT 0,  -- 取消请求标志
+        error_message TEXT,                  -- 错误信息
+        created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+        FOREIGN KEY (account_id) REFERENCES uni_email_account(account_id) ON DELETE CASCADE
+    );
+
+    -- 邮件发送日志表
+    CREATE TABLE IF NOT EXISTS uni_email_log (
+        log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id TEXT NOT NULL,               -- 关联任务
+        contact_id TEXT NOT NULL,            -- 关联联系人
+        email TEXT NOT NULL,                 -- 收件人邮箱
+        company_name TEXT,                   -- 公司名(用于占位符替换记录)
         sent_at DATETIME DEFAULT (datetime('now', 'localtime')),
-        status TEXT DEFAULT 'sent',     -- sent, delivered, bounced, read
-        bounced_reason TEXT,            -- 退信原因
-        FOREIGN KEY (contact_id) REFERENCES uni_contact(contact_id) ON DELETE CASCADE,
-        FOREIGN KEY (mail_id) REFERENCES uni_mail(id) ON DELETE SET NULL
+        status TEXT DEFAULT 'sent',          -- sent, failed
+        error_message TEXT,                  -- 失败原因
+        FOREIGN KEY (task_id) REFERENCES uni_email_task(task_id) ON DELETE CASCADE,
+        FOREIGN KEY (contact_id) REFERENCES uni_contact(contact_id) ON DELETE CASCADE
     );
 
     -- 联系人索引
@@ -941,10 +986,35 @@ def _init_db_sqlite():
     CREATE INDEX IF NOT EXISTS idx_contact_country ON uni_contact(country);
     CREATE INDEX IF NOT EXISTS idx_contact_bounced ON uni_contact(is_bounced);
 
-    -- 营销邮件索引
-    CREATE INDEX IF NOT EXISTS idx_marketing_contact ON uni_marketing_email(contact_id);
-    CREATE INDEX IF NOT EXISTS idx_marketing_sent ON uni_marketing_email(sent_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_marketing_status ON uni_marketing_email(status);
+    -- Email Task Manager 索引
+    CREATE INDEX IF NOT EXISTS idx_task_status ON uni_email_task(status);
+    CREATE INDEX IF NOT EXISTS idx_task_account ON uni_email_task(account_id);
+    CREATE INDEX IF NOT EXISTS idx_log_task ON uni_email_log(task_id);
+    CREATE INDEX IF NOT EXISTS idx_log_status ON uni_email_log(status);
+    CREATE INDEX IF NOT EXISTS idx_log_contact ON uni_email_log(contact_id);
+    CREATE INDEX IF NOT EXISTS idx_account_email ON uni_email_account(email);
+
+    -- 待开发客户表 (Prospect)
+    CREATE TABLE IF NOT EXISTS uni_prospect (
+        prospect_id TEXT PRIMARY KEY,      -- PK+时间戳格式
+        prospect_name TEXT NOT NULL,       -- 客户名称
+        company_website TEXT,              -- 公司网站
+        domain TEXT NOT NULL UNIQUE,       -- 域名（关联键）
+        country TEXT,                      -- 国家
+        cli_id TEXT,                       -- 转化后的客户ID（外键）
+        status TEXT DEFAULT 'pending',     -- 状态：pending/converted/archived
+        contact_count INTEGER DEFAULT 0,   -- 关联联系人数
+        is_public_domain INTEGER DEFAULT 0, -- 是否公共邮箱域名（gmail/hotmail等）
+        remark TEXT,                       -- 备注
+        created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+        FOREIGN KEY (cli_id) REFERENCES uni_cli(cli_id) ON DELETE SET NULL
+    );
+
+    -- Prospect 索引
+    CREATE INDEX IF NOT EXISTS idx_prospect_domain ON uni_prospect(domain);
+    CREATE INDEX IF NOT EXISTS idx_prospect_cli ON uni_prospect(cli_id);
+    CREATE INDEX IF NOT EXISTS idx_prospect_status ON uni_prospect(status);
+    CREATE INDEX IF NOT EXISTS idx_prospect_public ON uni_prospect(is_public_domain);
     """
 
     with get_db_connection() as conn:

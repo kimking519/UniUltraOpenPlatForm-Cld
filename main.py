@@ -1131,26 +1131,26 @@ async def offer_add_route(request: Request, current_user: dict = Depends(login_r
         return RedirectResponse(url="/offer", status_code=303)
     form = await request.form()
     data = dict(form)
-    data['emp_id'] = current_user['emp_id']
-    
+    emp_id = current_user['emp_id']
+
     # 自动报价逻辑：如果报价为 0 且指定了需求，则联动客户利润率
-    if (not data.get('offer_price_rmb') or float(data.get('offer_price_rmb')) == 0) and data.get('quote_id'):
+    if (not data.get('offer_price_rmb') or float(data.get('offer_price_rmb') or 0) == 0) and data.get('quote_id'):
         from Sills.base import get_db_connection
         with get_db_connection() as conn:
             clip = conn.execute("""
-                SELECT c.margin_rate, q.cost_price_rmb 
-                FROM uni_quote q 
-                JOIN uni_cli c ON q.cli_id = c.cli_id 
+                SELECT c.margin_rate, q.cost_price_rmb
+                FROM uni_quote q
+                JOIN uni_cli c ON q.cli_id = c.cli_id
                 WHERE q.quote_id = ?
             """, (data['quote_id'],)).fetchone()
             if clip and clip['cost_price_rmb']:
                 margin = float(clip['margin_rate'] or 10.0)
                 cost = float(clip['cost_price_rmb'])
                 data['offer_price_rmb'] = round(cost * (1 + margin / 100.0), 4)
-                if not data.get('cost_price_rmb') or float(data.get('cost_price_rmb')) == 0:
+                if not data.get('cost_price_rmb') or float(data.get('cost_price_rmb') or 0) == 0:
                     data['cost_price_rmb'] = cost
 
-    ok, msg = add_offer(data)
+    ok, msg = add_offer(data, emp_id)
     import urllib.parse
     msg_param = urllib.parse.quote(msg)
     success = 1 if ok else 0
@@ -3069,6 +3069,16 @@ async def mail_page(request: Request, current_user: dict = Depends(login_require
     })
 
 
+@app.get("/email_task", response_class=HTMLResponse)
+async def email_task_page(request: Request, current_user: dict = Depends(login_required)):
+    """开发信任务页面"""
+    return templates.TemplateResponse("email_task.html", {
+        "request": request,
+        "active_page": "email_task",
+        "current_user": current_user
+    })
+
+
 @app.get("/api/mail/list")
 async def api_mail_list(
     folder: str = "inbox",
@@ -3299,6 +3309,52 @@ async def api_mail_config_get(current_user: dict = Depends(login_required)):
         "success": True,
         "config": config
     }
+
+
+@app.get("/api/mail/settings")
+async def api_mail_settings_get(current_user: dict = Depends(login_required)):
+    """获取邮件设置（合并多个设置项）"""
+    from Sills.db_mail import get_signature, get_sync_days, get_sync_deleted_setting, get_undo_send_seconds
+    sync_interval = get_sync_interval()
+    undo_seconds = get_undo_send_seconds()
+    sync_range = get_sync_days()
+    sync_deleted = get_sync_deleted_setting()
+    signature = get_signature()
+
+    return {
+        "success": True,
+        "settings": {
+            "syncInterval": sync_interval,
+            "undoSendSeconds": undo_seconds,
+            "syncRange": sync_range,
+            "syncDeleted": sync_deleted,
+            "signature": signature,
+            "geminiKey": ""
+        }
+    }
+
+
+@app.post("/api/mail/settings")
+async def api_mail_settings_post(request: Request, current_user: dict = Depends(login_required)):
+    """更新邮件设置"""
+    data = await request.json()
+
+    if 'syncInterval' in data:
+        set_sync_interval(data['syncInterval'])
+    if 'undoSendSeconds' in data:
+        set_undo_send_seconds(data['undoSendSeconds'])
+    if 'syncRange' in data:
+        set_sync_range(data['syncRange'])
+    if 'syncDeleted' in data:
+        set_sync_deleted(data['syncDeleted'])
+    if 'signature' in data:
+        from Sills.db_mail import set_signature
+        set_signature(data['signature'])
+    if 'geminiKey' in data:
+        # Gemini API key 设置需要单独处理
+        pass
+
+    return {"success": True, "message": "设置已保存"}
 
 
 @app.post("/api/mail/config/batch")
@@ -4353,9 +4409,8 @@ async def api_contact_list(
     cli_id: str = None,
     country: str = None,
     is_bounced: int = None,
-    is_contacted: int = None,
-    has_inquiry: int = None,
-    has_order: int = None,
+    is_read: int = None,
+    has_sent: int = None,
     current_user: dict = Depends(login_required)
 ):
     """获取联系人列表"""
@@ -4367,12 +4422,10 @@ async def api_contact_list(
         filters['country'] = country
     if is_bounced is not None:
         filters['is_bounced'] = is_bounced
-    if is_contacted is not None:
-        filters['is_contacted'] = is_contacted
-    if has_inquiry is not None:
-        filters['has_inquiry'] = has_inquiry
-    if has_order is not None:
-        filters['has_order'] = has_order
+    if is_read is not None:
+        filters['is_read'] = is_read
+    if has_sent is not None:
+        filters['has_sent'] = has_sent
 
     items, total = get_contact_list(
         page=page,
@@ -4483,6 +4536,17 @@ async def api_contact_batch_delete(request: Request, current_user: dict = Depend
     contact_ids = data.get('contact_ids', [])
     deleted, failed, message = batch_delete_contacts(contact_ids)
     return {"success": True, "deleted": deleted, "failed": failed, "message": message}
+
+
+@app.post("/api/contact/clear_all")
+async def api_contact_clear_all(current_user: dict = Depends(login_required)):
+    """清空所有联系人"""
+    from Sills.base import get_db_connection
+    with get_db_connection() as conn:
+        deleted = conn.execute("SELECT COUNT(*) FROM uni_contact").fetchone()[0]
+        conn.execute("DELETE FROM uni_contact")
+        conn.commit()
+    return {"success": True, "deleted": deleted}
 
 
 @app.post("/api/contact/import")
@@ -4603,19 +4667,18 @@ async def api_contact_import_file(request: Request, current_user: dict = Depends
         contacts = []
         row_num = 2
         for row in ws.iter_rows(min_row=2, values_only=True):  # 跳过标题行
-            print(f"第{row_num}行数据: {row}")
-            if not row or not row[1]:  # 邮箱为空跳过
-                print(f"  -> 跳过: 数据为空或邮箱为空")
+            if not row or len(row) < 2 or not row[1]:  # 邮箱为空跳过
                 row_num += 1
                 continue
+            # 安全获取每个字段，避免索引越界
             contact = {
-                'domain': str(row[0]).strip() if row[0] else '',
-                'email': str(row[1]).strip() if row[1] else '',
-                'contact_name': str(row[2]).strip() if row[2] else '',
-                'position': str(row[3]).strip() if row[3] else '',
-                'remark': str(row[4]).strip() if row[4] else ''
+                'domain': str(row[0]).strip() if len(row) > 0 and row[0] else '',
+                'email': str(row[1]).strip() if len(row) > 1 and row[1] else '',
+                'contact_name': str(row[2]).strip() if len(row) > 2 and row[2] else '',
+                'position': str(row[3]).strip() if len(row) > 3 and row[3] else '',
+                'phone': str(row[4]).strip() if len(row) > 4 and row[4] else '',
+                'remark': str(row[5]).strip() if len(row) > 5 and row[5] else ''
             }
-            print(f"  -> 解析结果: {contact}")
             contacts.append(contact)
             row_num += 1
 
@@ -4658,7 +4721,7 @@ async def api_prospect_list(
     current_user: dict = Depends(login_required)
 ):
     """获取Prospect列表"""
-    from Sills.db_prospect import get_prospect_list
+    from Sills.db_prospect import get_prospect_list, get_prospect_stats
     filters = {}
     if country:
         filters['country'] = country
@@ -4668,7 +4731,65 @@ async def api_prospect_list(
         filters['is_public'] = is_public
 
     prospects, total = get_prospect_list(page, page_size, search or "", filters)
-    return {"success": True, "prospects": prospects, "total": total}
+    stats = get_prospect_stats()
+    return {"success": True, "prospects": prospects, "total": total, "stats": stats}
+
+
+# ========== 数据同步 API ==========
+@app.post("/api/sync/start")
+async def api_sync_start(current_user: dict = Depends(login_required)):
+    """开始数据同步（异步执行）"""
+    from Sills.db_sync import run_sync_async
+    success, message = run_sync_async()
+    return {"success": success, "message": message}
+
+
+@app.get("/api/sync/status")
+async def api_sync_status(current_user: dict = Depends(login_required)):
+    """获取同步状态和进度"""
+    from Sills.db_sync import get_sync_status
+    return get_sync_status()
+
+
+@app.post("/api/sync/stop")
+async def api_sync_stop(current_user: dict = Depends(login_required)):
+    """停止同步"""
+    from Sills.db_sync import stop_sync
+    stop_sync()
+    return {"success": True, "message": "同步已停止"}
+
+
+@app.get("/api/contact/template")
+async def api_contact_template(current_user: dict = Depends(login_required)):
+    """下载联系人导入模板"""
+    from openpyxl import Workbook
+    from fastapi.responses import StreamingResponse
+    import io
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "联系人导入模板"
+    ws.append(['域名', '邮箱*', '姓名', '职位', '电话', '备注'])
+    ws.append(['samsung.com', 'john@samsung.com', 'John Doe', 'Manager', '+82-10-1234-5678', '重要客户'])
+    ws.append(['lg.com', 'jane@lg.com', 'Jane Smith', 'Director', '+1-555-123-4567', '潜在客户'])
+
+    # 设置列宽
+    ws.column_dimensions['A'].width = 18
+    ws.column_dimensions['B'].width = 25
+    ws.column_dimensions['C'].width = 15
+    ws.column_dimensions['D'].width = 12
+    ws.column_dimensions['E'].width = 18
+    ws.column_dimensions['F'].width = 20
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=contact_template.xlsx"}
+    )
 
 
 @app.get("/api/prospect/template")
@@ -4700,6 +4821,42 @@ async def api_prospect_template(current_user: dict = Depends(login_required)):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=prospect_template.xlsx"}
     )
+
+
+@app.get("/api/prospect/stats")
+async def api_prospect_stats(current_user: dict = Depends(login_required)):
+    """获取Prospect统计数据"""
+    from Sills.db_prospect import get_prospect_stats
+    return {"success": True, **get_prospect_stats()}
+
+
+@app.get("/api/prospect/countries")
+async def api_prospect_countries(current_user: dict = Depends(login_required)):
+    """获取Prospect国家列表"""
+    from Sills.db_prospect import get_prospect_countries
+    return {"success": True, "countries": get_prospect_countries()}
+
+
+@app.get("/api/prospect/{prospect_id}")
+async def api_prospect_get(prospect_id: str, current_user: dict = Depends(login_required)):
+    """获取单个Prospect详情"""
+    from Sills.db_prospect import get_prospect_by_id
+    prospect = get_prospect_by_id(prospect_id)
+    if not prospect:
+        return {"success": False, "message": "Prospect不存在"}
+    return {"success": True, "prospect": prospect}
+
+
+@app.post("/api/prospect/update")
+async def api_prospect_update(request: Request, current_user: dict = Depends(login_required)):
+    """更新Prospect"""
+    from Sills.db_prospect import update_prospect
+    data = await request.json()
+    prospect_id = data.get('prospect_id')
+    if not prospect_id:
+        return {"success": False, "message": "缺少prospect_id"}
+    ok, msg = update_prospect(prospect_id, data)
+    return {"success": ok, "message": msg}
 
 
 @app.post("/api/prospect/delete")
@@ -4740,14 +4897,15 @@ async def api_prospect_batch_delete(request: Request, current_user: dict = Depen
     return {"success": ok, "message": msg}
 
 
-@app.get("/api/prospect/{prospect_id}")
-async def api_prospect_detail(prospect_id: str, current_user: dict = Depends(login_required)):
-    """获取Prospect详情"""
-    from Sills.db_prospect import get_prospect_by_id
-    prospect = get_prospect_by_id(prospect_id)
-    if prospect:
-        return {"success": True, "prospect": prospect}
-    return {"success": False, "message": "Prospect不存在"}
+@app.post("/api/prospect/clear_all")
+async def api_prospect_clear_all(current_user: dict = Depends(login_required)):
+    """清空所有Prospect"""
+    from Sills.base import get_db_connection
+    with get_db_connection() as conn:
+        deleted = conn.execute("SELECT COUNT(*) FROM uni_prospect").fetchone()[0]
+        conn.execute("DELETE FROM uni_prospect")
+        conn.commit()
+    return {"success": True, "deleted": deleted}
 
 
 @app.post("/api/prospect/add")
@@ -4867,20 +5025,6 @@ async def api_prospect_convert(request: Request, current_user: dict = Depends(lo
     return {"success": ok, "message": msg}
 
 
-@app.get("/api/prospect/stats")
-async def api_prospect_stats(current_user: dict = Depends(login_required)):
-    """获取Prospect统计数据"""
-    from Sills.db_prospect import get_prospect_stats
-    return {"success": True, **get_prospect_stats()}
-
-
-@app.get("/api/prospect/countries")
-async def api_prospect_countries(current_user: dict = Depends(login_required)):
-    """获取Prospect国家列表"""
-    from Sills.db_prospect import get_prospect_countries
-    return {"success": True, "countries": get_prospect_countries()}
-
-
 @app.post("/api/prospect/refresh_counts")
 async def api_prospect_refresh_counts(current_user: dict = Depends(login_required)):
     """刷新所有Prospect的关联联系人数量"""
@@ -4949,6 +5093,18 @@ async def api_group_delete(request: Request, current_user: dict = Depends(login_
     return {"success": success, "message": message}
 
 
+@app.post("/api/group/update")
+async def api_group_update(request: Request, current_user: dict = Depends(login_required)):
+    """更新联系人组"""
+    data = await request.json()
+    group_id = data.get('group_id', '')
+    group_name = data.get('group_name', '')
+    filter_criteria = data.get('filter_criteria', {})
+
+    success, message = update_group(group_id, group_name, filter_criteria)
+    return {"success": success, "message": message}
+
+
 @app.get("/api/group/{group_id}/contacts")
 async def api_group_contacts(
     group_id: str,
@@ -4977,16 +5133,29 @@ async def api_group_export(group_id: str, current_user: dict = Depends(login_req
     wb = Workbook()
     ws = wb.active
     ws.title = group.get('group_name', '联系人')
-    ws.append(['邮箱', '姓名', '公司', '域名', '国家', '关联客户ID'])
+    ws.append(['联系人ID', '客户ID', '邮箱', '域名', '姓名', '国家', '职位',
+               '电话', '公司', '是否退信', '是否已读', '发送次数', '退信次数',
+               '已读次数', '最后发送时间', '备注', '待开发客户名'])
 
     for c in contacts:
         ws.append([
+            c.get('contact_id', ''),
+            c.get('cli_id', ''),
             c.get('email', ''),
-            c.get('contact_name', ''),
-            c.get('company', ''),
             c.get('domain', ''),
+            c.get('contact_name', ''),
             c.get('country', ''),
-            c.get('cli_id', '')
+            c.get('position', ''),
+            c.get('phone', ''),
+            c.get('company', ''),
+            '是' if c.get('is_bounced') else '否',
+            '是' if c.get('is_read') else '否',
+            c.get('send_count', 0),
+            c.get('bounce_count', 0),
+            c.get('read_count', 0),
+            c.get('last_sent_at', ''),
+            c.get('remark', ''),
+            c.get('prospect_name', '')
         ])
 
     output = io.BytesIO()
@@ -4994,11 +5163,14 @@ async def api_group_export(group_id: str, current_user: dict = Depends(login_req
     output.seek(0)
 
     filename = f"{group.get('group_name', 'group')}_contacts.xlsx"
+    # 使用 URL 编码处理中文文件名
+    from urllib.parse import quote
+    encoded_filename = quote(filename)
 
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
     )
 
 

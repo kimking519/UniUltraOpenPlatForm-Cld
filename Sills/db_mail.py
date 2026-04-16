@@ -6,6 +6,7 @@ import sqlite3
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Any
 from Sills.base import get_db_connection
+from Sills.db_config import get_datetime_now
 from Sills.crypto_utils import encrypt_password, decrypt_password
 
 
@@ -332,10 +333,11 @@ def batch_save_emails(emails_data: list) -> int:
 
 def delete_email(mail_id: int) -> bool:
     """删除邮件（移入回收站）"""
+    dt_now = get_datetime_now()
     with get_db_connection() as conn:
         # 软删除：设置 is_deleted = 1
-        result = conn.execute("""
-            UPDATE uni_mail SET is_deleted = 1, deleted_at = datetime('now', 'localtime') WHERE id = ?
+        result = conn.execute(f"""
+            UPDATE uni_mail SET is_deleted = 1, deleted_at = {dt_now} WHERE id = ?
         """, (mail_id,))
         conn.commit()
         return result.rowcount > 0
@@ -382,10 +384,11 @@ def batch_delete_emails(mail_ids: list) -> int:
     """批量删除邮件（移入回收站）"""
     if not mail_ids:
         return 0
+    dt_now = get_datetime_now()
     with get_db_connection() as conn:
         placeholders = ','.join('?' * len(mail_ids))
         # 软删除：设置 is_deleted = 1
-        result = conn.execute(f"UPDATE uni_mail SET is_deleted = 1, deleted_at = datetime('now', 'localtime') WHERE id IN ({placeholders})", mail_ids)
+        result = conn.execute(f"UPDATE uni_mail SET is_deleted = 1, deleted_at = {dt_now} WHERE id IN ({placeholders})", mail_ids)
         conn.commit()
         return result.rowcount
 
@@ -1202,10 +1205,11 @@ def get_sync_interval() -> int:
 
 def set_sync_interval(minutes: int) -> bool:
     """设置同步间隔（分钟）"""
+    dt_now = get_datetime_now()
     with get_db_connection() as conn:
-        conn.execute("""
+        conn.execute(f"""
             INSERT INTO global_settings (key, value, updated_at)
-            VALUES ('sync_interval', ?, datetime('now', 'localtime'))
+            VALUES ('sync_interval', ?, {dt_now})
             ON CONFLICT(key) DO UPDATE SET
                 value = excluded.value,
                 updated_at = excluded.updated_at
@@ -1227,10 +1231,11 @@ def get_sync_days() -> int:
 
 def set_sync_days(days: int) -> bool:
     """设置同步时间范围（天）"""
+    dt_now = get_datetime_now()
     with get_db_connection() as conn:
-        conn.execute("""
+        conn.execute(f"""
             INSERT INTO global_settings (key, value, updated_at)
-            VALUES ('sync_days', ?, datetime('now', 'localtime'))
+            VALUES ('sync_days', ?, {dt_now})
             ON CONFLICT(key) DO UPDATE SET
                 value = excluded.value,
                 updated_at = excluded.updated_at
@@ -1252,10 +1257,11 @@ def get_undo_send_seconds() -> int:
 
 def set_undo_send_seconds(seconds: int) -> bool:
     """设置发送撤销时间（秒）"""
+    dt_now = get_datetime_now()
     with get_db_connection() as conn:
-        conn.execute("""
+        conn.execute(f"""
             INSERT INTO global_settings (key, value, updated_at)
-            VALUES ('undo_send_seconds', ?, datetime('now', 'localtime'))
+            VALUES ('undo_send_seconds', ?, {dt_now})
             ON CONFLICT(key) DO UPDATE SET
                 value = excluded.value,
                 updated_at = excluded.updated_at
@@ -1295,10 +1301,11 @@ def update_folder_last_uid(account_id: int, folder_name: str, last_uid: int) -> 
     Returns:
         是否成功
     """
+    dt_now = get_datetime_now()
     with get_db_connection() as conn:
-        conn.execute("""
+        conn.execute(f"""
             INSERT INTO mail_folder_sync_progress (account_id, folder_name, last_uid, last_sync_at)
-            VALUES (?, ?, ?, datetime('now', 'localtime'))
+            VALUES (?, ?, ?, {dt_now})
             ON CONFLICT(account_id, folder_name) DO UPDATE SET
                 last_uid = excluded.last_uid,
                 last_sync_at = excluded.last_sync_at
@@ -1338,10 +1345,11 @@ def get_signature() -> str:
 
 def set_signature(signature: str) -> bool:
     """设置邮件签名"""
+    dt_now = get_datetime_now()
     with get_db_connection() as conn:
-        conn.execute("""
+        conn.execute(f"""
             INSERT INTO global_settings (key, value, updated_at)
-            VALUES ('email_signature', ?, datetime('now', 'localtime'))
+            VALUES ('email_signature', ?, {dt_now})
             ON CONFLICT(key) DO UPDATE SET
                 value = excluded.value,
                 updated_at = excluded.updated_at
@@ -1377,17 +1385,18 @@ def set_sync_date_range(start_date: str, end_date: str) -> bool:
         start_date: 起始日期 (YYYY-MM-DD)
         end_date: 结束日期 (YYYY-MM-DD)
     """
+    dt_now = get_datetime_now()
     with get_db_connection() as conn:
-        conn.execute("""
+        conn.execute(f"""
             INSERT INTO global_settings (key, value, updated_at)
-            VALUES ('sync_start_date', ?, datetime('now', 'localtime'))
+            VALUES ('sync_start_date', ?, {dt_now})
             ON CONFLICT(key) DO UPDATE SET
                 value = excluded.value,
                 updated_at = excluded.updated_at
         """, (start_date,))
-        conn.execute("""
+        conn.execute(f"""
             INSERT INTO global_settings (key, value, updated_at)
-            VALUES ('sync_end_date', ?, datetime('now', 'localtime'))
+            VALUES ('sync_end_date', ?, {dt_now})
             ON CONFLICT(key) DO UPDATE SET
                 value = excluded.value,
                 updated_at = excluded.updated_at

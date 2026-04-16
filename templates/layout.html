@@ -1032,7 +1032,14 @@
                         th.appendChild(resizer);
 
                         // 拖动事件
-                        let startX, startWidth, isResizing = false;
+                        let startX, startWidth, minWidth, isResizing = false;
+
+                        // 计算列名最小宽度（列名文本宽度 + padding）
+                        const headerText = th.textContent.trim();
+                        const textWidth = th.querySelector('.col-resizer')
+                            ? headerText.length * 12 + 32  // 估算：每个字符约12px + padding + resizer
+                            : headerText.length * 12 + 32;
+                        minWidth = Math.max(60, textWidth);  // 最小60px
 
                         resizer.addEventListener('mousedown', (e) => {
                             isResizing = true;
@@ -1050,7 +1057,7 @@
                             if (!isResizing) return;
 
                             const diff = e.clientX - startX;
-                            const newWidth = Math.max(50, startWidth + diff);
+                            const newWidth = Math.max(minWidth, startWidth + diff);
                             th.style.width = newWidth + 'px';
                             th.style.minWidth = newWidth + 'px';
                         });

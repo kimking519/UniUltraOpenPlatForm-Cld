@@ -299,7 +299,7 @@ def get_manager_offers(manager_id):
             FROM uni_order_manager_rel r
             JOIN uni_offer o ON r.offer_id = o.offer_id
             LEFT JOIN uni_quote q ON o.quote_id = q.quote_id
-            LEFT JOIN uni_cli c ON q.cli_id = c.cli_id
+            LEFT JOIN uni_cli c ON COALESCE(o.cli_id, q.cli_id) = c.cli_id
             LEFT JOIN uni_vendor v ON o.vendor_id = v.vendor_id
             WHERE r.manager_id = ?
             ORDER BY o.created_at DESC
@@ -323,16 +323,16 @@ def get_available_offers_for_manager(cli_id=None, manager_id=None):
     with get_db_connection() as conn:
         query = """
             SELECT o.offer_id, o.offer_date, o.quoted_mpn, o.inquiry_mpn,
-                   o.offer_price_rmb, o.quoted_qty, q.cli_id, c.cli_name
+                   o.offer_price_rmb, o.quoted_qty, COALESCE(o.cli_id, q.cli_id) as cli_id, c.cli_name
             FROM uni_offer o
             LEFT JOIN uni_quote q ON o.quote_id = q.quote_id
-            LEFT JOIN uni_cli c ON q.cli_id = c.cli_id
+            LEFT JOIN uni_cli c ON COALESCE(o.cli_id, q.cli_id) = c.cli_id
             WHERE o.offer_id NOT IN (SELECT offer_id FROM uni_order_manager_rel)
         """
         params = []
 
         if cli_id:
-            query += " AND q.cli_id = ?"
+            query += " AND COALESCE(o.cli_id, q.cli_id) = ?"
             params.append(cli_id)
 
         # 如果指定了 manager_id，可以显示该客户订单已关联的报价订单

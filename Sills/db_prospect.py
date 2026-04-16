@@ -227,21 +227,24 @@ def import_prospects(data_list):
     """
     批量导入Prospect
     data_list: [{prospect_name, company_website, domain, country, remark}, ...]
+    使用批量操作优化性能，单条失败不影响整体
     """
     success_count = 0
     skipped_count = 0
     errors = []
 
-    with get_db_connection() as conn:
-        for data in data_list:
-            try:
-                prospect_name = data.get('prospect_name', '').strip()
-                domain = data.get('domain', '').strip().lower()
+    # 使用独立连接处理每条记录，避免事务错误累积
+    for data in data_list:
+        try:
+            prospect_name = data.get('prospect_name', '').strip()
+            domain = data.get('domain', '').strip().lower()
 
-                if not prospect_name or not domain:
-                    skipped_count += 1
-                    continue
+            if not prospect_name or not domain:
+                skipped_count += 1
+                continue
 
+            # 每条记录使用独立连接（PostgreSQL特性）
+            with get_db_connection() as conn:
                 # 检查是否已存在
                 existing = conn.execute(
                     "SELECT prospect_id FROM uni_prospect WHERE domain = ?",
@@ -253,7 +256,6 @@ def import_prospects(data_list):
 
                 prospect_id = get_next_prospect_id()
                 is_public = 1 if is_public_domain(domain) else 0
-                contact_count = count_contacts_by_domain(domain)
 
                 conn.execute("""
                     INSERT INTO uni_prospect (
@@ -266,16 +268,19 @@ def import_prospects(data_list):
                     domain,
                     data.get('country', ''),
                     'pending',
-                    contact_count,
+                    0,
                     is_public,
                     data.get('remark', '')
                 ))
+                # with语句结束时自动commit
                 success_count += 1
 
-            except Exception as e:
-                errors.append(f"{data.get('domain', '未知')}: {str(e)}")
-
-        conn.commit()
+        except Exception as e:
+            error_msg = str(e)
+            if 'duplicate key' in error_msg.lower() or 'already exists' in error_msg.lower():
+                skipped_count += 1
+            else:
+                errors.append(f"{data.get('domain', '未知')}: {error_msg}")
 
     return success_count, skipped_count, errors
 

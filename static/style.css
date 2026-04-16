@@ -1464,8 +1464,9 @@ input:checked + .slider:before {
    ============================================ */
 .pagination {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
+    gap: 0.5rem;
     padding: 1rem;
     border-top: var(--border-light);
     background: var(--bg-glass);
