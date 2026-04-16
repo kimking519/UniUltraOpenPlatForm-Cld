@@ -2234,7 +2234,7 @@ MAIL_TYPE_KEYWORDS = {
     # 未读回执 (mail_type = 2)
     'unread': [
         'Not read', 'Nicht gelesen', 'Non letto', '未读', 'Non lu', '읽지 않음', '未開封',
-        'Automatic reply', '自動', '自動返信', 'Unzustellbar:', '未_封',
+        'Automatic reply', '自動', '自動返信', '未_封',
         'Auto', 'Automatische Antwort', 'Autoresponder'
     ],
     # 系统退信 (mail_type = 3)
@@ -2242,7 +2242,8 @@ MAIL_TYPE_KEYWORDS = {
         '系统退信', 'Undeliverable', 'Delivery failure', 'Delivery Status',
         'Return Notice', 'Fehlgeschlagen', 'SPAM', 'Returned mail',
         '配信不能', 'Returne', 'failure notice', 'FAILURE NOTICE',
-        'NDR', 'Delivery Failure', '배달되지 않음', 'failed', 'ERREUR'
+        'NDR', 'Delivery Failure', '배달되지 않음', 'failed', 'ERREUR',
+        'Unzustellbar'
     ]
 }
 
