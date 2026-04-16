@@ -269,3 +269,51 @@ def get_smtp_server_for_email(email):
         return "smtphz.qiye.163.com"
     else:
         return "smtp.163.com"
+
+
+def set_primary_account(account_id):
+    """设置主账号（用于代理发送）
+
+    Args:
+        account_id: 账号ID
+
+    Returns:
+        (success, message) tuple
+    """
+    try:
+        with get_db_connection() as conn:
+            # 先清除所有账号的主账号标记
+            conn.execute("UPDATE uni_email_account SET is_primary = 0")
+            # 设置指定账号为主账号
+            result = conn.execute(
+                "UPDATE uni_email_account SET is_primary = 1 WHERE account_id = ?",
+                (account_id,)
+            )
+            conn.commit()
+            if result.rowcount > 0:
+                return True, "主账号设置成功"
+            else:
+                return False, "账号不存在"
+    except Exception as e:
+        return False, str(e)
+
+
+def get_primary_account():
+    """获取主账号信息
+
+    Returns:
+        主账号信息字典，如果没有返回None
+    """
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM uni_email_account WHERE is_primary = 1"
+        ).fetchone()
+        if row:
+            data = {k: ("" if v is None else v) for k, v in dict(row).items()}
+            if data.get('password'):
+                try:
+                    data['password'] = decrypt_password(data['password'])
+                except:
+                    pass
+            return data
+        return None

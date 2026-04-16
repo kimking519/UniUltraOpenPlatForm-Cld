@@ -521,6 +521,7 @@ CREATE TABLE IF NOT EXISTS uni_email_account (
     daily_limit INTEGER DEFAULT 1800,
     sent_today INTEGER DEFAULT 0,
     last_reset_date TEXT,
+    is_primary INTEGER DEFAULT 0,     -- 是否为主账号(joy@unicornsemi.com)，用于代理发送
     created_at TIMESTAMP DEFAULT NOW()
 );
 
